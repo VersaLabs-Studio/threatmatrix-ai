@@ -29,7 +29,7 @@ Follow this workflow at the start of each development day.
 7. Run the dev stack to verify changes:
 
    ```
-   docker-compose -f docker-compose.dev.yml up -d
+   docker compose -f docker-compose.dev.yml up -d
    ```
 
 8. For backend development, run the FastAPI dev server:

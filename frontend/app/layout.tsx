@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "ThreatMatrix AI — Command Center",
   description:
     "AI-Powered Network Anomaly Detection and Cyber Threat Intelligence System",
+  icons: {
+    icon: "/favicon.svg",
+  },
   keywords: [
     "cybersecurity",
     "threat detection",

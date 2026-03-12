@@ -18,7 +18,7 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.2.1
 
 # Redis
-redis[hiredis]==5.2.2
+redis[hiredis]==5.2.1
 
 # ML - Classical
 scikit-learn==1.6.1

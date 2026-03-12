@@ -13,19 +13,19 @@ dev-frontend: ## Start Next.js frontend dev server
 
 # ── Docker ───────────────────────────────────────────────────
 docker-up: ## Start PostgreSQL + Redis containers
-	docker-compose up -d postgres redis
+	docker compose up -d postgres redis
 
 docker-up-all: ## Start entire stack (PG + Redis + Backend + ML Worker)
-	docker-compose up -d --build
+	docker compose up -d --build
 
 docker-down: ## Stop all containers
-	docker-compose down
+	docker compose down
 
 docker-logs: ## Follow container logs
-	docker-compose logs -f
+	docker compose logs -f
 
 docker-ps: ## Show running containers
-	docker-compose ps
+	docker compose ps
 
 # ── Database ─────────────────────────────────────────────────
 db-migrate: ## Run Alembic migrations
@@ -35,8 +35,8 @@ db-revision: ## Create new Alembic migration (usage: make db-revision msg="descr
 	cd backend && alembic revision --autogenerate -m "$(msg)"
 
 db-reset: ## Drop and recreate database (DESTRUCTIVE)
-	docker-compose down -v postgres
-	docker-compose up -d postgres
+	docker compose down -v postgres
+	docker compose up -d postgres
 	sleep 3
 	cd backend && alembic upgrade head
 

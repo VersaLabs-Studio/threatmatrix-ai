@@ -1,3 +1,4 @@
+import Link from "next/link";
 import styles from "./page.module.css";
 
 export default function Home() {
@@ -64,6 +65,12 @@ export default function Home() {
             <span className={styles.infoValue}>WEEK 1 — FOUNDATION</span>
           </div>
         </div>
+
+        {/* Temporarily added: Navigation to War Room */}
+        <Link href="/war-room" className={styles.ctaButton}>
+          <span>ENTER COMMAND CENTER</span>
+          <span className={styles.btnIcon}>→</span>
+        </Link>
 
         {/* Decorative grid corners */}
         <div className={styles.cornerTL} />
