@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Sidebar }   from "@/components/layout/Sidebar";
+import { TopBar }    from "@/components/layout/TopBar";
+import { StatusBar } from "@/components/layout/StatusBar";
 
 export const metadata: Metadata = {
   title: "ThreatMatrix AI — Command Center",
@@ -24,7 +27,24 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <div className="bg-mesh" />
+        <div className="app-shell">
+          {/* Column 1 — Sidebar spans all rows */}
+          <Sidebar />
+
+          {/* Column 2, Row 1 — Top bar */}
+          <TopBar />
+
+          {/* Column 2, Row 2 — Main scrollable content */}
+          <main className="main-content page-enter">
+            {children}
+          </main>
+
+          {/* Column 2, Row 3 — Status bar */}
+          <StatusBar />
+        </div>
+      </body>
     </html>
   );
 }

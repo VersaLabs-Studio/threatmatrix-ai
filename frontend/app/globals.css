@@ -4,7 +4,7 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 /* ── Google Fonts ──────────────────────────────────────────────── */
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap");
 
 /* ── CSS Reset ─────────────────────────────────────────────────── */
 *,
@@ -17,49 +17,61 @@
 
 /* ── Design Tokens ─────────────────────────────────────────────── */
 :root {
-  /* Backgrounds */
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #111118;
-  --bg-tertiary: #1a1a24;
-  --bg-elevated: #222230;
-  --bg-hover: #2a2a3a;
+  /* The "Deep Space" Palette (HSL) — Deep Abyss Refined */
+  --background-raw: 228 28% 5%;
+  --bg-primary:     hsl(var(--background-raw));
+  --bg-secondary:   hsl(228 24% 8%);
+  --bg-tertiary:    hsl(228 22% 11%);
+  --bg-elevated:    hsl(228 20% 15%);
+  --bg-hover:       hsl(228 18% 20%);
 
-  /* Accent — Cyber Cyan */
-  --cyan: #00f0ff;
-  --cyan-dim: rgba(0, 240, 255, 0.2);
-  --cyan-muted: rgba(0, 240, 255, 0.08);
-  --cyan-glow:
-    0 0 20px rgba(0, 240, 255, 0.25), 0 0 40px rgba(0, 240, 255, 0.1);
+  /* Accent — Soothing Teal/Cyan & Muted Lavender */
+  --accent-primary-raw:   195 85% 58%;
+  --cyan:                 hsl(var(--accent-primary-raw));
+  --accent-secondary-raw: 265 70% 72%;
+  --purple:               hsl(var(--accent-secondary-raw));
+  
+  --cyan-dim:   hsla(var(--accent-primary-raw) / 0.2);
+  --cyan-muted: hsla(var(--accent-primary-raw) / 0.08);
+  --cyan-glow:  0 0 20px hsla(var(--accent-primary-raw) / 0.25), 0 0 40px hsla(var(--accent-primary-raw) / 0.1);
 
-  /* Severity Colors */
-  --critical: #ef4444;
-  --critical-dim: rgba(239, 68, 68, 0.2);
-  --critical-glow: 0 0 15px rgba(239, 68, 68, 0.3);
-  --high: #f97316;
-  --high-dim: rgba(249, 115, 22, 0.2);
-  --warning: #f59e0b;
-  --warning-dim: rgba(245, 158, 11, 0.2);
-  --safe: #22c55e;
-  --safe-dim: rgba(34, 197, 94, 0.2);
-  --info: #3b82f6;
-  --info-dim: rgba(59, 130, 246, 0.2);
+  /* Glassmorphism 3.0 — Obsidian Refraction */
+  --glass-bg:         rgba(12, 18, 36, 0.55);
+  --glass-border:     rgba(255, 255, 255, 0.06);
+  --glass-bg-hover:   rgba(22, 33, 52, 0.72);
+  --glass-border-hover: rgba(255, 255, 255, 0.15);
+
+  /* Severity Colors — Warm and Soothing, but punchy when active */
+  --critical:       hsl(0 72% 56%);
+  --critical-dim:   hsla(0 72% 56% / 0.2);
+  --critical-glow:  0 0 15px hsla(0 72% 56% / 0.3);
+  --high:           hsl(25 90% 55%);
+  --high-dim:       hsla(25 90% 55% / 0.2);
+  --warning:        hsl(40 92% 56%);
+  --warning-dim:    hsla(40 92% 56% / 0.2);
+  --safe:           hsl(152 60% 48%);
+  --safe-dim:       hsla(152 60% 48% / 0.2);
+  --info:           hsl(217 80% 60%);
+  --info-dim:       hsla(217 80% 60% / 0.2);
+
+  /* Obsidian Refraction v3.0 Texture & Kinetic Vars */
+  --noise-filter: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  --card-border-angle: 0deg;
+  --glass-tilt-x: 0deg;
+  --glass-tilt-y: 0deg;
+  --spotlight-color: hsla(var(--accent-primary-raw) / 0.08);
+  --spotlight-radius: 350px;
 
   /* Text */
-  --text-primary: #e2e8f0;
+  --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
-  --text-muted: #475569;
-  --text-inverse: #0a0a0f;
-
-  /* Borders & Surfaces */
-  --border: rgba(255, 255, 255, 0.06);
-  --border-active: rgba(0, 240, 255, 0.3);
-  --glass-bg: rgba(255, 255, 255, 0.02);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-bg-hover: rgba(255, 255, 255, 0.04);
+  --text-muted: #64748b;
+  --text-inverse: #020617;
 
   /* Typography */
   --font-data: "JetBrains Mono", monospace;
   --font-ui: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: "Outfit", sans-serif;
 
   /* Font Sizes */
   --text-xs: 0.75rem;
@@ -91,13 +103,14 @@
 
   /* Layout */
   --sidebar-width: 64px;
-  --topbar-height: 56px;
+  --topbar-height: 64px;
   --statusbar-height: 32px;
 
   /* Transitions */
-  --transition-fast: 150ms ease;
-  --transition-base: 250ms ease;
-  --transition-slow: 400ms ease;
+  --transition-fast: 150ms cubic-bezier(0.23, 1, 0.32, 1);
+  --transition-base: 300ms cubic-bezier(0.23, 1, 0.32, 1);
+  --transition-slow: 400ms cubic-bezier(0.23, 1, 0.32, 1);
+  --transition-spring: 500ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
 
   /* Z-Index Scale */
   --z-sidebar: 100;
@@ -107,12 +120,20 @@
   --z-notification: 400;
 }
 
+/* Obsidian Refraction v3.0 @property definition for animating conic-gradient */
+@property --card-border-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
 /* ── Base Styles ───────────────────────────────────────────────── */
 html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
+  background-color: var(--bg-primary);
 }
 
 body {
@@ -122,6 +143,13 @@ body {
   line-height: 1.6;
   min-height: 100vh;
   overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 
 /* ── Scrollbar ─────────────────────────────────────────────────── */
@@ -161,6 +189,14 @@ a:hover {
 }
 
 /* ── Keyframe Animations ──────────────────────────────────────── */
+
+/* Scanning sweep for badges */
+@keyframes scanning {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 0.5; }
+  90% { opacity: 0.5; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
 
 /* Scan line — horizontal sweep across panels */
 @keyframes scanline {
@@ -257,40 +293,210 @@ a:hover {
   }
 }
 
+/* Haptic button press/card interaction */
+@keyframes haptic-press {
+  0%   { transform: scale(1);    filter: brightness(1) blur(0px); }
+  40%  { transform: scale(0.975); filter: brightness(1.08) blur(0.5px); }
+  100% { transform: scale(1);    filter: brightness(1) blur(0px); }
+}
+
+/* Rotates the refractive border */
+@keyframes border-rotate {
+  to { --card-border-angle: 360deg; }
+}
+
+/* Breathe effect for Critical severity borders */
+@keyframes severity-breathe {
+  0%, 100% { border-color: rgba(255, 255, 255, 0.06); }
+  50%      { border-color: rgba(255, 255, 255, 0.25); }
+}
+
+/* Staggered entrance for alerts */
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ── Utility Classes ───────────────────────────────────────────── */
 
-/* Glass Panel — primary container */
+/* Deep Mesh Background */
+.bg-mesh {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  background-color: var(--bg-primary);
+  background-image: 
+    radial-gradient(at 0% 0%, hsla(230, 25%, 15%, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, hsla(270, 95%, 75%, 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, hsla(217, 91%, 60%, 0.05) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, hsla(230, 25%, 10%, 0.1) 0px, transparent 50%);
+}
+
+/* Glass Panel 3.0 — primary container */
 .glass-panel {
   background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: var(--space-6);
-  transition:
-    border-color var(--transition-base),
-    background var(--transition-base);
+  transition: opacity var(--transition-base), background var(--transition-base), box-shadow var(--transition-base); /* Exclude transform for performance */
+  position: relative;
+  overflow: hidden;
+  /* Obsidian Refraction 3.0 Additions */
+  transform-style: preserve-3d;
+  perspective: 1200px;
+  will-change: transform, border-color;
+  /* The dynamic tilt is controlled inline via style tags in React, but we set base here */
+  transform: rotateX(var(--glass-tilt-x)) rotateY(var(--glass-tilt-y));
+}
+
+/* Refractive Conic Gradient Border Effect */
+.glass-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--card-border-angle),
+    transparent 0%,
+    rgba(255,255,255,0.2) 8%,
+    transparent 16%,
+    transparent 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Noise overlay */
+.glass-panel-noise::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--noise-filter);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.4;
+  mix-blend-mode: overlay;
+}
+
+/* Spotlight Effect */
+.glass-panel .spotlight {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    var(--spotlight-radius) circle at var(--mouse-x, 0) var(--mouse-y, 0),
+    var(--spotlight-color),
+    transparent 80%
+  );
+  opacity: 0;
+  transition: opacity 0.5s var(--transition-base);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.glass-panel:hover .spotlight {
+  opacity: 1;
 }
 
 .glass-panel:hover {
   background: var(--glass-bg-hover);
-  border-color: var(--border-active);
+  border-color: var(--glass-border-hover);
+  box-shadow: 0 20px 40px -20px rgba(0,0,0,0.5);
+  /* hover scale is handled via container 3d transform or metric card specifically now */
+}
+
+/* The "Aether" Button Style */
+.btn-aether {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-aether:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-aether::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: var(--cyan);
+  filter: blur(40px);
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+  z-index: -1;
+}
+
+.btn-aether:hover::after {
+  width: 100px;
+  height: 40px;
+  opacity: 0.15;
 }
 
 /* Glass Panel — no hover variant */
 .glass-panel-static {
   background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: var(--space-6);
+  position: relative;
+}
+
+.glass-panel-static::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 /* Scan line overlay */
 .scanline-overlay {
-  position: relative;
+  position: absolute;
+  inset: 0;
   overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 .scanline-overlay::after {
@@ -354,6 +560,22 @@ a:hover {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Scanning line overlay for badges */
+.severity-badge::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: white;
+  opacity: 0.3;
+  animation: scanning 3s linear infinite;
+  pointer-events: none;
 }
 
 .severity-badge--critical {
@@ -454,22 +676,24 @@ a:hover {
   grid-column: 2;
   grid-row: 2;
   padding: var(--space-6);
+  padding-top: calc(var(--topbar-height) + var(--space-8));
   overflow-y: auto;
-  max-height: calc(100vh - var(--topbar-height) - var(--statusbar-height));
+  max-height: calc(100vh - var(--statusbar-height));
 }
 
 /* Sidebar area */
 .sidebar {
   grid-column: 1;
   grid-row: 1 / -1;
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--border);
+  background: hsl(230 25% 6%);
+  border-right: 1px solid var(--glass-border);
   z-index: var(--z-sidebar);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: var(--space-4);
-  gap: var(--space-2);
+  padding-top: var(--space-6);
+  gap: var(--space-3);
+  backdrop-filter: blur(8px);
 }
 
 /* Top bar area */
