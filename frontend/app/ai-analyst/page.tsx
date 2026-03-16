@@ -10,7 +10,6 @@ import { useLLM } from '@/hooks/useLLM';
 import { ChatInterface } from '@/components/ai-analyst/ChatInterface';
 import { QuickActions }  from '@/components/ai-analyst/QuickActions';
 import { ContextPanel }  from '@/components/ai-analyst/ContextPanel';
-import { GlassPanel }    from '@/components/shared/GlassPanel';
 import { Send, Trash2, Cpu } from 'lucide-react';
 
 export default function AIAnalystPage() {

@@ -60,7 +60,6 @@ export function useAlerts(filters: AlertFilters = {}): UseAlertsReturn {
   const { severity = 'all', status = 'all', page = 1, limit = 50 } = filters;
 
   const fetchAlerts = useCallback(async () => {
-    setLoading(true);
     const params: Record<string, string | number | undefined> = { page, limit };
     if (severity !== 'all') params.severity = severity;
     if (status   !== 'all') params.status   = status;

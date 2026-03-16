@@ -8,11 +8,19 @@
 import { useState } from 'react';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 import { DataTable }  from '@/components/shared/DataTable';
-import { StatusBadge } from '@/components/shared/StatusBadge';
-import { Search, Database, Globe, Activity } from 'lucide-react';
+import { Search, Activity } from 'lucide-react';
+
+interface IOC {
+  type: string;
+  indicator: string;
+  source: string;
+  risk: number;
+  seen: string;
+  tags: string[];
+}
 
 // Mock IOC Data
-const MOCK_IOCS = [
+const MOCK_IOCS: IOC[] = [
   { type: 'IP', indicator: '104.21.55.12', source: 'OTX', risk: 88, seen: '2026-03-10', tags: ['C2', 'CobaltStrike'] },
   { type: 'DOMAIN', indicator: 'microsoft-update.security.com', source: 'VirusTotal', risk: 94, seen: '2026-03-11', tags: ['Phishing'] },
   { type: 'HASH', indicator: '7a58e1c...b2e', source: 'Internal', risk: 100, seen: '2026-03-09', tags: ['Ransomware.LockBit'] },
@@ -29,13 +37,13 @@ export default function IntelHubPage() {
   );
 
   const COLUMNS = [
-    { key: 'type',      header: 'TYPE',  width: 70, render: (r: any) => <span style={{ color: 'var(--text-muted)', fontWeight: 700 }}>{r.type}</span> },
-    { key: 'indicator', header: 'INDICATOR', width: 220, render: (r: any) => <code style={{ color: 'var(--cyan)' }}>{r.indicator}</code> },
+    { key: 'type',      header: 'TYPE',  width: 70, render: (r: IOC) => <span style={{ color: 'var(--text-muted)', fontWeight: 700 }}>{r.type}</span> },
+    { key: 'indicator', header: 'INDICATOR', width: 220, render: (r: IOC) => <code style={{ color: 'var(--cyan)' }}>{r.indicator}</code> },
     { key: 'source',    header: 'SOURCE', width: 100 },
-    { key: 'risk',      header: 'RISK',   width: 70, render: (r: any) => (
+    { key: 'risk',      header: 'RISK',   width: 70, render: (r: IOC) => (
       <span style={{ color: r.risk > 80 ? 'var(--critical)' : r.risk > 50 ? 'var(--warning)' : 'var(--info)' }}>{r.risk}%</span>
     )},
-    { key: 'tags',      header: 'TAGS',   width: 180, render: (r: any) => (
+    { key: 'tags',      header: 'TAGS',   width: 180, render: (r: IOC) => (
       <div style={{ display: 'flex', gap: 4 }}>
         {r.tags.map((t: string) => (
           <span key={t} style={{ fontSize: '0.6rem', padding: '1px 6px', border: '1px solid var(--border)', borderRadius: 4, background: 'rgba(255,255,255,0.05)' }}>{t}</span>
@@ -122,7 +130,13 @@ export default function IntelHubPage() {
   );
 }
 
-function FeedCard({ name, status, count }: any) {
+interface FeedCardProps {
+  name: string;
+  status: 'ONLINE' | 'STANDBY' | 'OFFLINE';
+  count: string;
+}
+
+function FeedCard({ name, status, count }: FeedCardProps) {
   return (
     <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)' }}>
       <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>{name}</div>
