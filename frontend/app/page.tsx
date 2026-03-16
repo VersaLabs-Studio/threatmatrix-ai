@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 import Link from "next/link";
 import styles from "./page.module.css";
 
@@ -78,4 +79,11 @@ export default function Home() {
       </div>
     </div>
   );
+=======
+// Root page — redirect to War Room
+import { redirect } from 'next/navigation';
+
+export default function Home() {
+  redirect('/war-room');
+>>>>>>> Stashed changes
 }
