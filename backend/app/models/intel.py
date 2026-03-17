@@ -6,7 +6,7 @@ SQLAlchemy ORM model for the threat_intel_iocs table.
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, Index, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Float, Index, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 

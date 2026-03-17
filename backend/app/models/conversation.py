@@ -3,10 +3,9 @@ ThreatMatrix AI — LLM Conversation Model
 SQLAlchemy ORM model for the llm_conversations table.
 """
 
-from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Integer, String, Text, func
+from sqlalchemy import Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

@@ -6,7 +6,7 @@ SQLAlchemy ORM model for the alerts table.
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text, func
+from sqlalchemy import DateTime, Float, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, INET, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

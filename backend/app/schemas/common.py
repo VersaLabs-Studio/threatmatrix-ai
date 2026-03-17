@@ -4,7 +4,6 @@ Shared request/response schemas used across all modules.
 """
 
 from datetime import datetime
-from uuid import UUID
 
 from pydantic import BaseModel, Field
 

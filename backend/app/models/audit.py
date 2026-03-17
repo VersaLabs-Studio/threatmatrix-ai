@@ -6,7 +6,7 @@ SQLAlchemy ORM model for the audit_log table.
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Index, String, Text, func
+from sqlalchemy import DateTime, Index, String, func
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
