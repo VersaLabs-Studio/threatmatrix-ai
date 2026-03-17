@@ -1,91 +1,152 @@
 'use client';
 
-import { mockIntelFeeds } from '@/lib/mock-data/intel';
-import { Search, Globe, Shield, Activity, Target, Zap } from 'lucide-react';
+// ═══════════════════════════════════════════════════════
+// ThreatMatrix AI — Intel Hub (v0.4.0)
+// IOC Browser and External Intelligence Feeds
+// ═══════════════════════════════════════════════════════
+
+import { useState } from 'react';
+import { GlassPanel } from '@/components/shared/GlassPanel';
+import { DataTable }  from '@/components/shared/DataTable';
+import { Search, Activity } from 'lucide-react';
+
+interface IOC {
+  type: string;
+  indicator: string;
+  source: string;
+  risk: number;
+  seen: string;
+  tags: string[];
+}
+
+// Mock IOC Data
+const MOCK_IOCS: IOC[] = [
+  { type: 'IP', indicator: '104.21.55.12', source: 'OTX', risk: 88, seen: '2026-03-10', tags: ['C2', 'CobaltStrike'] },
+  { type: 'DOMAIN', indicator: 'microsoft-update.security.com', source: 'VirusTotal', risk: 94, seen: '2026-03-11', tags: ['Phishing'] },
+  { type: 'HASH', indicator: '7a58e1c...b2e', source: 'Internal', risk: 100, seen: '2026-03-09', tags: ['Ransomware.LockBit'] },
+  { type: 'IP', indicator: '185.220.101.4', source: 'AbuseIPDB', risk: 72, seen: '2026-03-12', tags: ['Tor Exit Node'] },
+  { type: 'DOMAIN', indicator: 'free-vpn-service.net', source: 'OTX', risk: 45, seen: '2026-03-11', tags: ['Grayware'] },
+];
 
 export default function IntelHubPage() {
-  return (
-    <div className="page-enter" style={{ padding: 'var(--space-4)' }}>
-      <header className="mb-6 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Globe className="text-[var(--purple)]" size={32} />
-            Threat Intelligence Hub
-          </h1>
-          <p className="text-[var(--text-muted)] font-mono text-sm mt-1">
-            NETWORK: <span className="text-[var(--purple)] animate-pulse">GLOBAL SYNC ACTIVE</span>
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <div className="glass-panel-static flex items-center gap-2 py-2 px-4 text-primary">
-            <Search size={16} className="text-[var(--text-muted)]" />
-            <input 
-              type="text" 
-              placeholder="Search threat actors..." 
-              className="bg-transparent border-none outline-none font-mono text-sm placeholder:text-[var(--text-muted)]"
-            />
-          </div>
-        </div>
-      </header>
+  const [search, setSearch] = useState('');
 
-      <div className="grid-3 mb-8">
-        <div className="glass-panel glass-panel-noise">
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 rounded bg-[var(--cyan-dim)]">
-              <Shield size={20} className="text-[var(--cyan)]" />
-            </div>
-            <span className="text-[var(--safe)] text-xs font-mono">STABLE</span>
-          </div>
-          <h3 className="metric-label">OTX AlienVault</h3>
-          <div className="metric-value metric-value--cyan mt-1">1.2M IOCs</div>
-        </div>
-        <div className="glass-panel glass-panel-noise">
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 rounded bg-[var(--purple-dim)]">
-              <Activity size={20} className="text-[var(--purple)]" />
-            </div>
-            <span className="text-[var(--safe)] text-xs font-mono">CONNECTED</span>
-          </div>
-          <h3 className="metric-label">AbuseIPDB</h3>
-          <div className="metric-value text-[var(--purple)] mt-1">450K IPs</div>
-        </div>
-        <div className="glass-panel glass-panel-noise">
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 rounded bg-[var(--high-dim)]">
-              <Zap size={20} className="text-[var(--high)]" />
-            </div>
-            <span className="text-[var(--high)] text-xs font-mono opacity-50">SYNCING...</span>
-          </div>
-          <h3 className="metric-label">VirusTotal</h3>
-          <div className="metric-value text-[var(--high)] mt-1">PREMIUM</div>
+  const filtered = MOCK_IOCS.filter(i => 
+    i.indicator.toLowerCase().includes(search.toLowerCase()) || 
+    i.tags.some(t => t.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const COLUMNS = [
+    { key: 'type',      header: 'TYPE',  width: 70, render: (r: IOC) => <span style={{ color: 'var(--text-muted)', fontWeight: 700 }}>{r.type}</span> },
+    { key: 'indicator', header: 'INDICATOR', width: 220, render: (r: IOC) => <code style={{ color: 'var(--cyan)' }}>{r.indicator}</code> },
+    { key: 'source',    header: 'SOURCE', width: 100 },
+    { key: 'risk',      header: 'RISK',   width: 70, render: (r: IOC) => (
+      <span style={{ color: r.risk > 80 ? 'var(--critical)' : r.risk > 50 ? 'var(--warning)' : 'var(--info)' }}>{r.risk}%</span>
+    )},
+    { key: 'tags',      header: 'TAGS',   width: 180, render: (r: IOC) => (
+      <div style={{ display: 'flex', gap: 4 }}>
+        {r.tags.map((t: string) => (
+          <span key={t} style={{ fontSize: '0.6rem', padding: '1px 6px', border: '1px solid var(--border)', borderRadius: 4, background: 'rgba(255,255,255,0.05)' }}>{t}</span>
+        ))}
+      </div>
+    )},
+  ];
+
+  return (
+    <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+      
+      {/* Page Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontSize: '1.2rem' }}>🛡️</span>
+        <div>
+          <h1 style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--cyan)', letterSpacing: '0.12em', margin: 0 }}>
+            THREAT INTELLIGENCE HUB
+          </h1>
+          <p style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>
+            Global Threat Feeds & IOC Correlation
+          </p>
         </div>
       </div>
 
-      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-        <Target size={20} className="text-[var(--critical)]" />
-        High-Value Target Monitoring
-      </h2>
-      
-      <div className="grid-3">
-        {mockIntelFeeds.map(feed => (
-          <div key={feed.id} className="glass-panel glass-panel-noise hover:scale-[1.02] transition-transform cursor-pointer">
-            <div className="flex flex-col h-full">
-              <div className="flex justify-between items-start mb-4">
-                <span className="severity-badge severity-badge--high">{feed.type}</span>
-                <span className="font-mono text-[10px] text-[var(--text-muted)]">{feed.id}</span>
-              </div>
-              <h3 className="text-xl font-bold mb-1">{feed.actor}</h3>
-              <p className="text-[var(--text-muted)] text-xs mb-4">CONFIDENCE: <span className="text-[var(--cyan)]">{feed.confidence}</span></p>
-              
-              <div className="mt-auto pt-4 border-t border-[var(--glass-border)] flex items-center justify-between">
-                <span className="text-xs text-[var(--text-secondary)] font-mono">{feed.status}</span>
-                <div className="status-dot status-dot--live"></div>
-              </div>
-            </div>
+      {/* Row 1: Feed Status */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-3)' }}>
+        <FeedCard name="OTX ALIENVAULT" status="ONLINE" count="1.2M IOCs" />
+        <FeedCard name="ABUSEIPDB"      status="ONLINE" count="450K IPs" />
+        <FeedCard name="VIRUSTOTAL"     status="ONLINE" count="Premium" />
+        <FeedCard name="INTERNAL"       status="STANDBY" count="842 IOCs" />
+      </div>
+
+      {/* Row 2: IOC Browser */}
+      <GlassPanel static title="IOC BROWSER" icon="🔍">
+        <div style={{ marginBottom: 'var(--space-4)', display: 'flex', gap: 12 }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              placeholder="Search indicators or tags..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 8px 8px 32px',
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-primary)',
+                fontFamily: 'var(--font-data)',
+                fontSize: '0.75rem',
+              }}
+            />
           </div>
-        ))}
+        </div>
+
+        <DataTable
+          columns={COLUMNS}
+          data={filtered}
+          rowKey={(r) => r.indicator}
+          maxHeight="calc(100vh - 380px)"
+        />
+      </GlassPanel>
+
+      {/* Row 3: Correlation Info */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+         <GlassPanel static title="FEED RECENT ACTIVITY" icon="📊">
+            <div style={{ height: 100, display: 'flex', alignItems: 'flex-end', gap: 4, padding: 10 }}>
+               {[40, 70, 45, 90, 65, 80, 55, 30].map((h, i) => (
+                 <div key={i} style={{ flex: 1, height: `${h}%`, background: 'var(--cyan-muted)', borderRadius: 2 }} />
+               ))}
+            </div>
+            <div style={{ fontSize: '0.65rem', textAlign: 'center', color: 'var(--text-muted)' }}>Sync activity last 8 hours</div>
+         </GlassPanel>
+         <GlassPanel static title="LOCAL CORRELATION" icon="🧠">
+            <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+               <Activity size={24} style={{ display: 'block', margin: '0 auto 0.5rem', opacity: 0.5 }} />
+               All active flows (past 24h) analyzed against global IOCs.<br />
+               <strong>0 matches found in clean traffic.</strong>
+            </div>
+         </GlassPanel>
       </div>
     </div>
   );
 }
 
+interface FeedCardProps {
+  name: string;
+  status: 'ONLINE' | 'STANDBY' | 'OFFLINE';
+  count: string;
+}
+
+function FeedCard({ name, status, count }: FeedCardProps) {
+  return (
+    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)' }}>
+      <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>{name}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>{count}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.6rem', fontWeight: 700, color: status === 'ONLINE' ? 'var(--cyan)' : 'var(--text-muted)' }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: status === 'ONLINE' ? 'var(--cyan)' : 'var(--text-muted)' }} />
+          {status}
+        </div>
+      </div>
+    </div>
+  );
+}
