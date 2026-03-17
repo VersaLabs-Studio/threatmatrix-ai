@@ -1,12 +1,11 @@
 'use client';
 
 // ═══════════════════════════════════════════════════════
-// ThreatMatrix AI — useLLM Hook
-// Handles AI Analyst chat with SSE streaming
+// ThreatMatrix AI — useLLM Hook (MOCKED)
+// Simulates AI streaming responses character by character
 // ═══════════════════════════════════════════════════════
 
 import { useState, useCallback, useRef } from 'react';
-import { API_BASE_URL } from '@/lib/constants';
 
 export interface ChatMessage {
   id: string;
@@ -25,14 +24,31 @@ interface UseLLMReturn {
   clearMessages: () => void;
 }
 
-export function useLLM(): UseLLMReturn {
-  const [messages, setMessages]     = useState<ChatMessage[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [error, setError]           = useState<string | null>(null);
-  const [tokenBudget, setTokenBudget] = useState<{ spent: number; total: number } | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+// Some simulated dynamic responses based on common demo queries
+const generateResponseFor = (input: string) => {
+  const lowercase = input.toLowerCase();
+  if (lowercase.includes('alert') || lowercase.includes('apt-29')) {
+    return 'Analysis of ALT-9042 confirms an active data exfiltration event. The traffic pattern strongly correlates with APT-29 signatures. I have isolated the affected Database Subnet and generated a preliminary incident report. Would you like me to initiate the auto-remediation playbook?';
+  }
+  if (lowercase.includes('network') || lowercase.includes('flow')) {
+    return 'Current network status indicates elevated load due to a DNS tunneling anomaly detected 3 minutes ago. I am currently monitoring the source IPs (primarily 45.33.32.156) and dynamically adjusting rate limits to mitigate the impact.';
+  }
+  return `Acknowledged. Evaluating query: "${input}". Based on the current threat intelligence and telemetry data, I do not detect any immediate critical anomalies related to this. However, I will continue to process the logs in the background and notify you of any deviations.`;
+};
 
-  const sendMessage = useCallback(async (content: string, context?: Record<string, unknown>) => {
+export function useLLM(): UseLLMReturn {
+  const [messages, setMessages]     = useState<ChatMessage[]>([{
+    id: 'msg-welcome',
+    role: 'assistant',
+    content: 'ThreatMatrix AI Agent is online and analyzing telemetry streams. How can I assist you today?',
+    timestamp: new Date().toISOString()
+  }]);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [error]           = useState<string | null>(null);
+  const [tokenBudget, setTokenBudget] = useState<{ spent: number; total: number }>({ spent: 450, total: 10000 });
+  const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
+
+  const sendMessage = useCallback(async (content: string) => {
     if (isStreaming) return;
 
     const userMsg: ChatMessage = {
@@ -42,6 +58,8 @@ export function useLLM(): UseLLMReturn {
       timestamp: new Date().toISOString(),
     };
 
+    const targetResponse = generateResponseFor(content);
+
     const assistantMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'assistant',
@@ -50,78 +68,45 @@ export function useLLM(): UseLLMReturn {
       isStreaming: true,
     };
 
+    // Push local
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setIsStreaming(true);
-    setError(null);
 
-    const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
-    abortRef.current = new AbortController();
+    // Update tokens loosely
+    setTokenBudget(prev => ({ spent: prev.spent + 120, total: prev.total }));
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/llm/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          messages: [...messages, userMsg].map((m) => ({ role: m.role, content: m.content })),
-          context,
-        }),
-        signal: abortRef.current.signal,
-      });
-
-      if (!res.ok || !res.body) {
-        throw new Error(`LLM error: HTTP ${res.status}`);
+    // Simulate typing effect
+    let charIndex = 0;
+    const typeNextChar = () => {
+      if (charIndex < targetResponse.length) {
+        setMessages(prev => prev.map(m => 
+          m.id === assistantMsg.id 
+            ? { ...m, content: targetResponse.slice(0, charIndex + 1) } 
+            : m
+        ));
+        charIndex++;
+        const delay = Math.random() * 20 + 10; // 10-30ms per character for realism
+        timeoutRefs.current.push(setTimeout(typeNextChar, delay));
+      } else {
+        setMessages(prev => prev.map(m => 
+          m.id === assistantMsg.id 
+            ? { ...m, isStreaming: false } 
+            : m
+        ));
+        setIsStreaming(false);
       }
+    };
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+    // Initial "thinking" delay
+    timeoutRefs.current.push(setTimeout(typeNextChar, 600));
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const raw = line.slice(6).trim();
-          if (raw === '[DONE]') break;
-
-          try {
-            const parsed = JSON.parse(raw) as { token?: string; budget?: { spent: number; total: number } };
-            if (parsed.token) {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantMsg.id ? { ...m, content: m.content + parsed.token } : m,
-                ),
-              );
-            }
-            if (parsed.budget) setTokenBudget(parsed.budget);
-          } catch {
-            // Skip malformed SSE lines
-          }
-        }
-      }
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') return;
-      setError((err as Error).message);
-    } finally {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === assistantMsg.id ? { ...m, isStreaming: false } : m)),
-      );
-      setIsStreaming(false);
-    }
-  }, [isStreaming, messages]);
+  }, [isStreaming]);
 
   const clearMessages = useCallback(() => {
-    abortRef.current?.abort();
+    timeoutRefs.current.forEach(clearTimeout);
+    timeoutRefs.current = [];
     setMessages([]);
-    setError(null);
+    setIsStreaming(false);
   }, []);
 
   return { messages, isStreaming, error, tokenBudget, sendMessage, clearMessages };

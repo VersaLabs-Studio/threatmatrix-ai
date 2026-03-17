@@ -1,16 +1,15 @@
 'use client';
 
 // ═══════════════════════════════════════════════════════
-// ThreatMatrix AI — useWebSocket Hook
-// Connects to the WebSocket singleton and exposes
-// typed event state for use across all components
+// ThreatMatrix AI — useWebSocket Hook (MOCKED)
+// Generates live simulated data streams for ThreatMap & Stats
 // ═══════════════════════════════════════════════════════
 
-import { useEffect, useState, useCallback } from 'react';
-import { wsClient } from '@/lib/websocket';
-import { WS_CHANNELS, type ThreatLevel } from '@/lib/constants';
+import { useEffect, useState } from 'react';
+import type { ThreatLevel } from '@/lib/constants';
+import { MOCK_FLOWS, MOCK_ALERTS } from '@/lib/mock-data';
 
-// ── Typed event shapes from the backend ────────────────
+// ── Typed event shapes ─────────────────────────────────
 
 export interface FlowEvent {
   id: string;
@@ -56,39 +55,87 @@ interface UseWebSocketReturn {
   systemStatus: SystemStatusEvent | null;
 }
 
+// ── Mock State Trackers ────────────────────────────────
+
+let packets = 12500;
+let activeFlowsCount = 1050;
+
 export function useWebSocket(): UseWebSocketReturn {
   const [isConnected, setIsConnected]       = useState(false);
   const [lastFlowEvent, setLastFlowEvent]   = useState<FlowEvent | null>(null);
   const [lastAlertEvent, setLastAlertEvent] = useState<AlertEvent | null>(null);
   const [systemStatus, setSystemStatus]     = useState<SystemStatusEvent | null>(null);
 
-  const checkConnection = useCallback(() => {
-    setIsConnected(wsClient.isConnected);
-  }, []);
-
   useEffect(() => {
-    // Subscribe to all channels
-    const unsubFlows  = wsClient.subscribe(WS_CHANNELS.FLOWS,  (d) => setLastFlowEvent(d as FlowEvent));
-    const unsubAlerts = wsClient.subscribe(WS_CHANNELS.ALERTS, (d) => setLastAlertEvent(d as AlertEvent));
-    const unsubSystem = wsClient.subscribe(WS_CHANNELS.SYSTEM, (d) => {
-      setSystemStatus(d as SystemStatusEvent);
-      checkConnection();
+    // 1. Mark as connected instantly
+    setIsConnected(true);
+
+    // 2. Initialize system status
+    setSystemStatus({
+      capture_active: true,
+      ml_active: true,
+      intel_synced: true,
+      llm_online: true,
+      threat_level: 'ELEVATED',
+      packets_per_second: packets,
+      active_flows: activeFlowsCount,
     });
 
-    // Poll connection state every 2 seconds
-    const interval = setInterval(checkConnection, 2000);
+    // 3. Setup data generation intervals
+    const flowInterval = setInterval(() => {
+      // Pick a random flow to shoot a line on the map
+      const randomFlow = MOCK_FLOWS[Math.floor(Math.random() * MOCK_FLOWS.length)];
+      setLastFlowEvent({
+        id: crypto.randomUUID(),
+        src_ip: randomFlow.src_ip,
+        dst_ip: randomFlow.dst_ip,
+        src_lat: randomFlow.src_lat,
+        src_lon: randomFlow.src_lon,
+        dst_lat: randomFlow.dst_lat,
+        dst_lon: randomFlow.dst_lon,
+        protocol: randomFlow.protocol,
+        bytes: randomFlow.src_bytes + randomFlow.dst_bytes,
+        anomaly_score: randomFlow.anomaly_score,
+        is_anomaly: randomFlow.is_anomaly,
+        label: randomFlow.label,
+        timestamp: new Date().toISOString()
+      });
 
-    // Connect using stored token (if available)
-    const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
-    if (token) wsClient.connect(token);
+      // Fluctuate system status slightly
+      packets += Math.floor(Math.random() * 2000) - 1000;
+      activeFlowsCount += Math.floor(Math.random() * 50) - 25;
+      
+      setSystemStatus(prev => prev ? {
+        ...prev,
+        packets_per_second: Math.max(0, packets),
+        active_flows: Math.max(0, activeFlowsCount)
+      } : null);
+
+    }, 800); // New flow event every 800ms
+
+    const alertInterval = setInterval(() => {
+      // Occasional new alert notification
+      if (Math.random() > 0.7) {
+        const randomAlert = MOCK_ALERTS[Math.floor(Math.random() * MOCK_ALERTS.length)];
+        setLastAlertEvent({
+          id: crypto.randomUUID(),
+          severity: randomAlert.severity,
+          category: randomAlert.category,
+          src_ip: randomAlert.src_ip,
+          dst_ip: randomAlert.dst_ip,
+          composite_score: randomAlert.composite_score,
+          timestamp: new Date().toISOString(),
+          status: 'open'
+        });
+      }
+    }, 5000); // Check every 5s
 
     return () => {
-      unsubFlows();
-      unsubAlerts();
-      unsubSystem();
-      clearInterval(interval);
+      clearInterval(flowInterval);
+      clearInterval(alertInterval);
+      setIsConnected(false);
     };
-  }, [checkConnection]);
+  }, []);
 
   return { isConnected, lastFlowEvent, lastAlertEvent, systemStatus };
 }

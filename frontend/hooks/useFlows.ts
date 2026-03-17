@@ -1,12 +1,12 @@
 'use client';
 
 // ═══════════════════════════════════════════════════════
-// ThreatMatrix AI — useFlows Hook
-// Fetches network flow data and aggregations
+// ThreatMatrix AI — useFlows Hook (MOCKED)
+// Locally returns simulated network flows and aggregations
 // ═══════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api';
+import { MOCK_FLOWS, MOCK_STATS_TIMELINE, MOCK_TOP_TALKERS, MOCK_PROTOCOLS } from '@/lib/mock-data';
 
 export interface NetworkFlow {
   id: string;
@@ -83,45 +83,26 @@ export function useFlows(filters: FlowFilters = {}): UseFlowsReturn {
   const [protocols, setProtocols]   = useState<ProtocolStats[]>([]);
   const [total, setTotal]           = useState(0);
   const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState<string | null>(null);
+  const [error]           = useState<string | null>(null);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(() => {
     setLoading(true);
 
-    const [flowsRes, statsRes, talkersRes, protocolsRes] = await Promise.allSettled([
-      api.get<{ items: NetworkFlow[]; total: number }>('/api/v1/flows', {
-        ...filters,
-        page: filters.page ?? 1,
-        limit: filters.limit ?? 50,
-      }),
-      api.get<FlowStats[]>('/api/v1/flows/stats', { interval: '1m' }),
-      api.get<TopTalker[]>('/api/v1/flows/top-talkers'),
-      api.get<ProtocolStats[]>('/api/v1/flows/protocols'),
-    ]);
+    // Simulate API delay
+    setTimeout(() => {
+      setFlows(MOCK_FLOWS);
+      setTotal(MOCK_FLOWS.length);
+      setStats(MOCK_STATS_TIMELINE);
+      setTopTalkers(MOCK_TOP_TALKERS);
+      setProtocols(MOCK_PROTOCOLS);
+      
+      setLoading(false);
+    }, 600); // 600ms fake latency
 
-    if (flowsRes.status === 'fulfilled' && flowsRes.value.data) {
-      setFlows(flowsRes.value.data.items);
-      setTotal(flowsRes.value.data.total);
-    }
-    if (statsRes.status === 'fulfilled' && statsRes.value.data) {
-      setStats(statsRes.value.data);
-    }
-    if (talkersRes.status === 'fulfilled' && talkersRes.value.data) {
-      setTopTalkers(talkersRes.value.data);
-    }
-    if (protocolsRes.status === 'fulfilled' && protocolsRes.value.data) {
-      setProtocols(protocolsRes.value.data);
-    }
-
-    // Set error only if ALL requests failed
-    const allFailed = [flowsRes, statsRes, talkersRes, protocolsRes]
-      .every((r) => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error));
-    setError(allFailed ? 'Failed to load flow data' : null);
-    setLoading(false);
   }, [JSON.stringify(filters)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    void fetchAll();
+    fetchAll();
   }, [fetchAll]);
 
   return { flows, stats, topTalkers, protocols, total, loading, error, refetch: fetchAll };

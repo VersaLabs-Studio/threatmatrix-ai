@@ -1,13 +1,13 @@
 'use client';
 
 // ═══════════════════════════════════════════════════════
-// ThreatMatrix AI — useAlerts Hook
-// Queries and mutates alert data via REST API
+// ThreatMatrix AI — useAlerts Hook (MOCKED)
+// Simulates API queries and mutations locally.
 // ═══════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api';
 import type { Severity, AlertStatus } from '@/lib/constants';
+import { MOCK_ALERTS } from '@/lib/mock-data';
 
 export interface Alert {
   id: string;
@@ -51,42 +51,52 @@ interface UseAlertsReturn {
   refetch: () => void;
 }
 
+// Global mutable state for the session to persist status changes across unmounts
+let sessionAlerts = [...MOCK_ALERTS];
+
 export function useAlerts(filters: AlertFilters = {}): UseAlertsReturn {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [total, setTotal]   = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState<string | null>(null);
+  const [error]   = useState<string | null>(null);
 
   const { severity = 'all', status = 'all', page = 1, limit = 50 } = filters;
 
-  const fetchAlerts = useCallback(async () => {
-    const params: Record<string, string | number | undefined> = { page, limit };
-    if (severity !== 'all') params.severity = severity;
-    if (status   !== 'all') params.status   = status;
+  const fetchAlerts = useCallback(() => {
+    setLoading(true);
+    // Simulate network delay
+    setTimeout(() => {
+      let filtered = sessionAlerts;
+      
+      if (severity !== 'all') {
+        filtered = filtered.filter(a => a.severity === severity);
+      }
+      if (status !== 'all') {
+        filtered = filtered.filter(a => a.status === status);
+      }
 
-    const { data, error: err } = await api.get<AlertsResponse>('/api/v1/alerts', params);
-    if (err) {
-      setError(err);
-    } else if (data) {
-      setAlerts(data.items);
-      setTotal(data.total);
-      setError(null);
-    }
-    setLoading(false);
+      // Pagination slice
+      const start = (page - 1) * limit;
+      const paginated = filtered.slice(start, start + limit);
+
+      setAlerts(paginated);
+      setTotal(filtered.length);
+      setLoading(false);
+    }, 400); // 400ms fake latency
   }, [severity, status, page, limit]);
 
   useEffect(() => {
-    void fetchAlerts();
+    fetchAlerts();
   }, [fetchAlerts]);
 
   const updateStatus = useCallback(async (id: string, newStatus: AlertStatus) => {
-    await api.patch(`/api/v1/alerts/${id}/status`, { status: newStatus });
-    void fetchAlerts();
+    sessionAlerts = sessionAlerts.map(a => a.id === id ? { ...a, status: newStatus } : a);
+    fetchAlerts(); // Re-run local filters and update state
   }, [fetchAlerts]);
 
   const acknowledge = useCallback(async (ids: string[]) => {
-    await Promise.all(ids.map((id) => api.patch(`/api/v1/alerts/${id}/status`, { status: 'acknowledged' })));
-    void fetchAlerts();
+    sessionAlerts = sessionAlerts.map(a => ids.includes(a.id) ? { ...a, status: 'acknowledged' } : a);
+    fetchAlerts();
   }, [fetchAlerts]);
 
   return { alerts, total, loading, error, updateStatus, acknowledge, refetch: fetchAlerts };
