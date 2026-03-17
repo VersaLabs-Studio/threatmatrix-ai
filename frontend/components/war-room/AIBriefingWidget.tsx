@@ -37,7 +37,9 @@ function useTypewriter(text: string, speed = 18) {
     if (text !== textRef.current) {
       textRef.current = text;
       idxRef.current = 0;
-      setDisplayed('');
+      requestAnimationFrame(() => {
+        setDisplayed('');
+      });
     }
   }, [text]);
 

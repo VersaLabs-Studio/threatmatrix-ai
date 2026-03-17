@@ -43,129 +43,129 @@ export default function AIAnalystPage() {
   }, []);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 'var(--space-4)', padding: 'var(--space-4)', height: 'calc(100vh - 88px)' }}>
-      
-      {/* ── Left Column: Chat ─────────────────────────── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', minWidth: 0 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 'var(--space-4)', padding: 'var(--space-6)', height: 'calc(100vh - 88px)' }}>
         
-        {/* Page Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: '1.2rem' }}>🤖</span>
-            <div>
-              <h1 style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--cyan)', letterSpacing: '0.12em', margin: 0 }}>
-                AI ANALYST TERMINAL
-              </h1>
-              <p style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>
-                GPT-4o Intelligence Hub · Active Session
-              </p>
+        {/* ── Left Column: Chat ─────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', minWidth: 0 }}>
+          
+          {/* Page Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: '1.2rem' }}>🤖</span>
+              <div>
+                <h1 style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--cyan)', letterSpacing: '0.12em', margin: 0 }}>
+                  AI ANALYST TERMINAL
+                </h1>
+                <p style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>
+                  GPT-4o Intelligence Hub · Active Session
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              {tokenBudget && (
+                <div 
+                  style={{ 
+                    fontFamily: 'var(--font-data)', 
+                    fontSize: '0.65rem', 
+                    color: 'var(--text-muted)',
+                    border: '1px solid var(--border)',
+                    padding: '4px 8px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--bg-tertiary)',
+                  }}
+                >
+                  <Cpu size={10} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                  BUDGET: <span style={{ color: 'var(--cyan)' }}>${tokenBudget.spent.toFixed(2)}</span> / ${tokenBudget.total.toFixed(2)}
+                </div>
+              )}
+              <button
+                onClick={clearMessages}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-muted)',
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  fontSize: '0.65rem',
+                  fontFamily: 'var(--font-data)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+                title="Clear Console"
+              >
+                <Trash2 size={12} /> CLEAR
+              </button>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            {tokenBudget && (
-              <div 
-                style={{ 
-                  fontFamily: 'var(--font-data)', 
-                  fontSize: '0.65rem', 
-                  color: 'var(--text-muted)',
-                  border: '1px solid var(--border)',
-                  padding: '4px 8px',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'var(--bg-tertiary)',
-                }}
-              >
-                <Cpu size={10} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-                BUDGET: <span style={{ color: 'var(--cyan)' }}>${tokenBudget.spent.toFixed(2)}</span> / ${tokenBudget.total.toFixed(2)}
-              </div>
-            )}
-            <button
-              onClick={clearMessages}
-              style={{
-                background: 'none',
-                border: '1px solid var(--border)',
-                color: 'var(--text-muted)',
-                padding: '4px 10px',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                fontSize: '0.65rem',
-                fontFamily: 'var(--font-data)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-              title="Clear Console"
-            >
-              <Trash2 size={12} /> CLEAR
-            </button>
-          </div>
-        </div>
+          {/* Chat History */}
+          <ChatInterface messages={messages} isStreaming={isStreaming} />
 
-        {/* Chat History */}
-        <ChatInterface messages={messages} isStreaming={isStreaming} />
-
-        {/* Input Area */}
-        <form 
-          onSubmit={handleSend}
-          style={{ 
-            display: 'flex', 
-            gap: 'var(--space-2)', 
-            background: 'var(--bg-secondary)', 
-            padding: 'var(--space-3)',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border-active)',
-          }}
-        >
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your command (or press '/' to focus)..."
-            style={{
-              flex: 1,
-              background: 'none',
-              border: 'none',
-              outline: 'none',
-              color: 'var(--text-primary)',
-              fontFamily: 'var(--font-data)',
-              fontSize: '0.85rem',
-            }}
-            disabled={isStreaming}
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || isStreaming}
-            style={{
-              background: input.trim() ? 'var(--cyan)' : 'var(--bg-tertiary)',
-              color: input.trim() ? 'var(--bg-dark)' : 'var(--text-muted)',
-              border: 'none',
+          {/* Input Area */}
+          <form 
+            onSubmit={handleSend}
+            style={{ 
+              display: 'flex', 
+              gap: 'var(--space-2)', 
+              background: 'var(--bg-secondary)', 
+              padding: 'var(--space-3)',
               borderRadius: 'var(--radius-sm)',
-              width: 36,
-              height: 36,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: input.trim() && !isStreaming ? 'pointer' : 'default',
-              transition: 'all 0.2s ease',
+              border: '1px solid var(--border-active)',
             }}
           >
-            <Send size={18} />
-          </button>
-        </form>
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your command (or press '/' to focus)..."
+              style={{
+                flex: 1,
+                background: 'none',
+                border: 'none',
+                outline: 'none',
+                color: 'var(--text-primary)',
+                fontFamily: 'var(--font-data)',
+                fontSize: '0.85rem',
+              }}
+              disabled={isStreaming}
+            />
+            <button
+              type="submit"
+              disabled={!input.trim() || isStreaming}
+              style={{
+                background: input.trim() ? 'var(--cyan)' : 'var(--bg-tertiary)',
+                color: input.trim() ? 'var(--bg-dark)' : 'var(--text-muted)',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                width: 36,
+                height: 36,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: input.trim() && !isStreaming ? 'pointer' : 'default',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <Send size={18} />
+            </button>
+          </form>
 
-        {error && (
-          <div style={{ color: 'var(--critical)', fontSize: 'var(--text-xs)', fontFamily: 'var(--font-data)' }}>
-            ⚠️ {error}
-          </div>
-        )}
-      </div>
+          {error && (
+            <div style={{ color: 'var(--critical)', fontSize: 'var(--text-xs)', fontFamily: 'var(--font-data)' }}>
+              ⚠️ {error}
+            </div>
+          )}
+        </div>
 
-      {/* ── Right Column: Panel ───────────────────────── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', width: 320 }}>
-        <QuickActions onAction={handleQuickAction} disabled={isStreaming} />
-        <ContextPanel context={null} /> {/* Context logic to be tied to LLM state later */}
-      </div>
+        {/* ── Right Column: Panel ───────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', width: 320 }}>
+          <QuickActions onAction={handleQuickAction} disabled={isStreaming} />
+          <ContextPanel context={null} /> {/* Context logic to be tied to LLM state later */}
+        </div>
     </div>
   );
 }

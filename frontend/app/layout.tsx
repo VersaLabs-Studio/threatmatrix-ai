@@ -22,26 +22,19 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
       <body>
         <div className="bg-mesh" />
         <div className="app-shell">
-          {/* Column 1 — Sidebar spans all rows */}
           <Sidebar />
-
-          {/* Column 2, Row 1 — Top bar */}
           <TopBar />
-
-          {/* Column 2, Row 2 — Main scrollable content */}
-          <main className="main-content page-enter">
+          <main className="main-content">
             {children}
           </main>
-
-          {/* Column 2, Row 3 — Status bar */}
           <StatusBar />
         </div>
       </body>

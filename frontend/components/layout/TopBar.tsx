@@ -11,11 +11,16 @@ import { Bell, Globe } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { THREAT_LEVEL_COLORS, type ThreatLevel } from '@/lib/constants';
 
+import { useRouter, usePathname } from 'next/navigation';
+
 export function TopBar() {
+  const router = useRouter();
+  const pathname = usePathname();
+
   const { systemStatus, lastAlertEvent } = useWebSocket();
-  const [lang, setLang]       = useState<'EN' | 'AM'>('EN');
   const [alertBadge, setAlertBadge] = useState(0);
   const [currentTime, setCurrentTime] = useState('');
+
 
   const threatLevel: ThreatLevel = systemStatus?.threat_level ?? 'GUARDED';
 
@@ -32,7 +37,11 @@ export function TopBar() {
   // Increment badge on new alert
   useEffect(() => {
     if (lastAlertEvent) {
-      setAlertBadge((n) => n + 1);
+      // Use requestAnimationFrame to avoid synchronous cascading render warning
+      const handle = requestAnimationFrame(() => {
+        setAlertBadge((n) => n + 1);
+      });
+      return () => cancelAnimationFrame(handle);
     }
   }, [lastAlertEvent]);
 
@@ -104,93 +113,82 @@ export function TopBar() {
               flexShrink: 0,
             }}
           />
-          <span
-            style={{
-              fontFamily: 'var(--font-data)',
-              fontSize: '11px',
-              fontWeight: 700,
-              color: THREAT_LEVEL_COLORS[threatLevel],
-              letterSpacing: '0.1em',
-            }}
-          >
-            THREAT LEVEL: {threatLevel}
-          </span>
-        </div>
-
-        {/* Spacer */}
-        <div style={{ flex: 1 }} />
-
-        {/* Right — Clock, Language, Notifications, User */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-          {/* UTC Clock */}
-          <span
-            style={{
-              fontFamily: 'var(--font-data)',
-              fontSize: 'var(--text-xs)',
-              color: 'var(--text-secondary)',
-              fontWeight: 500,
-            }}
-          >
-            {currentTime}
-          </span>
-
-          {/* LLM Token Budget */}
-          <div
-            className="btn-aether"
-            style={{ padding: '6px 12px', borderRadius: 'var(--radius-pill)', gap: 8 }}
-            title="LLM API Budget (Last 24h)"
-          >
-            <span style={{ color: 'var(--cyan)', fontWeight: 700 }}>$142.38</span>
-            <span style={{ opacity: 0.5 }}>/ $250</span>
+            <span
+              style={{
+                fontFamily: 'var(--font-data)',
+                fontSize: '11px',
+                fontWeight: 700,
+                color: THREAT_LEVEL_COLORS[threatLevel],
+                letterSpacing: '0.1em',
+              }}
+            >
+              THREAT LEVEL: {threatLevel}
+            </span>
           </div>
-
-          {/* Language toggle */}
-          <button
-            onClick={() => setLang((l) => (l === 'EN' ? 'AM' : 'EN'))}
-            className="btn-aether"
-            style={{ padding: '6px 12px' }}
-            title="Toggle language"
-          >
-            <Globe size={14} />
-            <span style={{ fontSize: '11px', fontWeight: 600 }}>{lang}</span>
-          </button>
-
-          {/* Notification bell */}
-          <button
-            onClick={() => setAlertBadge(0)}
-            style={{
-              position: 'relative',
-              background: 'none',
-              border: 'none',
-              color: alertBadge > 0 ? 'var(--critical)' : 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: 6,
-              transition: 'var(--transition-fast)',
-            }}
-            className="nav-icon"
-            title={`${alertBadge} unread alerts`}
-            aria-label="Notifications"
-          >
-            <Bell size={20} />
-            {alertBadge > 0 && (
-              <span
-                style={{
-                  position: 'absolute', top: 4, right: 4,
-                  background: 'var(--critical)',
-                  color: '#fff',
-                  borderRadius: '50%',
-                  width: 14, height: 14,
-                  fontSize: '0.6rem',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: 'var(--font-data)',
-                  fontWeight: 700,
-                  boxShadow: '0 0 8px var(--critical)',
-                }}
-              >
-                {alertBadge > 9 ? '9+' : alertBadge}
-              </span>
-            )}
-          </button>
+  
+          {/* Spacer */}
+          <div style={{ flex: 1 }} />
+  
+          {/* Right — Clock, Notifications, User */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+            {/* UTC Clock */}
+            <span
+              style={{
+                fontFamily: 'var(--font-data)',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-secondary)',
+                fontWeight: 500,
+              }}
+            >
+              {currentTime}
+            </span>
+  
+            {/* LLM Token Budget */}
+            <div
+              className="btn-aether"
+              style={{ padding: '6px 12px', borderRadius: 'var(--radius-pill)', gap: 8 }}
+              title="LLM Budget"
+            >
+              <span style={{ color: 'var(--cyan)', fontWeight: 700 }}>$142.38</span>
+              <span style={{ opacity: 0.5 }}>/ $250</span>
+            </div>
+  
+            {/* Notification bell */}
+            <button
+              onClick={() => setAlertBadge(0)}
+              style={{
+                position: 'relative',
+                background: 'none',
+                border: 'none',
+                color: alertBadge > 0 ? 'var(--critical)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: 6,
+                transition: 'var(--transition-fast)',
+              }}
+              className="nav-icon"
+              title="Notifications"
+              aria-label="Notifications"
+            >
+              <Bell size={20} />
+              {alertBadge > 0 && (
+                <span
+                  style={{
+                    position: 'absolute', top: 4, right: 4,
+                    background: 'var(--critical)',
+                    color: '#fff',
+                    borderRadius: '50%',
+                    width: 14, height: 14,
+                    fontSize: '0.6rem',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: 'var(--font-data)',
+                    fontWeight: 700,
+                    boxShadow: '0 0 8px var(--critical)',
+                  }}
+                >
+                  {alertBadge > 9 ? '9+' : alertBadge}
+                </span>
+              )}
+            </button>
 
           {/* User avatar */}
           <div

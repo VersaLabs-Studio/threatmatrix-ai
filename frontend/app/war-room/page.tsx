@@ -37,6 +37,7 @@ const ThreatMap = dynamic(
   }
 );
 
+
 export default function WarRoomPage() {
   const { lastAlertEvent, systemStatus } = useWebSocket();
   const { stats, protocols, topTalkers, loading } = useFlows({ time_range: '1h' });
@@ -47,44 +48,34 @@ export default function WarRoomPage() {
   const flows      = systemStatus?.active_flows       ?? latestStat?.active_flows       ?? 0;
 
   // Compute anomaly rate from stats array
-  const totalPackets  = stats.reduce((s, d) => s + d.packets_per_second, 0);
-  const anomalyPkts   = stats.reduce((s, d) => s + d.anomaly_count, 0);
+  const totalPackets  = stats.reduce((s: number, d) => s + d.packets_per_second, 0);
+  const anomalyPkts   = stats.reduce((s: number, d) => s + d.anomaly_count, 0);
   const anomalyRate   = totalPackets > 0 ? anomalyPkts / totalPackets : 0;
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-4)',
-        padding: 'var(--space-4)',
-        minHeight: '100%',
-      }}
-    >
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', padding: 'var(--space-4)', minHeight: '100%' }}>
       {/* ── Row 1: Metric Cards ───────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-3)' }}>
-        <MetricCard label="PACKETS/SEC"  value={pps}       unit="pkt/s"  accent="cyan"     loading={loading} />
-        <MetricCard label="ACTIVE FLOWS" value={flows}     unit="flows"  accent="cyan"     loading={loading} />
-        <MetricCard
-          label="ANOMALY RATE"
-          value={parseFloat(formatPercent(anomalyRate))}
-          unit="%"
-          accent={anomalyRate > 0.05 ? 'critical' : 'warning'}
-          loading={loading}
+        <MetricCard label="PACKETS/SEC"  value={pps}          unit="pkt/s"  accent="cyan"     loading={loading} />
+        <MetricCard label="ACTIVE FLOWS" value={flows}        unit="flows"  accent="cyan"     loading={loading} />
+        <MetricCard 
+          label="ANOMALY RATE" 
+          value={parseFloat(formatPercent(anomalyRate))} 
+          unit="%" 
+          accent={anomalyRate > 0.05 ? 'critical' : 'warning'} 
+          loading={loading} 
         />
-        <MetricCard
-          label="THREATS (24H)"
-          value={stats.reduce((s, d) => s + d.anomaly_count, 0)}
-          unit="alerts"
-          accent="critical"
-          loading={loading}
+        <MetricCard 
+          label="THREAT EVENTS" 
+          value={stats.reduce((s: number, d) => s + d.anomaly_count, 0)} 
+          unit="alerts" 
+          accent="critical" 
+          loading={loading} 
         />
       </div>
 
       {/* ── Row 2: Threat Map + Protocols + Timeline ──── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 'var(--space-4)', flex: 1 }}>
-
-        {/* Left: Live Deck.gl ThreatMap */}
         <div
           className="glass-panel-static"
           style={{ display: 'flex', flexDirection: 'column', minHeight: 380 }}
@@ -96,7 +87,7 @@ export default function WarRoomPage() {
               fontWeight: 600, color: 'var(--text-secondary)',
               textTransform: 'uppercase', letterSpacing: '0.08em', flex: 1,
             }}>
-              LIVE THREAT MAP
+              THREAT MAP
             </span>
             <span className="status-dot status-dot--live" />
           </div>
@@ -105,7 +96,6 @@ export default function WarRoomPage() {
           </div>
         </div>
 
-        {/* Right: Protocol Distribution + Traffic Timeline stacked */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           <ProtocolChart data={protocols} loading={loading} />
           <TrafficTimeline data={stats} loading={loading} />

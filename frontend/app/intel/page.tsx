@@ -14,7 +14,7 @@ import type { IOC } from '@/lib/mock-data';
 
 export default function IntelHubPage() {
   const [search, setSearch] = useState('');
-  const { syncing, syncFeeds, searchIOCs } = useIntel();
+  const { syncing, syncFeeds, searchIOCs, feeds } = useIntel();
 
   const filtered = searchIOCs(search);
 
@@ -35,17 +35,23 @@ export default function IntelHubPage() {
   ];
 
   return (
-    <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+    <div style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', minHeight: '100%' }}>
       
-      {/* Page Header */}
+      {/* Header */}
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 800, color: 'var(--cyan)' }}>
+          INTEL HUB
+        </h1>
+      </header>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: '1.2rem' }}>🛡️</span>
+        <span style={{ fontSize: '1.2rem' }}>📡</span>
         <div>
           <h1 style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--cyan)', letterSpacing: '0.12em', margin: 0 }}>
-            THREAT INTELLIGENCE HUB
+            THREAT INTEL HUB
           </h1>
           <p style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>
-            Global Threat Feeds & IOC Correlation
+            Unified indicator management · {feeds?.length || 0} active feeds
           </p>
         </div>
       </div>

@@ -31,6 +31,7 @@ function StatusItem({ label, active, activeColor = '#22c55e' }: StatusItemProps)
   );
 }
 
+
 export function StatusBar() {
   const { systemStatus, isConnected } = useWebSocket();
 
@@ -43,10 +44,10 @@ export function StatusBar() {
 
   return (
     <footer className="statusbar">
-      <StatusItem label={`CAPTURE: ${capture ? 'LIVE' : 'IDLE'}`}     active={capture} />
-      <StatusItem label={`ML ENGINE: ${ml ? 'ACTIVE' : 'STANDBY'}`}   active={ml} />
-      <StatusItem label={`INTEL FEEDS: ${intel ? 'SYNCED' : 'DISCONNECTED'}`} active={intel} />
-      <StatusItem label={`LLM: ${llm ? 'ONLINE' : 'OFFLINE'}`}        active={llm} />
+      <StatusItem label={`CAPTURE: ${capture ? "LIVE" : "IDLE"}`} active={capture} />
+      <StatusItem label={`ML: ${ml ? "ACTIVE" : "STANDBY"}`} active={ml} />
+      <StatusItem label={`INTEL: ${intel ? "SYNCED" : "DISCONNECTED"}`} active={intel} />
+      <StatusItem label={`LLM: ${llm ? "ONLINE" : "OFFLINE"}`} active={llm} />
 
       {capture && (
         <>
@@ -60,7 +61,7 @@ export function StatusBar() {
 
       {/* WebSocket connectivity indicator */}
       <StatusItem
-        label={isConnected ? 'WS: CONNECTED' : 'WS: RECONNECTING…'}
+        label={isConnected ? "WS CONNECTED" : "WS RECONNECTING..."}
         active={isConnected}
         activeColor="var(--cyan)"
       />

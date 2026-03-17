@@ -22,6 +22,7 @@ const MOCK_ALERTS: Alert[] = [
   { id: 'al-04', severity: 'low',      category: 'Unauthorized Login', label: 'Unauthorized Login', src_ip: '172.16.0.4', dst_ip: '172.16.0.10', composite_score: 0.45, status: 'open', flow_count: 1, timestamp: new Date().toISOString(), updated_at: new Date().toISOString() },
 ];
 
+
 export default function AlertConsolePage() {
   const [severityFilter, setSeverityFilter] = useState<Severity | 'all'>('all');
   const [statusFilter,   setStatusFilter]   = useState<AlertStatus | 'all'>('all');
@@ -91,9 +92,14 @@ export default function AlertConsolePage() {
   ];
 
   return (
-    <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+    <div style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', height: '100%' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.5rem', fontWeight: 800, color: 'var(--cyan)' }}>
+          ALERT CONSOLE
+        </h1>
+      </header>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: '1.2rem' }}>🚨</span>
           <div>
@@ -105,37 +111,35 @@ export default function AlertConsolePage() {
             </p>
           </div>
         </div>
-      </div>
 
-      {/* Filter Toolbar */}
-      <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-        <FilterGroup 
-          label="SEVERITY" 
-          options={['all', 'critical', 'high', 'medium', 'low']} 
-          current={severityFilter} 
-          onSelect={(v: string) => setSeverityFilter(v as any)} 
-        />
-        <FilterGroup 
-          label="STATUS" 
-          options={['all', 'open', 'acknowledged', 'resolved']} 
-          current={statusFilter} 
-          onSelect={(v: string) => setStatusFilter(v as any)} 
-        />
-      </div>
+        {/* Filter Toolbar */}
+        <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+          <FilterGroup 
+            label="SEVERITY" 
+            options={['all', 'critical', 'high', 'medium', 'low']} 
+            current={severityFilter} 
+            onSelect={(v: string) => setSeverityFilter(v as any)} 
+          />
+          <FilterGroup 
+            label="STATUS" 
+            options={['all', 'open', 'acknowledged', 'resolved']} 
+            current={statusFilter} 
+            onSelect={(v: string) => setStatusFilter(v as any)} 
+          />
+        </div>
 
-      {/* Main Table */}
-      <GlassPanel static title="INCIDENT QUEUE" icon="📋">
-        <DataTable
-          columns={COLUMNS}
-          data={alerts as any}
-          loading={loading}
-          rowKey={(r) => r.id}
-          onRowClick={(r) => setSelectedAlert(r as Alert)}
-          maxHeight="calc(100vh - 280px)"
-        />
-      </GlassPanel>
+        {/* Main Table */}
+        <GlassPanel static title="INCIDENT QUEUE" icon="📋">
+          <DataTable
+            columns={COLUMNS}
+            data={alerts as any}
+            loading={loading}
+            rowKey={(r) => r.id}
+            onRowClick={(r) => setSelectedAlert(r as Alert)}
+            maxHeight="calc(100vh - 280px)"
+          />
+        </GlassPanel>
 
-      {/* Detail Drawer */}
       <AlertDetailDrawer 
         alert={selectedAlert} 
         onClose={() => setSelectedAlert(null)} 

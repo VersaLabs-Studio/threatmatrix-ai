@@ -46,7 +46,7 @@ export function TableRowSkeleton({ cols = 6 }: { cols?: number }) {
         <td key={i} style={{ padding: '0.75rem 1rem' }}>
           <div
             className="skeleton"
-            style={{ height: 14, width: i === 0 ? '80%' : `${60 + Math.random() * 30}%` }}
+            style={{ height: 14, width: i === 0 ? '80%' : `${60 + (i % 5) * 8}%` }}
           />
         </td>
       ))}

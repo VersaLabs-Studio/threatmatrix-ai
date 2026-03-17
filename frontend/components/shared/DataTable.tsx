@@ -29,10 +29,12 @@ interface DataTableProps<T extends any> {
 type SortDir = 'asc' | 'desc' | null;
 
 export function DataTable<T extends any>({
-  columns, data, loading, rowKey, onRowClick, emptyMessage = 'No data', maxHeight = 400,
+  columns, data, loading, rowKey, onRowClick, emptyMessage, maxHeight = 400,
 }: DataTableProps<T>) {
   const [sortKey,  setSortKey]  = useState<string | null>(null);
   const [sortDir,  setSortDir]  = useState<SortDir>(null);
+  
+  const displayEmpty = emptyMessage || "No assets matching criteria found.";
 
   const sorted = useMemo(() => {
     if (!sortKey || !sortDir) return data;
@@ -112,7 +114,7 @@ export function DataTable<T extends any>({
                         color: 'var(--text-muted)',
                       }}
                     >
-                      {emptyMessage}
+                      {displayEmpty}
                     </td>
                   </tr>
                 )

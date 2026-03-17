@@ -7,6 +7,7 @@
 // ═══════════════════════════════════════════════════════
 
 import { useEffect, useRef, useState } from 'react';
+import { motion, useSpring, useTransform } from 'framer-motion';
 import { cx } from '@/lib/utils';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 
@@ -27,37 +28,24 @@ const ACCENT_STYLE: Record<NonNullable<MetricCardProps['accent']>, React.CSSProp
   info:     { color: 'var(--info)',     textShadow: 'none' },
 };
 
-/** Animates a number from `from` to `to` over `duration` ms */
-function useCountUp(to: number, duration = 600): number {
-  const [current, setCurrent] = useState(to);
-  const fromRef = useRef(to);
-  const rafRef  = useRef<number>(0);
+function AnimatedNumber({ value }: { value: number }) {
+  const spring = useSpring(value, {
+    mass: 0.8,
+    stiffness: 75,
+    damping: 15,
+  });
+  
+  const display = useTransform(spring, (latest) => Math.round(latest).toLocaleString());
 
   useEffect(() => {
-    const from  = fromRef.current;
-    const start = performance.now();
+    spring.set(value);
+  }, [value, spring]);
 
-    const step = (now: number) => {
-      const elapsed  = now - start;
-      const progress = Math.min(elapsed / duration, 1);
-      // Ease-out cubic
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setCurrent(Math.round(from + (to - from) * eased));
-      if (progress < 1) rafRef.current = requestAnimationFrame(step);
-      else fromRef.current = to;
-    };
-
-    rafRef.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [to, duration]);
-
-  return current;
+  return <motion.span>{display}</motion.span>;
 }
 
 export function MetricCard({ label, value, unit, accent = 'cyan', delta, loading }: MetricCardProps) {
-  const isNumber   = typeof value === 'number';
-  const animated   = useCountUp(isNumber ? (value as number) : 0);
-  const displayVal = isNumber ? animated.toLocaleString() : value;
+  const isNumber = typeof value === 'number';
   const accentStyle = ACCENT_STYLE[accent];
 
   if (loading) {
@@ -79,7 +67,7 @@ export function MetricCard({ label, value, unit, accent = 'cyan', delta, loading
           onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
           onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
         >
-          {displayVal}
+          {isNumber ? <AnimatedNumber value={value as number} /> : value}
         </span>
         {unit && (
           <span style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 500 }}>

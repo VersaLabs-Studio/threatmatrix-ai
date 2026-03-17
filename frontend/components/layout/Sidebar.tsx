@@ -21,15 +21,15 @@ const ICON_MAP = {
 } as const;
 
 const NAV_ITEMS = [
-  { icon: 'Target'       as const, label: 'War Room',       href: '/war-room',   key: '1' },
-  { icon: 'Search'       as const, label: 'Threat Hunt',    href: '/hunt',       key: '2' },
-  { icon: 'Shield'       as const, label: 'Intel Hub',      href: '/intel',      key: '3' },
-  { icon: 'Radio'        as const, label: 'Network Flow',   href: '/network',    key: '4' },
-  { icon: 'Bot'          as const, label: 'AI Analyst',     href: '/ai-analyst', key: '5' },
-  { icon: 'Bell'         as const, label: 'Alert Console',  href: '/alerts',     key: '6' },
-  { icon: 'FlaskConical' as const, label: 'Forensics Lab',  href: '/forensics',  key: '7' },
-  { icon: 'BrainCircuit' as const, label: 'ML Operations',  href: '/ml-ops',     key: '8' },
-  { icon: 'BarChart3'    as const, label: 'Reports',        href: '/reports',    key: '9' },
+  { icon: 'Target'       as const, label: 'War Room',   href: '/war-room',   key: '1' },
+  { icon: 'Search'       as const, label: 'Network',    href: '/network',    key: '2' },
+  { icon: 'Shield'       as const, label: 'Intel Hub',  href: '/intel',      key: '3' },
+  { icon: 'Radio'        as const, label: 'Flow Info',  href: '/network',    key: '4' },
+  { icon: 'Bot'          as const, label: 'AI Analyst', href: '/ai-analyst', key: '5' },
+  { icon: 'Bell'         as const, label: 'Alert Console', href: '/alerts',     key: '6' },
+  { icon: 'FlaskConical' as const, label: 'Forensics Lab', href: '/forensics',  key: '7' },
+  { icon: 'BrainCircuit' as const, label: 'ML Operations', href: '/ml-ops',     key: '8' },
+  { icon: 'BarChart3'    as const, label: 'Reports',    href: '/reports',    key: '9' },
   { icon: 'Settings'     as const, label: 'Administration', href: '/admin',      key: '0' },
 ];
 
@@ -67,7 +67,7 @@ export function Sidebar() {
       {/* Nav items */}
       {NAV_ITEMS.map((item) => {
         const Icon    = ICON_MAP[item.icon];
-        const isActive = pathname.startsWith(item.href);
+        const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
 
         return (
           <Link key={item.href} href={item.href} style={{ textDecoration: 'none', width: '100%', display: 'flex', justifyContent: 'center' }}>
