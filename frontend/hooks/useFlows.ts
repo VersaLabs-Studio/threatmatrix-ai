@@ -85,11 +85,13 @@ export function useFlows(filters: FlowFilters = {}): UseFlowsReturn {
   const [loading, setLoading]       = useState(true);
   const [error]           = useState<string | null>(null);
 
+  const { src_ip, dst_ip, protocol, time_range, min_score, label, page, limit } = filters;
+
   const fetchAll = useCallback(() => {
     setLoading(true);
 
     // Simulate API delay
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       setFlows(MOCK_FLOWS);
       setTotal(MOCK_FLOWS.length);
       setStats(MOCK_STATS_TIMELINE);
@@ -99,7 +101,8 @@ export function useFlows(filters: FlowFilters = {}): UseFlowsReturn {
       setLoading(false);
     }, 600); // 600ms fake latency
 
-  }, [JSON.stringify(filters)]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => clearTimeout(timer);
+  }, [src_ip, dst_ip, protocol, time_range, min_score, label, page, limit]);
 
   useEffect(() => {
     fetchAll();

@@ -64,25 +64,21 @@ let activeFlowsCount = 1050;
 let isChaosMode = false;
 
 export function useWebSocket(): UseWebSocketReturn {
-  const [isConnected, setIsConnected]       = useState(false);
+  const [isConnected, setIsConnected]       = useState(true); // Mock connects instantly
   const [lastFlowEvent, setLastFlowEvent]   = useState<FlowEvent | null>(null);
   const [lastAlertEvent, setLastAlertEvent] = useState<AlertEvent | null>(null);
-  const [systemStatus, setSystemStatus]     = useState<SystemStatusEvent | null>(null);
+  const [systemStatus, setSystemStatus]     = useState<SystemStatusEvent | null>({
+    capture_active: true,
+    ml_active: true,
+    intel_synced: true,
+    llm_online: true,
+    threat_level: isChaosMode ? 'CRITICAL' : 'ELEVATED',
+    packets_per_second: packets,
+    active_flows: activeFlowsCount,
+  });
 
   useEffect(() => {
-    // 1. Mark as connected instantly
-    setIsConnected(true);
-
-    // 2. Initialize system status
-    setSystemStatus({
-      capture_active: true,
-      ml_active: true,
-      intel_synced: true,
-      llm_online: true,
-      threat_level: isChaosMode ? 'CRITICAL' : 'ELEVATED',
-      packets_per_second: packets,
-      active_flows: activeFlowsCount,
-    });
+    // Intervals and listeners setup
 
     // 3. Setup data generation intervals
     const flowInterval = setInterval(() => {
