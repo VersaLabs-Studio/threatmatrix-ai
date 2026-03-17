@@ -3,6 +3,8 @@ ThreatMatrix AI — Database Configuration
 Async SQLAlchemy engine, session factory, and base model.
 """
 
+from collections.abc import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -37,7 +39,7 @@ class Base(DeclarativeBase):
 
 
 # ── Dependency ───────────────────────────────────────────────────
-async def get_db() -> AsyncSession:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency for database sessions."""
     async with async_session() as session:
         try:
