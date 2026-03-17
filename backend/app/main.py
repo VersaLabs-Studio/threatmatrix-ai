@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.api.v1 import router as api_v1_router
+from app.redis import RedisManager
 
 settings = get_settings()
 
@@ -20,9 +21,26 @@ async def lifespan(app: FastAPI):
     print(f"🛡️  {settings.APP_NAME} v{settings.APP_VERSION} starting...")
     print(f"📡 Database: {settings.DATABASE_URL.split('@')[-1]}")
     print(f"⚡ Redis: {settings.REDIS_URL}")
+    
+    # Initialize Redis connection
+    redis_manager = RedisManager(url=settings.REDIS_URL)
+    try:
+        await redis_manager.connect()
+        app.state.redis_manager = redis_manager
+        print("✅ Redis connected successfully")
+    except Exception as e:
+        print(f"⚠️  Redis connection failed: {e}")
+        app.state.redis_manager = None
+    
     yield
+    
     # ── Shutdown ─────────────────────────────────────────────
     print(f"🛡️  {settings.APP_NAME} shutting down...")
+    
+    # Disconnect Redis
+    if hasattr(app.state, 'redis_manager') and app.state.redis_manager:
+        await app.state.redis_manager.disconnect()
+        print("✅ Redis disconnected")
 
 
 def create_app() -> FastAPI:
@@ -53,6 +71,23 @@ def create_app() -> FastAPI:
     app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)
 
     return app
+
+
+# ── Dependencies ─────────────────────────────────────────────
+def get_redis_manager() -> RedisManager | None:
+    """
+    FastAPI dependency to get Redis manager from app state.
+    
+    Usage:
+        Access via request.app.state.redis_manager in endpoints.
+        
+        Example:
+            @app.get("/endpoint")
+            async def endpoint(request: Request):
+                redis = request.app.state.redis_manager
+                await redis.set("key", "value")
+    """
+    return None  # Placeholder - actual usage via request.app.state
 
 
 # ── App Instance ─────────────────────────────────────────────
