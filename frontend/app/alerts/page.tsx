@@ -28,7 +28,7 @@ export default function AlertConsolePage() {
   const [statusFilter,   setStatusFilter]   = useState<AlertStatus | 'all'>('all');
   const [selectedAlert,  setSelectedAlert]  = useState<Alert | null>(null);
 
-  const { alerts: apiAlerts, loading, updateStatus } = useAlerts({ 
+  const { alerts: apiAlerts, loading, updateStatus, assignToMe } = useAlerts({ 
     severity: severityFilter, 
     status: statusFilter, 
     limit: 100 
@@ -144,6 +144,7 @@ export default function AlertConsolePage() {
         alert={selectedAlert} 
         onClose={() => setSelectedAlert(null)} 
         onUpdateStatus={updateStatus}
+        onAssignToMe={(id) => assignToMe(id)}
       />
     </div>
   );

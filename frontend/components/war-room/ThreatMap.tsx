@@ -11,7 +11,7 @@
 //  • HeatmapLayer     — traffic density
 // ═══════════════════════════════════════════════════════
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DeckGL } from 'deck.gl';
 import { ScatterplotLayer } from '@deck.gl/layers';
 import { ArcLayer } from '@deck.gl/layers';
@@ -57,6 +57,41 @@ interface ThreatMapProps {
 
 export function ThreatMap({ recentFlows = [] }: ThreatMapProps) {
   const [hovered, setHovered] = useState<GeoFlow | null>(null);
+  const [webglOk, setWebglOk] = useState(true);
+
+  useEffect(() => {
+    try {
+      const canvas = document.createElement('canvas');
+      const gl =
+        canvas.getContext('webgl2') ||
+        canvas.getContext('webgl') ||
+        canvas.getContext('experimental-webgl');
+      setWebglOk(!!gl);
+    } catch {
+      setWebglOk(false);
+    }
+  }, []);
+
+  if (!webglOk) {
+    return (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: '0.75rem',
+          color: '#00f0ff',
+          letterSpacing: '0.08em',
+          background: 'rgba(0,0,0,0.25)',
+        }}
+      >
+        WEBGL UNAVAILABLE — MAP DISABLED
+      </div>
+    );
+  }
 
   // Merge live flows with seed flows; cap at 200 for performance
   const flows: GeoFlow[] = useMemo(() => {

@@ -15,9 +15,10 @@ interface AlertDetailDrawerProps {
   alert: Alert | null;
   onClose: () => void;
   onUpdateStatus: (id: string, status: any) => void;
+  onAssignToMe?: (id: string) => void;
 }
 
-export function AlertDetailDrawer({ alert, onClose, onUpdateStatus }: AlertDetailDrawerProps) {
+export function AlertDetailDrawer({ alert, onClose, onUpdateStatus, onAssignToMe }: AlertDetailDrawerProps) {
   if (!alert) return null;
 
   return (
@@ -143,9 +144,10 @@ export function AlertDetailDrawer({ alert, onClose, onUpdateStatus }: AlertDetai
         <ActionButton 
           icon={<User size={16} />} 
           label="ASSIGN TO ME" 
-          onClick={() => {}} 
+          onClick={() => onAssignToMe?.(alert.id)} 
           variant="tertiary"
           style={{ gridColumn: 'span 2' }}
+          disabled={!!alert.assigned_to}
         />
       </div>
     </div>

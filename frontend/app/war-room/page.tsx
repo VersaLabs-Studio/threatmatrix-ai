@@ -39,7 +39,7 @@ const ThreatMap = dynamic(
 
 
 export default function WarRoomPage() {
-  const { lastAlertEvent, systemStatus } = useWebSocket();
+  const { lastAlertEvent, systemStatus, recentFlows } = useWebSocket();
   const { stats, protocols, topTalkers, loading } = useFlows({ time_range: '1h' });
 
   // Derive live metric values from system status or the latest stats point
@@ -92,7 +92,7 @@ export default function WarRoomPage() {
             <span className="status-dot status-dot--live" />
           </div>
           <div style={{ flex: 1, borderRadius: 8, overflow: 'hidden', minHeight: 320 }}>
-            <ThreatMap />
+            <ThreatMap recentFlows={recentFlows} />
           </div>
         </div>
 

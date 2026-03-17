@@ -70,7 +70,11 @@ export function Sidebar() {
         const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
 
         return (
-          <Link key={item.href} href={item.href} style={{ textDecoration: 'none', width: '100%', display: 'flex', justifyContent: 'center' }}>
+          <Link
+            key={`${item.href}-${item.key}`}
+            href={item.href}
+            style={{ textDecoration: 'none', width: '100%', display: 'flex', justifyContent: 'center' }}
+          >
             <div
               className={cx('nav-icon', isActive && 'nav-icon--active')}
               title={`${item.label} (Alt+${item.key})`}

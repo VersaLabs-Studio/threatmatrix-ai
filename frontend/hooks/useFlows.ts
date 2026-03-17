@@ -5,54 +5,10 @@
 // Locally returns simulated network flows and aggregations
 // ═══════════════════════════════════════════════════════
 
-import { useState, useEffect, useCallback } from 'react';
-import { MOCK_FLOWS, MOCK_STATS_TIMELINE, MOCK_TOP_TALKERS, MOCK_PROTOCOLS } from '@/lib/mock-data';
-
-export interface NetworkFlow {
-  id: string;
-  src_ip: string;
-  dst_ip: string;
-  src_port: number;
-  dst_port: number;
-  protocol: string;
-  duration: number;
-  src_bytes: number;
-  dst_bytes: number;
-  total_packets: number;
-  anomaly_score: number;
-  is_anomaly: boolean;
-  label: string;
-  timestamp: string;
-  // Geo fields (resolved from IP)
-  src_lat?: number;
-  src_lon?: number;
-  dst_lat?: number;
-  dst_lon?: number;
-  src_country?: string;
-  dst_country?: string;
-}
-
-export interface FlowStats {
-  timestamp: string;
-  packets_per_second: number;
-  bytes_per_second: number;
-  active_flows: number;
-  anomaly_count: number;
-}
-
-export interface TopTalker {
-  ip: string;
-  bytes_total: number;
-  flow_count: number;
-  country?: string;
-  is_anomalous: boolean;
-}
-
-export interface ProtocolStats {
-  protocol: string;
-  count: number;
-  percent: number;
-}
+import { useCallback, useSyncExternalStore } from 'react';
+import { getDemoSimServerState, getDemoSimState, subscribeDemoSim } from '@/lib/demo-sim-store';
+export type { NetworkFlow, FlowStats, TopTalker, ProtocolStats } from '@/lib/demo-sim-store';
+import type { NetworkFlow, FlowStats, TopTalker, ProtocolStats } from '@/lib/demo-sim-store';
 
 interface FlowFilters {
   src_ip?: string;
@@ -77,36 +33,34 @@ interface UseFlowsReturn {
 }
 
 export function useFlows(filters: FlowFilters = {}): UseFlowsReturn {
-  const [flows, setFlows]           = useState<NetworkFlow[]>([]);
-  const [stats, setStats]           = useState<FlowStats[]>([]);
-  const [topTalkers, setTopTalkers] = useState<TopTalker[]>([]);
-  const [protocols, setProtocols]   = useState<ProtocolStats[]>([]);
-  const [total, setTotal]           = useState(0);
-  const [loading, setLoading]       = useState(true);
-  const [error]           = useState<string | null>(null);
+  const snap = useSyncExternalStore(subscribeDemoSim, getDemoSimState, getDemoSimServerState);
 
-  const { src_ip, dst_ip, protocol, time_range, min_score, label, page, limit } = filters;
+  const refetch = useCallback(() => {
+    // Store is live; no-op refetch keeps API shape stable.
+  }, []);
 
-  const fetchAll = useCallback(() => {
-    setLoading(true);
+  const { src_ip, dst_ip, protocol, min_score, label, page = 1, limit = 200 } = filters;
 
-    // Simulate API delay
-    const timer = setTimeout(() => {
-      setFlows(MOCK_FLOWS);
-      setTotal(MOCK_FLOWS.length);
-      setStats(MOCK_STATS_TIMELINE);
-      setTopTalkers(MOCK_TOP_TALKERS);
-      setProtocols(MOCK_PROTOCOLS);
-      
-      setLoading(false);
-    }, 600); // 600ms fake latency
+  let flows = snap.flows;
 
-    return () => clearTimeout(timer);
-  }, [src_ip, dst_ip, protocol, time_range, min_score, label, page, limit]);
+  if (src_ip) flows = flows.filter((f) => f.src_ip.includes(src_ip));
+  if (dst_ip) flows = flows.filter((f) => f.dst_ip.includes(dst_ip));
+  if (protocol) flows = flows.filter((f) => f.protocol === protocol);
+  if (min_score !== undefined) flows = flows.filter((f) => f.anomaly_score >= min_score);
+  if (label) flows = flows.filter((f) => f.label.toLowerCase().includes(label.toLowerCase()));
 
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+  const total = flows.length;
+  const start = (page - 1) * limit;
+  flows = flows.slice(start, start + limit);
 
-  return { flows, stats, topTalkers, protocols, total, loading, error, refetch: fetchAll };
+  return {
+    flows,
+    stats: snap.stats,
+    topTalkers: snap.topTalkers,
+    protocols: snap.protocols,
+    total,
+    loading: false,
+    error: null,
+    refetch,
+  };
 }
