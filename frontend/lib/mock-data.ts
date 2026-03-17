@@ -118,3 +118,20 @@ export const MOCK_INTEL_FEEDS = [
   { id: 'INT-02', actor: 'Scattered Spider', type: 'Social Engineering', confidence: '85%', status: 'Monitoring' },
   { id: 'INT-03', actor: 'Lazarus Group', type: 'Crypto-Jacking', confidence: '92%', status: 'Mitigated' }
 ];
+
+export interface IOC {
+  type: string;
+  indicator: string;
+  source: string;
+  risk: number;
+  seen: string;
+  tags: string[];
+}
+
+export const MOCK_IOCS: IOC[] = [
+  { type: 'IP', indicator: '104.21.55.12', source: 'OTX', risk: 88, seen: '2026-03-10', tags: ['C2', 'CobaltStrike'] },
+  { type: 'DOMAIN', indicator: 'microsoft-update.security.com', source: 'VirusTotal', risk: 94, seen: '2026-03-11', tags: ['Phishing'] },
+  { type: 'HASH', indicator: '7a58e1c...b2e', source: 'Internal', risk: 100, seen: '2026-03-09', tags: ['Ransomware.LockBit'] },
+  { type: 'IP', indicator: '185.220.101.4', source: 'AbuseIPDB', risk: 72, seen: '2026-03-12', tags: ['Tor Exit Node'] },
+  { type: 'DOMAIN', indicator: 'free-vpn-service.net', source: 'OTX', risk: 45, seen: '2026-03-11', tags: ['Grayware'] },
+];

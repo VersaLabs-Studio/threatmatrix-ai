@@ -8,33 +8,15 @@
 import { useState } from 'react';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 import { DataTable }  from '@/components/shared/DataTable';
-import { Search, Activity } from 'lucide-react';
-
-interface IOC {
-  type: string;
-  indicator: string;
-  source: string;
-  risk: number;
-  seen: string;
-  tags: string[];
-}
-
-// Mock IOC Data
-const MOCK_IOCS: IOC[] = [
-  { type: 'IP', indicator: '104.21.55.12', source: 'OTX', risk: 88, seen: '2026-03-10', tags: ['C2', 'CobaltStrike'] },
-  { type: 'DOMAIN', indicator: 'microsoft-update.security.com', source: 'VirusTotal', risk: 94, seen: '2026-03-11', tags: ['Phishing'] },
-  { type: 'HASH', indicator: '7a58e1c...b2e', source: 'Internal', risk: 100, seen: '2026-03-09', tags: ['Ransomware.LockBit'] },
-  { type: 'IP', indicator: '185.220.101.4', source: 'AbuseIPDB', risk: 72, seen: '2026-03-12', tags: ['Tor Exit Node'] },
-  { type: 'DOMAIN', indicator: 'free-vpn-service.net', source: 'OTX', risk: 45, seen: '2026-03-11', tags: ['Grayware'] },
-];
+import { useIntel } from '@/hooks/useIntel';
+import { Search, Activity, RefreshCw } from 'lucide-react';
+import type { IOC } from '@/lib/mock-data';
 
 export default function IntelHubPage() {
   const [search, setSearch] = useState('');
+  const { syncing, syncFeeds, searchIOCs } = useIntel();
 
-  const filtered = MOCK_IOCS.filter(i => 
-    i.indicator.toLowerCase().includes(search.toLowerCase()) || 
-    i.tags.some(t => t.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = searchIOCs(search);
 
   const COLUMNS = [
     { key: 'type',      header: 'TYPE',  width: 70, render: (r: IOC) => <span style={{ color: 'var(--text-muted)', fontWeight: 700 }}>{r.type}</span> },
@@ -70,10 +52,16 @@ export default function IntelHubPage() {
 
       {/* Row 1: Feed Status */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-3)' }}>
-        <FeedCard name="OTX ALIENVAULT" status="ONLINE" count="1.2M IOCs" />
+        <div style={{ position: 'relative' }}>
+           <FeedCard name="OTX ALIENVAULT" status={syncing ? 'STANDBY' : 'ONLINE'} count="1.2M IOCs" />
+           {syncing && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4 }}><RefreshCw className="animate-spin" size={12} /></div>}
+        </div>
         <FeedCard name="ABUSEIPDB"      status="ONLINE" count="450K IPs" />
         <FeedCard name="VIRUSTOTAL"     status="ONLINE" count="Premium" />
-        <FeedCard name="INTERNAL"       status="STANDBY" count="842 IOCs" />
+        <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => syncFeeds()}>
+           <FeedCard name="INTERNAL"       status={syncing ? 'ONLINE' : 'STANDBY'} count="842 IOCs" />
+           {!syncing && <div style={{ position: 'absolute', top: 8, right: 8, color: 'var(--cyan)', fontSize: '0.6rem' }}>CLICK TO SYNC</div>}
+        </div>
       </div>
 
       {/* Row 2: IOC Browser */}

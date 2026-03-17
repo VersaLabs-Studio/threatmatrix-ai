@@ -24,9 +24,20 @@ interface UseLLMReturn {
   clearMessages: () => void;
 }
 
+import { demoEmitter } from '@/lib/demo-emitter';
+
 // Some simulated dynamic responses based on common demo queries
 const generateResponseFor = (input: string) => {
   const lowercase = input.toLowerCase();
+  
+  if (lowercase === '/simulate breach' || lowercase === '/simulate attack') {
+    return 'CRITICAL: Multi-vector attack simulation initiated. Injecting anomalous flows and triggering SOC alert system. Observe the War Room Threat Map and Dashboard for live telemetry deviations.';
+  }
+
+  if (lowercase === '/resolve' || lowercase === '/mitigate') {
+    return 'Anomaly signature neutralized. Closing open incident tickets and restoring system status to ELEVATED. Telemetry returning to baseline...';
+  }
+
   if (lowercase.includes('alert') || lowercase.includes('apt-29')) {
     return 'Analysis of ALT-9042 confirms an active data exfiltration event. The traffic pattern strongly correlates with APT-29 signatures. I have isolated the affected Database Subnet and generated a preliminary incident report. Would you like me to initiate the auto-remediation playbook?';
   }
@@ -40,7 +51,7 @@ export function useLLM(): UseLLMReturn {
   const [messages, setMessages]     = useState<ChatMessage[]>([{
     id: 'msg-welcome',
     role: 'assistant',
-    content: 'ThreatMatrix AI Agent is online and analyzing telemetry streams. How can I assist you today?',
+    content: 'ThreatMatrix AI Agent is online. Type `/simulate breach` to test the SOC response system.',
     timestamp: new Date().toISOString()
   }]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -58,6 +69,16 @@ export function useLLM(): UseLLMReturn {
       timestamp: new Date().toISOString(),
     };
 
+    // Push local
+    setMessages((prev) => [...prev, userMsg]);
+
+    // Command handling
+    if (content.toLowerCase() === '/simulate breach' || content.toLowerCase() === '/simulate attack') {
+      demoEmitter.emit('ANOMALY_TRIGGERED');
+    } else if (content.toLowerCase() === '/resolve' || content.toLowerCase() === '/mitigate') {
+      demoEmitter.emit('ANOMALY_RESOLVED');
+    }
+
     const targetResponse = generateResponseFor(content);
 
     const assistantMsg: ChatMessage = {
@@ -68,8 +89,7 @@ export function useLLM(): UseLLMReturn {
       isStreaming: true,
     };
 
-    // Push local
-    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    setMessages((prev) => [...prev, assistantMsg]);
     setIsStreaming(true);
 
     // Update tokens loosely
@@ -85,7 +105,7 @@ export function useLLM(): UseLLMReturn {
             : m
         ));
         charIndex++;
-        const delay = Math.random() * 20 + 10; // 10-30ms per character for realism
+        const delay = Math.random() * 15 + 5; 
         timeoutRefs.current.push(setTimeout(typeNextChar, delay));
       } else {
         setMessages(prev => prev.map(m => 
@@ -97,8 +117,7 @@ export function useLLM(): UseLLMReturn {
       }
     };
 
-    // Initial "thinking" delay
-    timeoutRefs.current.push(setTimeout(typeNextChar, 600));
+    timeoutRefs.current.push(setTimeout(typeNextChar, 400));
 
   }, [isStreaming]);
 

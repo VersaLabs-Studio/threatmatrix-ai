@@ -55,10 +55,13 @@ interface UseWebSocketReturn {
   systemStatus: SystemStatusEvent | null;
 }
 
+import { demoEmitter } from '@/lib/demo-emitter';
+
 // ── Mock State Trackers ────────────────────────────────
 
 let packets = 12500;
 let activeFlowsCount = 1050;
+let isChaosMode = false;
 
 export function useWebSocket(): UseWebSocketReturn {
   const [isConnected, setIsConnected]       = useState(false);
@@ -76,15 +79,16 @@ export function useWebSocket(): UseWebSocketReturn {
       ml_active: true,
       intel_synced: true,
       llm_online: true,
-      threat_level: 'ELEVATED',
+      threat_level: isChaosMode ? 'CRITICAL' : 'ELEVATED',
       packets_per_second: packets,
       active_flows: activeFlowsCount,
     });
 
     // 3. Setup data generation intervals
     const flowInterval = setInterval(() => {
-      // Pick a random flow to shoot a line on the map
       const randomFlow = MOCK_FLOWS[Math.floor(Math.random() * MOCK_FLOWS.length)];
+      
+      // If chaos mode, ensure arcs are red/anomalous
       setLastFlowEvent({
         id: crypto.randomUUID(),
         src_ip: randomFlow.src_ip,
@@ -94,45 +98,70 @@ export function useWebSocket(): UseWebSocketReturn {
         dst_lat: randomFlow.dst_lat,
         dst_lon: randomFlow.dst_lon,
         protocol: randomFlow.protocol,
-        bytes: randomFlow.src_bytes + randomFlow.dst_bytes,
-        anomaly_score: randomFlow.anomaly_score,
-        is_anomaly: randomFlow.is_anomaly,
-        label: randomFlow.label,
+        bytes: (randomFlow.src_bytes + randomFlow.dst_bytes) * (isChaosMode ? 10 : 1),
+        anomaly_score: isChaosMode ? 0.99 : randomFlow.anomaly_score,
+        is_anomaly: isChaosMode ? true : randomFlow.is_anomaly,
+        label: isChaosMode ? 'DDoS ATTACK' : randomFlow.label,
         timestamp: new Date().toISOString()
       });
 
-      // Fluctuate system status slightly
-      packets += Math.floor(Math.random() * 2000) - 1000;
-      activeFlowsCount += Math.floor(Math.random() * 50) - 25;
+      // Fluctuate system status 
+      // Chaos mode spikes metrics
+      if (isChaosMode) {
+        packets = 250000 + Math.random() * 50000;
+        activeFlowsCount = 8500 + Math.random() * 500;
+      } else {
+        packets += Math.floor(Math.random() * 2000) - 1000;
+        activeFlowsCount += Math.floor(Math.random() * 50) - 25;
+      }
       
-      setSystemStatus(prev => prev ? {
-        ...prev,
+      setSystemStatus(prev => ({
+        capture_active: true,
+        ml_active: true,
+        intel_synced: true,
+        llm_online: true,
+        threat_level: isChaosMode ? 'CRITICAL' : 'ELEVATED',
         packets_per_second: Math.max(0, packets),
         active_flows: Math.max(0, activeFlowsCount)
-      } : null);
+      }));
 
-    }, 800); // New flow event every 800ms
+    }, isChaosMode ? 200 : 800); // Faster events in chaos mode
 
     const alertInterval = setInterval(() => {
-      // Occasional new alert notification
-      if (Math.random() > 0.7) {
+      if (Math.random() > 0.7 || isChaosMode) {
         const randomAlert = MOCK_ALERTS[Math.floor(Math.random() * MOCK_ALERTS.length)];
         setLastAlertEvent({
           id: crypto.randomUUID(),
-          severity: randomAlert.severity,
-          category: randomAlert.category,
+          severity: isChaosMode ? 'critical' : randomAlert.severity,
+          category: isChaosMode ? 'DDoS Mitigation' : randomAlert.category,
           src_ip: randomAlert.src_ip,
           dst_ip: randomAlert.dst_ip,
-          composite_score: randomAlert.composite_score,
+          composite_score: isChaosMode ? 0.99 : randomAlert.composite_score,
           timestamp: new Date().toISOString(),
           status: 'open'
         });
       }
-    }, 5000); // Check every 5s
+    }, isChaosMode ? 2000 : 5000);
+
+    // ── Global Event Emitters ───────────────────────────
+    const unsubTrigger = demoEmitter.on('ANOMALY_TRIGGERED', () => {
+      isChaosMode = true;
+      // Force instant update
+      setSystemStatus(prev => prev ? { ...prev, threat_level: 'CRITICAL' } : null);
+    });
+
+    const unsubResolve = demoEmitter.on('ANOMALY_RESOLVED', () => {
+      isChaosMode = false;
+      packets = 12500;
+      activeFlowsCount = 1050;
+      setSystemStatus(prev => prev ? { ...prev, threat_level: 'ELEVATED' } : null);
+    });
 
     return () => {
       clearInterval(flowInterval);
       clearInterval(alertInterval);
+      unsubTrigger();
+      unsubResolve();
       setIsConnected(false);
     };
   }, []);
