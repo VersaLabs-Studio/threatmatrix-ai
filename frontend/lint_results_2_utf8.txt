@@ -1,0 +1,184 @@
+﻿
+> frontend@0.1.0 lint
+> eslint
+
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\app\[locale]\admin\page.tsx
+   68:53  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   97:62  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   98:63  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   99:62  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  102:74  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  103:64  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  139:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  148:41  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  226:70  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  227:70  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  228:70  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\app\[locale]\alerts\page.tsx
+  125:61  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  131:59  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  139:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  158:61  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\app\[locale]\forensics\page.tsx
+   21:70  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   22:70  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   23:73  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   28:70  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   38:70  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  111:58  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\app\[locale]\hunt\page.tsx
+  19:10  warning  'shortNumber' is defined but never used                @typescript-eslint/no-unused-vars
+  61:7   warning  'PROTOCOLS' is assigned a value but never used         @typescript-eslint/no-unused-vars
+  62:7   warning  'ANOMALY_FILTERS' is assigned a value but never used   @typescript-eslint/no-unused-vars
+  69:25  warning  'setProtoFilter' is assigned a value but never used    @typescript-eslint/no-unused-vars
+  70:25  warning  'setAnomalyFilter' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\app\[locale]\ml-ops\page.tsx
+   14:10  warning  'Brain' is defined but never used         @typescript-eslint/no-unused-vars
+   22:69  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   24:68  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   25:68  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   30:68  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  120:43  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\app\[locale]\network\page.tsx
+  23:10  warning  'shortNumber' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\app\[locale]\reports\page.tsx
+  35:69  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  36:69  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:69  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  48:68  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  49:69  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\components\ai-analyst\ContextPanel.tsx
+  11:27  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\components\alerts\AlertDetailDrawer.tsx
+   17:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  168:75  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\components\forensics\PCAPUpload.tsx
+  9:37  warning  'AlertCircle' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\components\forensics\PacketInspector.tsx
+  13:68  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  14:68  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  15:68  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  16:71  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  17:68  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  30:68  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\components\shared\DataTable.tsx
+   20:26  error  Constraining the generic type `T` to `any` does nothing and is unnecessary  @typescript-eslint/no-unnecessary-type-constraint
+   20:36  error  Unexpected any. Specify a different type                                    @typescript-eslint/no-explicit-any
+   32:27  error  Constraining the generic type `T` to `any` does nothing and is unnecessary  @typescript-eslint/no-unnecessary-type-constraint
+   32:37  error  Unexpected any. Specify a different type                                    @typescript-eslint/no-explicit-any
+   44:24  error  Unexpected any. Specify a different type                                    @typescript-eslint/no-explicit-any
+   45:24  error  Unexpected any. Specify a different type                                    @typescript-eslint/no-explicit-any
+  147:72  error  Unexpected any. Specify a different type                                    @typescript-eslint/no-explicit-any
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\components\war-room\AIBriefingWidget.tsx
+  75:10  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\components\war-room\AIBriefingWidget.tsx:75:10
+  73 |
+  74 |   useEffect(() => {
+> 75 |     void fetchBriefing();
+     |          ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  76 |     const interval = setInterval(fetchBriefing, REFRESH_INTERVALS.briefing);
+  77 |     return () => clearInterval(interval);
+  78 |   }, []);  react-hooks/set-state-in-effect
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\components\war-room\LiveAlertFeed.tsx
+  64:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\components\war-room\LiveAlertFeed.tsx:64:5
+  62 |       isNew:     true,
+  63 |     };
+> 64 |     setAlerts((prev) => [newItem, ...prev].slice(0, MAX_FEED_SIZE));
+     |     ^^^^^^^^^ Avoid calling setState() directly within an effect
+  65 |
+  66 |     // Remove isNew flag after animation
+  67 |     setTimeout(() => {  react-hooks/set-state-in-effect
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\components\war-room\MetricCard.tsx
+   9:21  warning  'useRef' is defined but never used    @typescript-eslint/no-unused-vars
+   9:29  warning  'useState' is defined but never used  @typescript-eslint/no-unused-vars
+  11:10  warning  'cx' is defined but never used        @typescript-eslint/no-unused-vars
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\components\war-room\ProtocolChart.tsx
+  45:10  warning  'CustomLabel' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\components\war-room\ThreatMap.tsx
+  112:31  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\hooks\useAlerts.ts
+  89:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\hooks\useAlerts.ts:89:5
+  87 |
+  88 |   useEffect(() => {
+> 89 |     fetchAlerts();
+     |     ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  90 |   }, [fetchAlerts]);
+  91 |
+  92 |   const updateStatus = useCallback(async (id: string, newStatus: AlertStatus) => {  react-hooks/set-state-in-effect
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\hooks\useFlows.ts
+  105:6  warning  React Hook useCallback has unnecessary dependencies: 'dst_ip', 'label', 'limit', 'min_score', 'page', 'protocol', 'src_ip', and 'time_range'. Either exclude them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react-hooks/exhaustive-deps
+  108:5  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\hooks\useFlows.ts:108:5
+  106 |
+  107 |   useEffect(() => {
+> 108 |     fetchAll();
+      |     ^^^^^^^^ Avoid calling setState() directly within an effect
+  109 |   }, [fetchAll]);
+  110 |
+  111 |   return { flows, stats, topTalkers, protocols, total, loading, error, refetch: fetchAll };  react-hooks/set-state-in-effect
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\hooks\useIntel.ts
+  8:33  warning  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\hooks\useWebSocket.ts
+  114:23  warning  'prev' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\lib\demo-emitter.ts
+  10:24  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  23:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\caleb_8h6kswm\Documents\GitHub\threatmatrix-ai\frontend\lib\mock-data.ts
+  3:15  warning  'AlertStatus' is defined but never used  @typescript-eslint/no-unused-vars
+  3:28  warning  'Severity' is defined but never used     @typescript-eslint/no-unused-vars
+
+Γ£û 71 problems (54 errors, 17 warnings)
+

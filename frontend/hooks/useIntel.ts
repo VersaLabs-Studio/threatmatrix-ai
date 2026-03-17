@@ -8,10 +8,17 @@
 import { useState, useCallback, useEffect } from 'react';
 import { MOCK_IOCS, type IOC } from '@/lib/mock-data';
 
+export interface IntelFeed {
+  name: string;
+  status: 'ONLINE' | 'STANDBY' | 'OFFLINE';
+  count: string;
+}
+
 interface UseIntelReturn {
   iocs: IOC[];
   loading: boolean;
   syncing: boolean;
+  feeds: IntelFeed[];
   syncFeeds: () => Promise<void>;
   searchIOCs: (query: string) => IOC[];
 }
@@ -37,5 +44,12 @@ export function useIntel(): UseIntelReturn {
     );
   }, [iocs]);
 
-  return { iocs, loading, syncing, syncFeeds, searchIOCs };
+  const [feeds] = useState<IntelFeed[]>([
+    { name: 'OTX ALIENVAULT', status: 'ONLINE', count: '1.2M IOCs' },
+    { name: 'ABUSEIPDB',      status: 'ONLINE', count: '450K IPs' },
+    { name: 'VIRUSTOTAL',     status: 'ONLINE', count: 'Premium' },
+    { name: 'INTERNAL',       status: 'STANDBY', count: '842 IOCs' },
+  ]);
+
+  return { iocs, loading, syncing, feeds, syncFeeds, searchIOCs };
 }
