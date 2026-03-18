@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     # ── Database ─────────────────────────────────────────────────
     DATABASE_URL: str = Field(
-        default="postgresql+asyncpg://threatmatrix:threatmatrix@localhost:5432/threatmatrix",
+        default="postgresql+asyncpg://threatmatrix:threatmatrix_dev@localhost:5432/threatmatrix",
         description="Async PostgreSQL connection string"
     )
     DATABASE_ECHO: bool = False

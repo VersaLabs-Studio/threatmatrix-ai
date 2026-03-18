@@ -18,29 +18,29 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Application startup and shutdown lifecycle."""
     # ── Startup ──────────────────────────────────────────────
-    print(f"🛡️  {settings.APP_NAME} v{settings.APP_VERSION} starting...")
-    print(f"📡 Database: {settings.DATABASE_URL.split('@')[-1]}")
-    print(f"⚡ Redis: {settings.REDIS_URL}")
+    print(f"[TM] {settings.APP_NAME} v{settings.APP_VERSION} starting...")
+    print(f"[TM] Database: {settings.DATABASE_URL.split('@')[-1]}")
+    print(f"[TM] Redis: {settings.REDIS_URL}")
     
     # Initialize Redis connection
     redis_manager = RedisManager(url=settings.REDIS_URL)
     try:
         await redis_manager.connect()
         app.state.redis_manager = redis_manager
-        print("✅ Redis connected successfully")
+        print("[TM] Redis connected successfully")
     except Exception as e:
-        print(f"⚠️  Redis connection failed: {e}")
+        print(f"[TM] Redis connection failed: {e}")
         app.state.redis_manager = None
     
     yield
     
     # ── Shutdown ─────────────────────────────────────────────
-    print(f"🛡️  {settings.APP_NAME} shutting down...")
+    print(f"[TM] {settings.APP_NAME} shutting down...")
     
     # Disconnect Redis
     if hasattr(app.state, 'redis_manager') and app.state.redis_manager:
         await app.state.redis_manager.disconnect()
-        print("✅ Redis disconnected")
+        print("[TM] Redis disconnected")
 
 
 def create_app() -> FastAPI:

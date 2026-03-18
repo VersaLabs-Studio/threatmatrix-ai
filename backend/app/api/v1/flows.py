@@ -24,7 +24,7 @@ async def list_flows(
 
 
 @router.get("/stats")
-async def flow_statistics(interval: str = Query("1h", regex="^(5m|15m|1h|6h|24h)$")):
+async def flow_statistics(interval: str = Query("1h", pattern="^(5m|15m|1h|6h|24h)$")):
     """Get flow statistics over time interval."""
     return {"interval": interval, "total_flows": 0, "anomaly_count": 0, "anomaly_rate": 0.0}
 

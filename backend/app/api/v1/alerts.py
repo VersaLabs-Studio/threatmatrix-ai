@@ -13,8 +13,8 @@ router = APIRouter()
 async def list_alerts(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
-    severity: Optional[str] = Query(None, regex="^(critical|high|medium|low|info)$"),
-    status: Optional[str] = Query(None, regex="^(open|acknowledged|investigating|resolved|false_positive)$"),
+    severity: Optional[str] = Query(None, pattern="^(critical|high|medium|low|info)$"),
+    status: Optional[str] = Query(None, pattern="^(open|acknowledged|investigating|resolved|false_positive)$"),
 ):
     """List alerts with severity and status filtering."""
     return {"alerts": [], "total": 0, "page": page, "limit": limit}
