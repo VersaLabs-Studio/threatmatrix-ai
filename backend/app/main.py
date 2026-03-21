@@ -32,10 +32,26 @@ async def lifespan(app: FastAPI):
         print(f"[TM] Redis connection failed: {e}")
         app.state.redis_manager = None
     
+    # Start WebSocket Redis listener
+    from app.api.v1.websocket import manager as ws_manager
+    if app.state.redis_manager:
+        try:
+            await ws_manager.start_redis_listener(app.state.redis_manager)
+            print("[TM] WebSocket Redis listener started")
+        except Exception as e:
+            print(f"[TM] WebSocket Redis listener failed: {e}")
+    
     yield
     
     # ── Shutdown ─────────────────────────────────────────────
     print(f"[TM] {settings.APP_NAME} shutting down...")
+    
+    # Stop WebSocket Redis listener
+    try:
+        await ws_manager.stop_redis_listener()
+        print("[TM] WebSocket Redis listener stopped")
+    except Exception:
+        pass
     
     # Disconnect Redis
     if hasattr(app.state, 'redis_manager') and app.state.redis_manager:

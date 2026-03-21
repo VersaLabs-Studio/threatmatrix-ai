@@ -47,6 +47,7 @@ interface UseAlertsReturn {
   loading: boolean;
   error: string | null;
   updateStatus: (id: string, status: AlertStatus) => Promise<void>;
+  assignAlert: (id: string, userId: string) => Promise<void>;
   acknowledge: (ids: string[]) => Promise<void>;
   refetch: () => void;
 }
@@ -76,18 +77,65 @@ export function useAlerts(filters: AlertFilters = {}): UseAlertsReturn {
   }, [severity, status, page, limit]);
 
   useEffect(() => {
-    void fetchAlerts();
-  }, [fetchAlerts]);
+    // Initial fetch (deferred to avoid synchronous setState in effect)
+    const initialTimeout = setTimeout(() => {
+      void fetchAlerts();
+    }, 0);
+
+    // Auto-refresh every 5 seconds
+    const interval = setInterval(() => {
+      void fetchAlerts();
+    }, 5000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [fetchAlerts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateStatus = useCallback(async (id: string, newStatus: AlertStatus) => {
-    await api.patch(`/api/v1/alerts/${id}/status`, { status: newStatus });
-    void fetchAlerts();
+    // Optimistic UI update: update local state immediately
+    setAlerts((prev) =>
+      prev.map((alert) =>
+        alert.id === id ? { ...alert, status: newStatus } : alert
+      )
+    );
+
+    const { error: err } = await api.patch(`/api/v1/alerts/${id}/status`, { status: newStatus });
+    if (err) {
+      // Revert on error
+      setError(err);
+      void fetchAlerts();
+    }
+  }, [fetchAlerts]);
+
+  const assignAlert = useCallback(async (id: string, userId: string) => {
+    const { error: err } = await api.patch(`/api/v1/alerts/${id}/assign`, { assigned_to: userId });
+    if (err) {
+      setError(err);
+    } else {
+      void fetchAlerts();
+    }
   }, [fetchAlerts]);
 
   const acknowledge = useCallback(async (ids: string[]) => {
-    await Promise.all(ids.map((id) => api.patch(`/api/v1/alerts/${id}/status`, { status: 'acknowledged' })));
-    void fetchAlerts();
+    // Optimistic UI update
+    setAlerts((prev) =>
+      prev.map((alert) =>
+        ids.includes(alert.id) ? { ...alert, status: 'acknowledged' as AlertStatus } : alert
+      )
+    );
+
+    const results = await Promise.allSettled(
+      ids.map((id) => api.patch(`/api/v1/alerts/${id}/status`, { status: 'acknowledged' }))
+    );
+
+    const hasError = results.some((r) => r.status === 'rejected');
+    if (hasError) {
+      setError('Some alerts failed to acknowledge');
+      void fetchAlerts();
+    }
   }, [fetchAlerts]);
 
-  return { alerts, total, loading, error, updateStatus, acknowledge, refetch: fetchAlerts };
+  return { alerts, total, loading, error, updateStatus, assignAlert, acknowledge, refetch: fetchAlerts };
 }

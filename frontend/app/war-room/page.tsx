@@ -9,6 +9,7 @@
 import dynamic from 'next/dynamic';
 import { useWebSocket }      from '@/hooks/useWebSocket';
 import { useFlows }          from '@/hooks/useFlows';
+import { useAlerts }         from '@/hooks/useAlerts';
 import { MetricCard }        from '@/components/war-room/MetricCard';
 import { ProtocolChart }     from '@/components/war-room/ProtocolChart';
 import { TrafficTimeline }   from '@/components/war-room/TrafficTimeline';
@@ -16,6 +17,7 @@ import { LiveAlertFeed }     from '@/components/war-room/LiveAlertFeed';
 import { TopTalkers }        from '@/components/war-room/TopTalkers';
 import { AIBriefingWidget }  from '@/components/war-room/AIBriefingWidget';
 import { GeoDistribution }   from '@/components/war-room/GeoDistribution';
+import { ThreatLevel }       from '@/components/war-room/ThreatLevel';
 import { formatPercent }     from '@/lib/utils';
 
 // Dynamic import ensures Deck.gl never runs at SSR time
@@ -39,7 +41,8 @@ const ThreatMap = dynamic(
 
 export default function WarRoomPage() {
   const { lastAlertEvent, systemStatus } = useWebSocket();
-  const { stats, protocols, topTalkers, loading } = useFlows({ time_range: '1h' });
+  const { stats, protocols, topTalkers, loading: flowsLoading } = useFlows({ time_range: '1h' });
+  const { alerts, total: alertTotal, loading: alertsLoading } = useAlerts({ limit: 100 });
 
   // Derive live metric values from system status or the latest stats point
   const latestStat = stats[stats.length - 1];
@@ -50,6 +53,11 @@ export default function WarRoomPage() {
   const totalPackets  = stats.reduce((s, d) => s + d.packets_per_second, 0);
   const anomalyPkts   = stats.reduce((s, d) => s + d.anomaly_count, 0);
   const anomalyRate   = totalPackets > 0 ? anomalyPkts / totalPackets : 0;
+
+  // Calculate threat level from alert stats
+  const criticalCount = alerts.filter((a) => a.severity === 'critical').length;
+  const highCount = alerts.filter((a) => a.severity === 'high').length;
+  const threatLevel = criticalCount > 0 ? 'CRITICAL' : highCount > 0 ? 'HIGH' : 'ELEVATED';
 
   return (
     <div
@@ -63,21 +71,21 @@ export default function WarRoomPage() {
     >
       {/* ── Row 1: Metric Cards ───────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-3)' }}>
-        <MetricCard label="PACKETS/SEC"  value={pps}       unit="pkt/s"  accent="cyan"     loading={loading} />
-        <MetricCard label="ACTIVE FLOWS" value={flows}     unit="flows"  accent="cyan"     loading={loading} />
+        <MetricCard label="PACKETS/SEC"  value={pps}       unit="pkt/s"  accent="cyan"     loading={flowsLoading} />
+        <MetricCard label="ACTIVE FLOWS" value={flows}     unit="flows"  accent="cyan"     loading={flowsLoading} />
         <MetricCard
           label="ANOMALY RATE"
           value={parseFloat(formatPercent(anomalyRate))}
           unit="%"
           accent={anomalyRate > 0.05 ? 'critical' : 'warning'}
-          loading={loading}
+          loading={flowsLoading}
         />
         <MetricCard
           label="THREATS (24H)"
-          value={stats.reduce((s, d) => s + d.anomaly_count, 0)}
+          value={alertTotal}
           unit="alerts"
           accent="critical"
-          loading={loading}
+          loading={alertsLoading}
         />
       </div>
 
@@ -105,10 +113,11 @@ export default function WarRoomPage() {
           </div>
         </div>
 
-        {/* Right: Protocol Distribution + Traffic Timeline stacked */}
+        {/* Right: Protocol Distribution + Traffic Timeline + Threat Level stacked */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          <ProtocolChart data={protocols} loading={loading} />
-          <TrafficTimeline data={stats} loading={loading} />
+          <ProtocolChart data={protocols} loading={flowsLoading} />
+          <TrafficTimeline data={stats} loading={flowsLoading} />
+          <ThreatLevel level={threatLevel} loading={alertsLoading} />
         </div>
       </div>
 
@@ -118,7 +127,7 @@ export default function WarRoomPage() {
       {/* ── Row 4: Alert Feed + Top Talkers + Geo ────── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-4)' }}>
         <LiveAlertFeed   lastAlertEvent={lastAlertEvent} />
-        <TopTalkers      data={topTalkers} loading={loading} />
+        <TopTalkers      data={topTalkers} loading={flowsLoading} />
         <GeoDistribution />
       </div>
     </div>

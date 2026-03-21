@@ -74,6 +74,7 @@ interface UseFlowsReturn {
   loading: boolean;
   error: string | null;
   refetch: () => void;
+  searchFlows: (query: FlowFilters) => Promise<NetworkFlow[]>;
 }
 
 export function useFlows(filters: FlowFilters = {}): UseFlowsReturn {
@@ -118,11 +119,33 @@ export function useFlows(filters: FlowFilters = {}): UseFlowsReturn {
       .every((r) => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error));
     setError(allFailed ? 'Failed to load flow data' : null);
     setLoading(false);
-  }, [JSON.stringify(filters)]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const searchFlows = useCallback(async (query: FlowFilters): Promise<NetworkFlow[]> => {
+    const { data, error: err } = await api.post<{ items: NetworkFlow[] }>('/api/v1/flows/search', query);
+    if (err) {
+      console.error('[useFlows] Search error:', err);
+      return [];
+    }
+    return data?.items ?? [];
+  }, []);
 
   useEffect(() => {
-    void fetchAll();
-  }, [fetchAll]);
+    // Initial fetch (deferred to avoid synchronous setState in effect)
+    const initialTimeout = setTimeout(() => {
+      void fetchAll();
+    }, 0);
 
-  return { flows, stats, topTalkers, protocols, total, loading, error, refetch: fetchAll };
+    // Auto-refresh every 3 seconds (per MASTER_DOC_PART3 §2.3)
+    const interval = setInterval(() => {
+      void fetchAll();
+    }, 3000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [fetchAll]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { flows, stats, topTalkers, protocols, total, loading, error, refetch: fetchAll, searchFlows };
 }

@@ -2,7 +2,7 @@
 # ThreatMatrix AI — Development Commands
 # ═══════════════════════════════════════════════════════════════
 
-.PHONY: dev-backend dev-frontend docker-up docker-down docker-logs test lint clean help
+.PHONY: dev-backend dev-frontend docker-up docker-down docker-logs test lint clean verify help
 
 # ── Development ──────────────────────────────────────────────
 dev-backend: ## Start FastAPI backend with hot reload
@@ -64,6 +64,9 @@ evaluate: ## Evaluate trained models
 	cd backend && python -m ml.training.evaluate
 
 # ── Utilities ────────────────────────────────────────────────
+verify: ## Run Week 1 demo verification script
+	@bash scripts/verify_week1.sh
+
 clean: ## Remove Python cache files
 	find backend -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find backend -type f -name "*.pyc" -delete 2>/dev/null || true

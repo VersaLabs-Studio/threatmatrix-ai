@@ -6,7 +6,7 @@
 // typed event state for use across all components
 // ═══════════════════════════════════════════════════════
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { wsClient } from '@/lib/websocket';
 import { WS_CHANNELS, type ThreatLevel } from '@/lib/constants';
 
@@ -54,6 +54,9 @@ interface UseWebSocketReturn {
   lastFlowEvent: FlowEvent | null;
   lastAlertEvent: AlertEvent | null;
   systemStatus: SystemStatusEvent | null;
+  subscribe: (channels: string[]) => void;
+  unsubscribe: (channels: string[]) => void;
+  reconnect: () => void;
 }
 
 export function useWebSocket(): UseWebSocketReturn {
@@ -62,8 +65,55 @@ export function useWebSocket(): UseWebSocketReturn {
   const [lastAlertEvent, setLastAlertEvent] = useState<AlertEvent | null>(null);
   const [systemStatus, setSystemStatus]     = useState<SystemStatusEvent | null>(null);
 
+  // Track unsubscribe functions per channel
+  const unsubFunctionsRef = useRef<Map<string, () => void>>(new Map());
+
   const checkConnection = useCallback(() => {
     setIsConnected(wsClient.isConnected);
+  }, []);
+
+  const subscribe = useCallback((channels: string[]) => {
+    // Subscribe to additional channels dynamically
+    channels.forEach((channel) => {
+      // Skip if already subscribed
+      if (unsubFunctionsRef.current.has(channel)) return;
+
+      let unsubFn: (() => void) | undefined;
+
+      if (channel === WS_CHANNELS.FLOWS) {
+        unsubFn = wsClient.subscribe(WS_CHANNELS.FLOWS, (d) => setLastFlowEvent(d as FlowEvent));
+      } else if (channel === WS_CHANNELS.ALERTS) {
+        unsubFn = wsClient.subscribe(WS_CHANNELS.ALERTS, (d) => setLastAlertEvent(d as AlertEvent));
+      } else if (channel === WS_CHANNELS.SYSTEM) {
+        unsubFn = wsClient.subscribe(WS_CHANNELS.SYSTEM, (d) => {
+          setSystemStatus(d as SystemStatusEvent);
+          checkConnection();
+        });
+      }
+
+      // Store the unsubscribe function
+      if (unsubFn) {
+        unsubFunctionsRef.current.set(channel, unsubFn);
+      }
+    });
+  }, [checkConnection]);
+
+  const unsubscribe = useCallback((channels: string[]) => {
+    channels.forEach((channel) => {
+      const unsubFn = unsubFunctionsRef.current.get(channel);
+      if (unsubFn) {
+        unsubFn();
+        unsubFunctionsRef.current.delete(channel);
+      }
+    });
+  }, []);
+
+  const reconnect = useCallback(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
+    if (token) {
+      wsClient.disconnect();
+      wsClient.connect(token);
+    }
   }, []);
 
   useEffect(() => {
@@ -75,8 +125,22 @@ export function useWebSocket(): UseWebSocketReturn {
       checkConnection();
     });
 
+    // Store unsubscribe functions for dynamic unsubscribe support
+    unsubFunctionsRef.current.set(WS_CHANNELS.FLOWS, unsubFlows);
+    unsubFunctionsRef.current.set(WS_CHANNELS.ALERTS, unsubAlerts);
+    unsubFunctionsRef.current.set(WS_CHANNELS.SYSTEM, unsubSystem);
+
     // Poll connection state every 2 seconds
     const interval = setInterval(checkConnection, 2000);
+
+    // Heartbeat: ping every 30 seconds to keep connection alive
+    const heartbeatInterval = setInterval(() => {
+      if (wsClient.isConnected) {
+        // Send a ping message (backend should respond with pong)
+        // For now, we just check connection state
+        checkConnection();
+      }
+    }, 30000);
 
     // Connect using stored token (if available)
     const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
@@ -86,9 +150,11 @@ export function useWebSocket(): UseWebSocketReturn {
       unsubFlows();
       unsubAlerts();
       unsubSystem();
+      unsubFunctionsRef.current.clear();
       clearInterval(interval);
+      clearInterval(heartbeatInterval);
     };
   }, [checkConnection]);
 
-  return { isConnected, lastFlowEvent, lastAlertEvent, systemStatus };
+  return { isConnected, lastFlowEvent, lastAlertEvent, systemStatus, subscribe, unsubscribe, reconnect };
 }
