@@ -26,7 +26,7 @@ from app.schemas.capture import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/capture", tags=["Capture"])
+router = APIRouter(tags=["Capture"])
 
 # ── Global capture engine instance ───────────────────────────────
 
