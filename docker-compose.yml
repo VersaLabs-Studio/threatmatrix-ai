@@ -44,6 +44,8 @@ services:
       DATABASE_URL: postgresql+asyncpg://threatmatrix:${DB_PASSWORD:-threatmatrix_dev}@postgres:5432/threatmatrix
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-threatmatrix-dev-secret}
+      DEV_MODE: ${DEV_MODE:-false}
+      CAPTURE_INTERFACE: ${CAPTURE_INTERFACE:-eth0}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       GLM_API_KEY: ${GLM_API_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
