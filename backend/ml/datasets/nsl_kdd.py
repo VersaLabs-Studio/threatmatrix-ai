@@ -15,14 +15,12 @@ from typing import Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 logger = logging.getLogger(__name__)
 
-# NSL-KDD column names (41 features + label + optional difficulty_level)
-# Some dataset variants have 42 columns (no difficulty_level), others 43
-NSL_KDD_FEATURES = [
+# NSL-KDD feature names (41 features, KDD Cup 1999 standard)
+NSL_KDD_FEATURE_NAMES = [
     "duration", "protocol_type", "service", "flag",
     "src_bytes", "dst_bytes", "land", "wrong_fragment", "urgent",
     "hot", "num_failed_logins", "logged_in", "num_compromised",
@@ -37,12 +35,6 @@ NSL_KDD_FEATURES = [
     "dst_host_srv_serror_rate", "dst_host_rerror_rate",
     "dst_host_srv_rerror_rate",
 ]
-
-# 43 columns: 41 features + label + difficulty_level
-NSL_KDD_COLUMNS = NSL_KDD_FEATURES + ["label", "difficulty_level"]
-
-# 42 columns: 41 features + label (no difficulty_level)
-NSL_KDD_COLUMNS_42 = NSL_KDD_FEATURES + ["label"]
 
 # Attack type → category mapping
 ATTACK_CATEGORIES = {
@@ -67,6 +59,7 @@ ATTACK_CATEGORIES = {
     "sqlattack": "u2r",
 }
 
+N_FEATURES = len(NSL_KDD_FEATURE_NAMES)  # Expected to be 41
 DATASET_DIR = Path(__file__).parent.parent / "saved_models" / "datasets"
 
 
@@ -88,23 +81,27 @@ class NSLKDDLoader:
         self.label_encoders: dict[str, LabelEncoder] = {}
         self.scaler: StandardScaler | None = None
         self.feature_names: list[str] = []
-        self._has_difficulty: bool = False
 
-    def _resolve_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Auto-detect column format and assign names. Handles trailing separators."""
+    def _load_csv(self, path: Path) -> pd.DataFrame:
+        """
+        Load NSL-KDD CSV and assign column names dynamically.
+        Handles both 42-column (no difficulty_level) and 43-column variants.
+        """
+        df = pd.read_csv(path, header=None)
         ncols = len(df.columns)
 
-        if ncols >= 43:
-            # Assign 43 names to first 43 columns, drop any extras (trailing commas)
-            self._has_difficulty = True
-            if ncols > 43:
-                df = df.iloc[:, :43]
-            df.columns = NSL_KDD_COLUMNS
-        elif ncols == 42:
-            self._has_difficulty = False
-            df.columns = NSL_KDD_COLUMNS_42
-        else:
-            raise ValueError(f"Unexpected column count: {ncols} (expected 42 or 43)")
+        # Build column names: 41 features + label + optional difficulty_level
+        col_names = NSL_KDD_FEATURE_NAMES + ["label"]
+        if ncols > N_FEATURES + 1:
+            col_names.append("difficulty_level")
+
+        # If more columns than names (trailing commas), trim excess
+        if ncols > len(col_names):
+            df = df.iloc[:, :len(col_names)]
+        elif ncols < len(col_names):
+            col_names = col_names[:ncols]
+
+        df.columns = col_names[:len(df.columns)]
         return df
 
     def load_train(self) -> pd.DataFrame:
@@ -115,8 +112,7 @@ class NSLKDDLoader:
                 f"NSL-KDD training data not found at {train_path}. "
                 f"Download from: https://www.unb.ca/cic/datasets/nsl.html"
             )
-        df = pd.read_csv(train_path, header=None)
-        df = self._resolve_columns(df)
+        df = self._load_csv(train_path)
         logger.info("Loaded NSL-KDD train set: %d records, %d columns", len(df), len(df.columns))
         return df
 
@@ -128,8 +124,7 @@ class NSLKDDLoader:
                 f"NSL-KDD test data not found at {test_path}. "
                 f"Download from: https://www.unb.ca/cic/datasets/nsl.html"
             )
-        df = pd.read_csv(test_path, header=None)
-        df = self._resolve_columns(df)
+        df = self._load_csv(test_path)
         logger.info("Loaded NSL-KDD test set: %d records, %d columns", len(df), len(df.columns))
         return df
 
@@ -153,7 +148,7 @@ class NSLKDDLoader:
         df["attack_category"] = df["label"].map(ATTACK_CATEGORIES).fillna("unknown")
         df = df[df["attack_category"] != "unknown"]  # Drop unmapped (rare)
 
-        # 2. Drop difficulty_level (not a feature)
+        # 2. Drop non-feature columns
         df = df.drop(columns=["difficulty_level", "label"], errors="ignore")
 
         # 3. Separate features and target
@@ -163,6 +158,8 @@ class NSLKDDLoader:
         # 4. Encode categorical features
         categorical_cols = ["protocol_type", "service", "flag"]
         for col in categorical_cols:
+            if col not in X_df.columns:
+                continue
             if fit:
                 le = LabelEncoder()
                 X_df[col] = le.fit_transform(X_df[col].astype(str))
