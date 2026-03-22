@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.env/
+.venv/
+
+# Environment variables
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ML Artifacts (large files — don't commit)
+backend/ml/saved_models/datasets/*.txt
+backend/ml/saved_models/datasets/*.csv
+backend/ml/saved_models/*.pkl
+backend/ml/saved_models/*.h5
+backend/ml/saved_models/*.keras
+backend/ml/saved_models/*.joblib
+
+# IDE
+.vscode/
+.idea/
+
+# Docker volumes
+pg_data/
+redis_data/

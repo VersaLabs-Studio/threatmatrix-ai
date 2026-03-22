@@ -147,45 +147,58 @@ class CaptureEngine:
 
     def _extract_packet(self, packet: Packet) -> Optional[PacketRecord]:
         """Extract relevant data from Scapy packet into PacketRecord."""
-        if not packet.haslayer(IP):
+        try:
+            if not packet.haslayer(IP):
+                return None
+
+            ip_layer = packet[IP]
+
+            # Guard: skip malformed IP
+            if not hasattr(ip_layer, 'src') or not hasattr(ip_layer, 'dst'):
+                return None
+
+            # Guard: skip multicast/broadcast
+            if ip_layer.dst.startswith('224.') or ip_layer.dst == '255.255.255.255':
+                return None
+
+            timestamp = time.time()
+            length = len(packet)
+
+            # Default values
+            src_port = 0
+            dst_port = 0
+            flags = 0
+            payload = b""
+
+            if packet.haslayer(TCP):
+                tcp = packet[TCP]
+                src_port = tcp.sport
+                dst_port = tcp.dport
+                flags = int(tcp.flags)
+                payload = bytes(tcp.payload) if tcp.payload else b""
+            elif packet.haslayer(UDP):
+                udp = packet[UDP]
+                src_port = udp.sport
+                dst_port = udp.dport
+                payload = bytes(udp.payload) if udp.payload else b""
+            elif packet.haslayer(ICMP):
+                # ICMP has no ports
+                pass
+
+            return PacketRecord(
+                src_ip=ip_layer.src,
+                dst_ip=ip_layer.dst,
+                src_port=src_port,
+                dst_port=dst_port,
+                protocol=ip_layer.proto,
+                length=length,
+                payload=payload,
+                timestamp=timestamp,
+                flags=flags,
+            )
+        except Exception as exc:
+            logger.debug("[Engine] Packet parse error: %s", exc)
             return None
-
-        ip_layer = packet[IP]
-        timestamp = time.time()
-        length = len(packet)
-
-        # Default values
-        src_port = 0
-        dst_port = 0
-        flags = 0
-        payload = b""
-
-        if packet.haslayer(TCP):
-            tcp = packet[TCP]
-            src_port = tcp.sport
-            dst_port = tcp.dport
-            flags = int(tcp.flags)
-            payload = bytes(tcp.payload) if tcp.payload else b""
-        elif packet.haslayer(UDP):
-            udp = packet[UDP]
-            src_port = udp.sport
-            dst_port = udp.dport
-            payload = bytes(udp.payload) if udp.payload else b""
-        elif packet.haslayer(ICMP):
-            # ICMP has no ports
-            pass
-
-        return PacketRecord(
-            src_ip=ip_layer.src,
-            dst_ip=ip_layer.dst,
-            src_port=src_port,
-            dst_port=dst_port,
-            protocol=ip_layer.proto,
-            length=length,
-            payload=payload,
-            timestamp=timestamp,
-            flags=flags,
-        )
 
     # ── Flow Completion Handler ────────────────────────────────────
 
@@ -254,13 +267,24 @@ class CaptureEngine:
                 status = self.get_status()
                 pps = status["packets_captured"] / max(status["uptime_seconds"], 1)
 
+                # Memory check: warn if flow buffer is > 80% full
+                buffer_usage = status["active_flows"] / self.config.max_flows_buffer
+                if buffer_usage > 0.8:
+                    logger.warning(
+                        "[Engine] Flow buffer at %.0f%% capacity (%d/%d)",
+                        buffer_usage * 100,
+                        status["active_flows"],
+                        self.config.max_flows_buffer,
+                    )
+
                 logger.info(
-                    "[Engine] Stats: %d pkts | %d flows | %d published | %.1f pps | %d active",
+                    "[Engine] Stats: %d pkts | %d flows | %d published | %.1f pps | %d active (%.0f%%)",
                     status["packets_captured"],
                     status["flows_completed"],
                     status["flows_published"],
                     pps,
                     status["active_flows"],
+                    buffer_usage * 100,
                 )
 
                 # Publish status to Redis
