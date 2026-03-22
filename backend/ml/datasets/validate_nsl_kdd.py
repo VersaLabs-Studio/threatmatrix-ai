@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ml.datasets.nsl_kdd import NSLKDDLoader, NSL_KDD_COLUMNS, ATTACK_CATEGORIES
+from ml.datasets.nsl_kdd import NSLKDDLoader, NSL_KDD_COLUMNS, NSL_KDD_COLUMNS_42, ATTACK_CATEGORIES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ def validate() -> bool:
 
         assert len(train_df) > 100000, f"Train too small: {len(train_df)}"
         assert len(test_df) > 20000, f"Test too small: {len(test_df)}"
-        assert len(train_df.columns) == 43, f"Expected 43 columns, got {len(train_df.columns)}"
+        assert len(train_df.columns) in (42, 43), f"Expected 42 or 43 columns, got {len(train_df.columns)}"
     except Exception as e:
         errors.append(f"Load failed: {e}")
         logger.error("FAIL: %s", e)
@@ -44,12 +44,12 @@ def validate() -> bool:
 
     # 2. Check column names
     logger.info("=== Step 2: Verify column names ===")
-    expected_cols = NSL_KDD_COLUMNS
+    expected_cols = NSL_KDD_COLUMNS if len(train_df.columns) == 43 else NSL_KDD_COLUMNS_42
     actual_cols = list(train_df.columns)
     if actual_cols != expected_cols:
         errors.append(f"Column mismatch: {set(expected_cols) - set(actual_cols)}")
     else:
-        logger.info("PASS: All 43 columns match NSL-KDD spec")
+        logger.info("PASS: All %d columns match NSL-KDD spec", len(expected_cols))
 
     # 3. Check attack label distribution
     logger.info("=== Step 3: Attack label distribution ===")

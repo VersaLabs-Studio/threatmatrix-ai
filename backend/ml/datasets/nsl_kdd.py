@@ -20,8 +20,9 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 logger = logging.getLogger(__name__)
 
-# NSL-KDD column names (41 features + 2 labels)
-NSL_KDD_COLUMNS = [
+# NSL-KDD column names (41 features + label + optional difficulty_level)
+# Some dataset variants have 42 columns (no difficulty_level), others 43
+NSL_KDD_FEATURES = [
     "duration", "protocol_type", "service", "flag",
     "src_bytes", "dst_bytes", "land", "wrong_fragment", "urgent",
     "hot", "num_failed_logins", "logged_in", "num_compromised",
@@ -35,8 +36,13 @@ NSL_KDD_COLUMNS = [
     "dst_host_srv_diff_host_rate", "dst_host_serror_rate",
     "dst_host_srv_serror_rate", "dst_host_rerror_rate",
     "dst_host_srv_rerror_rate",
-    "label", "difficulty_level"
 ]
+
+# 43 columns: 41 features + label + difficulty_level
+NSL_KDD_COLUMNS = NSL_KDD_FEATURES + ["label", "difficulty_level"]
+
+# 42 columns: 41 features + label (no difficulty_level)
+NSL_KDD_COLUMNS_42 = NSL_KDD_FEATURES + ["label"]
 
 # Attack type → category mapping
 ATTACK_CATEGORIES = {
@@ -82,6 +88,20 @@ class NSLKDDLoader:
         self.label_encoders: dict[str, LabelEncoder] = {}
         self.scaler: StandardScaler | None = None
         self.feature_names: list[str] = []
+        self._has_difficulty: bool = False
+
+    def _resolve_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Auto-detect column format (42 vs 43 columns) and assign names."""
+        ncols = len(df.columns)
+        if ncols == 43:
+            self._has_difficulty = True
+            df.columns = NSL_KDD_COLUMNS
+        elif ncols == 42:
+            self._has_difficulty = False
+            df.columns = NSL_KDD_COLUMNS_42
+        else:
+            raise ValueError(f"Unexpected column count: {ncols} (expected 42 or 43)")
+        return df
 
     def load_train(self) -> pd.DataFrame:
         """Load NSL-KDD training set (KDDTrain+.txt)."""
@@ -91,7 +111,8 @@ class NSLKDDLoader:
                 f"NSL-KDD training data not found at {train_path}. "
                 f"Download from: https://www.unb.ca/cic/datasets/nsl.html"
             )
-        df = pd.read_csv(train_path, header=None, names=NSL_KDD_COLUMNS)
+        df = pd.read_csv(train_path, header=None)
+        df = self._resolve_columns(df)
         logger.info("Loaded NSL-KDD train set: %d records, %d columns", len(df), len(df.columns))
         return df
 
@@ -103,7 +124,8 @@ class NSLKDDLoader:
                 f"NSL-KDD test data not found at {test_path}. "
                 f"Download from: https://www.unb.ca/cic/datasets/nsl.html"
             )
-        df = pd.read_csv(test_path, header=None, names=NSL_KDD_COLUMNS)
+        df = pd.read_csv(test_path, header=None)
+        df = self._resolve_columns(df)
         logger.info("Loaded NSL-KDD test set: %d records, %d columns", len(df), len(df.columns))
         return df
 
