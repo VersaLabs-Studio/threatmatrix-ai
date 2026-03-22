@@ -40,9 +40,10 @@ from app.schemas.ml import (
     PredictionResponse,
 )
 from app.schemas.capture import (
-    CaptureSessionResponse,
+    CaptureStatus,
     CaptureStartRequest,
-    PCAPUploadResponse,
+    CaptureStartResponse,
+    CaptureStopResponse,
 )
 
 __all__ = [
@@ -77,7 +78,8 @@ __all__ = [
     "PredictionRequest",
     "PredictionResponse",
     # Capture
-    "CaptureSessionResponse",
+    "CaptureStatus",
     "CaptureStartRequest",
-    "PCAPUploadResponse",
+    "CaptureStartResponse",
+    "CaptureStopResponse",
 ]

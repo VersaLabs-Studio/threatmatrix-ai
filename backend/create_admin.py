@@ -13,8 +13,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app.database import async_session
 from app.models.user import User
-from app.services.auth_service import hash_password
+from passlib.context import CryptContext
 from sqlalchemy import select
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
+
 
 
 async def create_admin():
@@ -45,7 +48,7 @@ async def create_admin():
         # Create admin user
         admin = User(
             email=admin_email,
-            password_hash=hash_password(admin_password),
+            password_hash=pwd_context.hash(admin_password),
             full_name=admin_name,
             role="admin",
             language="en",
