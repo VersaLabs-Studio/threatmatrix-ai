@@ -14,7 +14,7 @@ from typing import Dict, List, Optional
 from capture.config import CaptureConfig
 
 
-@dataclass
+@dataclass(frozen=True)
 class FlowKey:
     """5-tuple flow identifier."""
 
