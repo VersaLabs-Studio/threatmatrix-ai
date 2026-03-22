@@ -6,7 +6,7 @@ SQLAlchemy ORM model for the pcap_uploads table.
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import BigInteger, DateTime, Integer, String
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -80,6 +80,7 @@ class PCAPUpload(Base, TimestampMixin):
     # User Reference
     uploaded_by: Mapped[UUID | None] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey("users.id"),
         nullable=True,
         comment="User ID who uploaded the file"
     )

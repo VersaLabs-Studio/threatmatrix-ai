@@ -6,7 +6,7 @@ SQLAlchemy ORM model for the alerts table.
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Float, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, INET, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -99,6 +99,7 @@ class Alert(Base, TimestampMixin):
     
     assigned_to: Mapped[UUID | None] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey("users.id"),
         nullable=True,
         comment="User ID of assigned analyst"
     )
@@ -139,6 +140,7 @@ class Alert(Base, TimestampMixin):
     
     resolved_by: Mapped[UUID | None] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey("users.id"),
         nullable=True,
         comment="User ID who resolved the alert"
     )

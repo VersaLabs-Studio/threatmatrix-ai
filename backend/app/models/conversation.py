@@ -5,7 +5,7 @@ SQLAlchemy ORM model for the llm_conversations table.
 
 from uuid import uuid4
 
-from sqlalchemy import Integer, String
+from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,6 +33,7 @@ class LLMConversation(Base, TimestampMixin):
     # User Reference
     user_id: Mapped[UUID | None] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey("users.id"),
         nullable=True,
         comment="User ID who initiated the conversation"
     )

@@ -6,7 +6,7 @@ SQLAlchemy ORM model for the audit_log table.
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Index, String, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,6 +33,7 @@ class AuditLog(Base):
     # User Reference
     user_id: Mapped[UUID | None] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey("users.id"),
         nullable=True,
         index=True,
         comment="User who performed the action"
