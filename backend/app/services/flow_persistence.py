@@ -39,11 +39,11 @@ class FlowPersistence:
             INSERT INTO network_flows (
                 id, timestamp, src_ip, dst_ip, src_port, dst_port, protocol,
                 duration, total_bytes, total_packets, src_bytes, dst_bytes,
-                features, source, created_at
+                features, is_anomaly, anomaly_score, source, created_at
             ) VALUES (
                 gen_random_uuid(), :timestamp, :src_ip, :dst_ip, :src_port, :dst_port, :protocol,
                 :duration, :total_bytes, :total_packets, :src_bytes, :dst_bytes,
-                :features, :source, NOW()
+                :features, :is_anomaly, :anomaly_score, :source, NOW()
             )
             RETURNING id::text
         """)
@@ -69,6 +69,8 @@ class FlowPersistence:
             "src_bytes": flow_data.get("src_bytes", 0),
             "dst_bytes": flow_data.get("dst_bytes", 0),
             "features": json.dumps(flow_data.get("features", {})),
+            "is_anomaly": flow_data.get("is_anomaly", False),
+            "anomaly_score": flow_data.get("anomaly_score", None),
             "source": flow_data.get("source", "live"),
         }
 
