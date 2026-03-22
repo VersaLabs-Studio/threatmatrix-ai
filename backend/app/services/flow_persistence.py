@@ -37,11 +37,11 @@ class FlowPersistence:
         """
         query = text("""
             INSERT INTO network_flows (
-                timestamp, src_ip, dst_ip, src_port, dst_port, protocol,
+                id, timestamp, src_ip, dst_ip, src_port, dst_port, protocol,
                 duration, total_bytes, total_packets, src_bytes, dst_bytes,
                 features, source, created_at
             ) VALUES (
-                :timestamp, :src_ip, :dst_ip, :src_port, :dst_port, :protocol,
+                gen_random_uuid(), :timestamp, :src_ip, :dst_ip, :src_port, :dst_port, :protocol,
                 :duration, :total_bytes, :total_packets, :src_bytes, :dst_bytes,
                 :features, :source, NOW()
             )

@@ -39,7 +39,7 @@ def upgrade() -> None:
     # ── Network Flows Table ──────────────────────────────────────
     op.create_table(
         'network_flows',
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()')),
         sa.Column('timestamp', sa.DateTime(timezone=True), nullable=False, index=True),
         sa.Column('src_ip', postgresql.INET, nullable=False, index=True),
         sa.Column('dst_ip', postgresql.INET, nullable=False, index=True),

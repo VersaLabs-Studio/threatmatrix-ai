@@ -6,7 +6,7 @@ SQLAlchemy ORM model for the network_flows table.
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Index, Integer, SmallInteger, String, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Index, Integer, SmallInteger, String, func, text
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,6 +28,7 @@ class NetworkFlow(Base):
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid4,
+        server_default=text('gen_random_uuid()'),
         comment="Unique flow identifier"
     )
     
