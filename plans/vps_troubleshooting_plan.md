@@ -58,29 +58,30 @@
 
 ### Identified Issues
 
-1. **Issue #1: Backend not subscribing to Redis flows:live channel**
+1. **Issue #1: Backend not subscribing to Redis flows:live channel** ✅ FIXED
    - The capture engine publishes flows to Redis `flows:live` channel
    - The backend needs to subscribe to this channel and persist flows to PostgreSQL
-   - Current status: Backend is running but NOT subscribing to flows
+   - **Fix:** Created `FlowConsumer` service (`backend/app/services/flow_consumer.py`) that subscribes to `flows:live` and persists to PostgreSQL via `FlowPersistence`. Integrated into FastAPI lifespan in `main.py`.
 
 2. **Issue #2: Capture API endpoints returning "Not Found"**
    - The capture router is registered in `backend/app/api/v1/__init__.py`
    - But endpoints return "Not Found" when called
    - Possible cause: Backend not fully initialized or route registration issue
 
-3. **Issue #3: No flow persistence service active**
+3. **Issue #3: No flow persistence service active** ✅ FIXED
    - The capture engine publishes to Redis but doesn't persist to PostgreSQL directly
    - A separate service (backend) should subscribe and persist
-   - Current status: This service is not running
+   - **Fix:** `FlowConsumer` now runs as a background task in the FastAPI app, subscribing to `flows:live` and batch-inserting flows to PostgreSQL.
 
 ---
 
 ## 🔧 Solution Architecture
 
-### Current Flow (Broken)
+### Current Flow (Working After Fix)
 
 ```
-Capture Engine → Redis (flows:live) → ❌ NO SUBSCRIBER → PostgreSQL (empty)
+Capture Engine → Redis (flows:live) → FlowConsumer → PostgreSQL (network_flows)
+                                    → WebSocket → Browser (real-time)
 ```
 
 ### Target Flow (Working)

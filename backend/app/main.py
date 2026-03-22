@@ -40,12 +40,32 @@ async def lifespan(app: FastAPI):
             print("[TM] WebSocket Redis listener started")
         except Exception as e:
             print(f"[TM] WebSocket Redis listener failed: {e}")
-    
+
+    # Start Flow Consumer (Redis → PostgreSQL persistence)
+    from app.services.flow_consumer import FlowConsumer
+    if app.state.redis_manager:
+        try:
+            flow_consumer = FlowConsumer(redis_url=settings.REDIS_URL)
+            await flow_consumer.start()
+            app.state.flow_consumer = flow_consumer
+            print("[TM] Flow consumer started — persisting flows to PostgreSQL")
+        except Exception as e:
+            print(f"[TM] Flow consumer failed: {e}")
+            app.state.flow_consumer = None
+
     yield
     
     # ── Shutdown ─────────────────────────────────────────────
     print(f"[TM] {settings.APP_NAME} shutting down...")
     
+    # Stop Flow Consumer
+    if hasattr(app.state, 'flow_consumer') and app.state.flow_consumer:
+        try:
+            await app.state.flow_consumer.stop()
+            print("[TM] Flow consumer stopped")
+        except Exception:
+            pass
+
     # Stop WebSocket Redis listener
     try:
         await ws_manager.stop_redis_listener()
