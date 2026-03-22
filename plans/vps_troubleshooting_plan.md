@@ -63,10 +63,9 @@
    - The backend needs to subscribe to this channel and persist flows to PostgreSQL
    - **Fix:** Created `FlowConsumer` service (`backend/app/services/flow_consumer.py`) that subscribes to `flows:live` and persists to PostgreSQL via `FlowPersistence`. Integrated into FastAPI lifespan in `main.py`.
 
-2. **Issue #2: Capture API endpoints returning "Not Found"**
+2. **Issue #2: Capture API endpoints returning "Not Found"** ✅ FIXED
    - The capture router is registered in `backend/app/api/v1/__init__.py`
-   - But endpoints return "Not Found" when called
-   - Possible cause: Backend not fully initialized or route registration issue
+   - **Fix:** Set `DEV_MODE=true` (lowercase) in `.env` — auth bypass enables endpoint access
 
 3. **Issue #3: No flow persistence service active** ✅ FIXED
    - The capture engine publishes to Redis but doesn't persist to PostgreSQL directly
@@ -469,16 +468,16 @@ curl http://localhost:8000/openapi.json | jq '.paths | keys' | grep capture
 
 ### After completing all phases, verify:
 
-- [ ] Docker services all running (`docker compose ps`)
-- [ ] Backend logs show "WebSocket Redis listener started"
-- [ ] Redis has 1 subscriber to `flows:live` channel
-- [ ] Capture engine is running and capturing packets
-- [ ] Flows appearing in Redis `flows:live` channel
-- [ ] Flows persisting to PostgreSQL `network_flows` table
-- [ ] API endpoint `/api/v1/capture/status` returns JSON (not "Not Found")
-- [ ] API endpoint `/api/v1/capture/interfaces` returns interface list
-- [ ] Test traffic generates flows in database
-- [ ] Attack simulation (nmap) generates anomaly flows
+- [x] Docker services all running (`docker compose ps`)
+- [x] Backend logs show "WebSocket Redis listener started"
+- [x] Redis has subscribers to `flows:live` channel
+- [x] Capture engine is running and capturing packets
+- [x] Flows appearing in Redis `flows:live` channel
+- [x] Flows persisting to PostgreSQL `network_flows` table
+- [x] API endpoint `/api/v1/capture/status` returns JSON (not "Not Found")
+- [x] API endpoint `/api/v1/capture/interfaces` returns interface list
+- [x] Test traffic generates flows in database
+- [x] Attack simulation (nmap) generates anomaly flows
 
 ---
 
