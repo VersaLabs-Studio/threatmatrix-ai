@@ -144,7 +144,7 @@ class NSLKDDLoader:
         df = df.copy()
 
         # 1. Map labels to 5-class categories
-        df["label"] = df["label"].str.strip().str.lower()
+        df["label"] = df["label"].astype(str).str.strip().str.lower()
         df["attack_category"] = df["label"].map(ATTACK_CATEGORIES).fillna("unknown")
         df = df[df["attack_category"] != "unknown"]  # Drop unmapped (rare)
 

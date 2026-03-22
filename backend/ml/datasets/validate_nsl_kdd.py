@@ -55,7 +55,7 @@ def validate() -> bool:
 
     # 3. Check attack label distribution
     logger.info("=== Step 3: Attack label distribution ===")
-    labels = train_df["label"].str.strip().str.lower()
+    labels = train_df["label"].astype(str).str.strip().str.lower()
     mapped = labels.map(ATTACK_CATEGORIES)
     unmapped = labels[mapped.isna()].unique()
     if len(unmapped) > 0:
