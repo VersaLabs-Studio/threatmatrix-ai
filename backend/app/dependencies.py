@@ -7,6 +7,7 @@ Implements:
 - Current user retrieval from token
 - Active user verification
 - Role-based access control (RBAC) decorator
+- DEV MODE bypass for visual verification (logged)
 """
 
 from uuid import UUID
@@ -16,6 +17,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
 from app.models.user import User
 from app.services.auth_service import decode_token
@@ -23,19 +25,40 @@ from app.services.auth_service import decode_token
 # ── Security Scheme ────────────────────────────────────────────
 security = HTTPBearer()
 
+# ── Dev Mode Mock User ────────────────────────────────────────
+DEV_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
+DEV_USER_EMAIL = "dev@threatmatrix.local"
+DEV_USER_NAME = "Dev Admin"
+DEV_USER_ROLE = "admin"
+
+
+def _get_dev_user() -> User:
+    """Create a mock admin user for DEV_MODE bypass."""
+    print(f"[⚠️  DEV_MODE] Auth bypassed — using mock admin user ({DEV_USER_EMAIL})")
+    return User(
+        id=DEV_USER_ID,
+        email=DEV_USER_EMAIL,
+        password_hash="dev-bypass-no-hash",
+        full_name=DEV_USER_NAME,
+        role=DEV_USER_ROLE,
+        language="en",
+        is_active=True,
+    )
+
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(HTTPBearer(auto_error=False)),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     """
     Extract and validate user from JWT token.
     
     This dependency:
-    1. Extracts the Bearer token from the Authorization header
-    2. Decodes and validates the JWT token
-    3. Retrieves the user from the database
-    4. Returns the User model
+    1. Checks if DEV_MODE is enabled → returns mock admin user
+    2. Extracts the Bearer token from the Authorization header
+    3. Decodes and validates the JWT token
+    4. Retrieves the user from the database
+    5. Returns the User model
     
     Args:
         credentials: HTTP Bearer credentials from Authorization header
@@ -47,6 +70,22 @@ async def get_current_user(
     Raises:
         HTTPException 401: If token is invalid, expired, or user not found
     """
+    settings = get_settings()
+    
+    # ── DEV MODE BYPASS ──────────────────────────────────────
+    # Returns a mock admin user without JWT validation
+    # Logged for audit trail — disable DEV_MODE in production!
+    if settings.DEV_MODE:
+        return _get_dev_user()
+    
+    # ── Normal JWT Validation ────────────────────────────────
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     token = credentials.credentials
     
     # Decode and validate token
@@ -99,6 +138,8 @@ async def get_current_active_user(
     
     This dependency builds on get_current_user and adds
     an additional check for the is_active flag.
+    
+    In DEV_MODE, the mock user is always active.
     
     Args:
         current_user: User from get_current_user dependency

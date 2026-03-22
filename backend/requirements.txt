@@ -42,3 +42,4 @@ reportlab==4.2.5
 # Utilities
 python-multipart==0.0.20
 orjson==3.10.15
+email-validator>=2.1.0

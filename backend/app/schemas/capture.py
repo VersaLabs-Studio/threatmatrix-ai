@@ -1,48 +1,69 @@
 """
-ThreatMatrix AI — Capture Pydantic Schemas
-Request/response schemas for capture and PCAP endpoints.
+ThreatMatrix AI — Capture Schemas
+
+Pydantic request/response models for capture engine API endpoints.
+Per MASTER_DOC_PART2 §5.1
 """
 
-from datetime import datetime
-from uuid import UUID
-from typing import Any
+from __future__ import annotations
+
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
 
-class CaptureSessionResponse(BaseModel):
-    """Response schema for capture session data."""
-    
-    id: UUID
-    interface: str | None = None
-    status: str
-    packets_total: int
-    flows_total: int
-    anomalies_total: int
-    started_at: datetime
-    stopped_at: datetime | None = None
-    config: dict[str, Any] | None = None
+class CaptureStatus(BaseModel):
+    """Capture engine status response."""
+
+    status: str = Field(..., description="Engine status: running | stopped")
+    interface: Optional[str] = Field(None, description="Network interface")
+    packets_captured: int = Field(0, description="Total packets captured")
+    flows_completed: int = Field(0, description="Total flows completed")
+    flows_published: int = Field(0, description="Total flows published to Redis")
+    publish_errors: int = Field(0, description="Publish error count")
+    active_flows: int = Field(0, description="Flows currently in buffer")
+    uptime_seconds: float = Field(0.0, description="Seconds since engine start")
 
 
 class CaptureStartRequest(BaseModel):
-    """Request schema for starting capture."""
-    
-    interface: str = Field(description="Network interface to capture on")
-    bpf_filter: str | None = Field(default=None, description="BPF filter expression")
-    timeout: int | None = Field(default=30, description="Flow timeout in seconds")
+    """Request body for starting capture."""
+
+    interface: Optional[str] = Field(
+        default="eth0",
+        description="Network interface to capture on"
+    )
+    bpf_filter: Optional[str] = Field(
+        default="",
+        description="Berkeley Packet Filter expression"
+    )
 
 
-class PCAPUploadResponse(BaseModel):
-    """Response schema for PCAP upload."""
-    
-    id: UUID
-    filename: str
-    file_size: int | None = None
-    file_path: str | None = None
-    status: str
-    packets_count: int | None = None
-    flows_extracted: int | None = None
-    anomalies_found: int | None = None
-    uploaded_by: UUID | None = None
-    processed_at: datetime | None = None
-    created_at: datetime
+class CaptureStartResponse(BaseModel):
+    """Response for capture start."""
+
+    status: str = Field(..., description="Started status")
+    interface: str = Field(..., description="Interface capturing on")
+    message: str = Field(..., description="Human-readable message")
+
+
+class CaptureStopResponse(BaseModel):
+    """Response for capture stop."""
+
+    status: str = Field(..., description="Stopped status")
+    message: str = Field(..., description="Human-readable message")
+
+
+class NetworkInterface(BaseModel):
+    """Available network interface."""
+
+    name: str = Field(..., description="Interface name")
+    description: str = Field(..., description="Interface description")
+
+
+class InterfaceList(BaseModel):
+    """List of available network interfaces."""
+
+    interfaces: List[NetworkInterface] = Field(
+        default_factory=list,
+        description="Available network interfaces"
+    )
