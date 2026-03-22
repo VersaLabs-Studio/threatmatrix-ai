@@ -51,7 +51,8 @@ def validate() -> bool:
     if feature_cols != expected_features:
         errors.append(f"Feature column mismatch: {set(expected_features) - set(feature_cols)}")
     else:
-        logger.info("PASS: All %d feature columns match NSL-KDD spec (total %d columns)", len(expected_features), ncols)
+        logger.info("PASS: First 41 columns match NSL-KDD spec (total %d columns)", ncols)
+    assert "label" in train_df.columns, "Missing 'label' column"
 
     # 3. Check attack label distribution
     logger.info("=== Step 3: Attack label distribution ===")

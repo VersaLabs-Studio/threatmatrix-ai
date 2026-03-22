@@ -85,23 +85,43 @@ class NSLKDDLoader:
     def _load_csv(self, path: Path) -> pd.DataFrame:
         """
         Load NSL-KDD CSV and assign column names dynamically.
-        Handles both 42-column (no difficulty_level) and 43-column variants.
+        Handles variants with/without difficulty_level and extra numeric columns.
+        
+        Known layouts:
+          42 cols: [41 features][label]
+          43 cols: [41 features][label][difficulty_level]
+          43 cols: [41 features][extra_numeric][label][difficulty_level]
         """
-        df = pd.read_csv(path, header=None)
+        df = pd.read_csv(path, header=None, dtype=str)
         ncols = len(df.columns)
 
-        # Build column names: 41 features + label + optional difficulty_level
-        col_names = NSL_KDD_FEATURE_NAMES + ["label"]
-        if ncols > N_FEATURES + 1:
-            col_names.append("difficulty_level")
+        if ncols < 42:
+            raise ValueError(f"Too few columns: {ncols} (expected at least 42)")
 
-        # If more columns than names (trailing commas), trim excess
-        if ncols > len(col_names):
-            df = df.iloc[:, :len(col_names)]
-        elif ncols < len(col_names):
-            col_names = col_names[:ncols]
+        # Find which column contains the label (string like 'normal', 'neptune')
+        # Check last 2 columns for string labels
+        label_col = ncols - 1  # default: last column
+        for col_idx in range(ncols - 1, max(ncols - 3, 40), -1):
+            sample = df.iloc[0, col_idx]
+            if isinstance(sample, str) and not sample.replace('.', '', 1).isdigit():
+                label_col = col_idx
+                break
 
-        df.columns = col_names[:len(df.columns)]
+        # Build column names
+        col_names: list[str] = []
+        feat_idx = 0
+        for i in range(ncols):
+            if i == label_col:
+                col_names.append("label")
+            elif i == ncols - 1 and i != label_col:
+                col_names.append("difficulty_level")
+            elif feat_idx < N_FEATURES:
+                col_names.append(NSL_KDD_FEATURE_NAMES[feat_idx])
+                feat_idx += 1
+            else:
+                col_names.append(f"_extra_{i}")
+
+        df.columns = col_names
         return df
 
     def load_train(self) -> pd.DataFrame:
@@ -149,7 +169,9 @@ class NSLKDDLoader:
         df = df[df["attack_category"] != "unknown"]  # Drop unmapped (rare)
 
         # 2. Drop non-feature columns
-        df = df.drop(columns=["difficulty_level", "label"], errors="ignore")
+        drop_cols = ["difficulty_level", "label"]
+        drop_cols += [c for c in df.columns if c.startswith("_extra_")]
+        df = df.drop(columns=drop_cols, errors="ignore")
 
         # 3. Separate features and target
         y_raw = df["attack_category"]
