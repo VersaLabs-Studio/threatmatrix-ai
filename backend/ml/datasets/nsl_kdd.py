@@ -91,10 +91,14 @@ class NSLKDDLoader:
         self._has_difficulty: bool = False
 
     def _resolve_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Auto-detect column format (42 vs 43 columns) and assign names."""
+        """Auto-detect column format and assign names. Handles trailing separators."""
         ncols = len(df.columns)
-        if ncols == 43:
+
+        if ncols >= 43:
+            # Assign 43 names to first 43 columns, drop any extras (trailing commas)
             self._has_difficulty = True
+            if ncols > 43:
+                df = df.iloc[:, :43]
             df.columns = NSL_KDD_COLUMNS
         elif ncols == 42:
             self._has_difficulty = False
