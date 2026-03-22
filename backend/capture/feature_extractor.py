@@ -201,9 +201,9 @@ class FeatureExtractor:
         SF = normal close, S0 = SYN without response, REJ = rejected,
         OTH = other, etc.
         """
-        if flow.protocol == 17:  # UDP
+        if flow.key.protocol == 17:  # UDP
             return "SF" if flow.total_packets > 0 else "OTH"
-        if flow.protocol == 1:  # ICMP
+        if flow.key.protocol == 1:  # ICMP
             return "OTH"
 
         # TCP analysis
