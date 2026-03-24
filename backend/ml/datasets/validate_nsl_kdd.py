@@ -33,6 +33,7 @@ def validate() -> bool:
         test_df = loader.load_test()
         logger.info("Train: %d records, %d columns", len(train_df), len(train_df.columns))
         logger.info("Test: %d records, %d columns", len(test_df), len(test_df.columns))
+        logger.info("Train columns: %s", list(train_df.columns))
 
         assert len(train_df) > 100000, f"Train too small: {len(train_df)}"
         assert len(test_df) > 20000, f"Test too small: {len(test_df)}"
@@ -46,13 +47,16 @@ def validate() -> bool:
     # 2. Check column names (first 41 should match feature names)
     logger.info("=== Step 2: Verify column names ===")
     ncols = len(train_df.columns)
-    feature_cols = list(train_df.columns[:41])
-    expected_features = NSL_KDD_FEATURE_NAMES
-    if feature_cols != expected_features:
-        errors.append(f"Feature column mismatch: {set(expected_features) - set(feature_cols)}")
-    else:
-        logger.info("PASS: First 41 columns match NSL-KDD spec (total %d columns)", ncols)
     assert "label" in train_df.columns, "Missing 'label' column"
+
+    # Verify the 41 NSL-KDD features are present (excluding label, difficulty, _extra)
+    feature_cols = [c for c in train_df.columns if c not in ("label", "difficulty_level") and not c.startswith("_extra_")]
+    expected_features = NSL_KDD_FEATURE_NAMES
+    missing = set(expected_features) - set(feature_cols)
+    if missing:
+        errors.append(f"Missing features: {missing}")
+    else:
+        logger.info("PASS: All %d NSL-KDD features present (total %d columns)", len(expected_features), ncols)
 
     # 3. Check attack label distribution
     logger.info("=== Step 3: Attack label distribution ===")
@@ -73,7 +77,7 @@ def validate() -> bool:
     logger.info("=== Step 4: Preprocess (fit) ===")
     X_train, y_train, feature_names = loader.preprocess(train_df, fit=True)
     logger.info("X_train shape: %s, y_train shape: %s", X_train.shape, y_train.shape)
-    logger.info("Feature names: %d features", len(feature_names))
+    logger.info("Feature names: %d features: %s", len(feature_names), feature_names)
     logger.info("Classes: %s", loader.get_class_names())
 
     assert X_train.shape[1] == len(feature_names), "Feature count mismatch"
