@@ -1,0 +1,176 @@
+# ThreatMatrix AI — Integration Audit & Fix Plan
+
+**Date**: 2026-03-22 | **Status**: Fixes Needed
+
+---
+
+## Audit Summary
+
+| Category | Grade | Verdict |
+|----------|-------|---------|
+| Walkthrough Accuracy | ⭐ A- | 95% matches actual code, 1 critical mismatch |
+| Phase 1 (Foundation) | ⭐ A | All files exist and match |
+| Phase 2 (Fix Hooks) | ⭐ A | Transforms and wiring verified |
+| Phase 3 (Wire Pages) | ⭐ B+ | Pages wired, PATCH contract broken |
+| Backend Route Claim | ⚠️ VALID | Intel/ML/PCAP routes missing — DB models exist |
+
+---
+
+## Part A: Integration Fixes (Your Work)
+
+> These are issues in the frontend integration layer that need fixing now.
+
+### 🔴 FIX 1: Alert PATCH Status — Body vs Query Param
+
+**Problem**: Frontend sends query param, but backend expects JSON body.
+
+| File | Current (Broken) | 
+|------|-----------------|
+| [useAlerts.ts L108](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/frontend/hooks/useAlerts.ts#L108) | `api.patch(\`/alerts/${id}/status?new_status=${newStatus}\`)` |
+| [alerts.py L77-80](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/backend/app/api/v1/alerts.py#L77-L80) | `body: StatusUpdateRequest` with `new_status: str` field |
+
+**Fix** — Change frontend to send body:
+
+```diff
+// useAlerts.ts — updateStatus
+- const { error: err } = await api.patch(`/api/v1/alerts/${id}/status?new_status=${newStatus}`);
++ const { error: err } = await api.patch(`/api/v1/alerts/${id}/status`, { new_status: newStatus });
+```
+
+---
+
+### 🔴 FIX 2: Alert Assign — Body vs Query Param
+
+**Problem**: Same issue as Fix 1. Frontend sends `?assigned_to=`, backend expects body.
+
+| File | Current (Broken) |
+|------|-----------------|
+| [useAlerts.ts L117](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/frontend/hooks/useAlerts.ts#L117) | `api.patch(\`/alerts/${id}/assign?assigned_to=${userId}\`)` |
+| [alerts.py L103-108](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/backend/app/api/v1/alerts.py#L103-L108) | `body: AssignRequest` with `assignee_id: UUID` |
+
+**Fix** — Change frontend to send body with correct field name:
+
+```diff
+// useAlerts.ts — assignAlert
+- const { error: err } = await api.patch(`/api/v1/alerts/${id}/assign?assigned_to=${userId}`);
++ const { error: err } = await api.patch(`/api/v1/alerts/${id}/assign`, { assignee_id: userId });
+```
+
+---
+
+### 🔴 FIX 3: Alert Acknowledge — Same Body Issue
+
+```diff
+// useAlerts.ts — acknowledge
+- ids.map((id) => api.patch(`/api/v1/alerts/${id}/status?new_status=acknowledged`))
++ ids.map((id) => api.patch(`/api/v1/alerts/${id}/status`, { new_status: 'acknowledged' }))
+```
+
+---
+
+### 🟡 FIX 4: Flow Stats Invalid Interval
+
+**Problem**: [useFlows.ts](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/frontend/hooks/useFlows.ts) passes `'1m'` to [getStats()](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/frontend/lib/services/flowService.ts#50-52), but backend only accepts `1h|6h|24h|7d`.
+
+| File | Current (Broken) |
+|------|-----------------|
+| [useFlows.ts L81](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/frontend/hooks/useFlows.ts#L81) | `flowService.getStats('1m')` |
+
+**Fix**:
+
+```diff
+// useFlows.ts — fetchAll
+- flowService.getStats('1m'),
++ flowService.getStats('1h'),
+```
+
+---
+
+### 🟡 FIX 5: useAlerts Should Use alertService
+
+**Problem**: [useAlerts.ts](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/frontend/hooks/useAlerts.ts) calls `api.get/patch` directly instead of going through the [alertService.ts](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/frontend/lib/services/alertService.ts) service layer (inconsistent with [useFlows](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/frontend/hooks/useFlows.ts#67-137) which uses `flowService`).
+
+**Fix**: Refactor [useAlerts](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/frontend/hooks/useAlerts.ts#58-146) to import and use `alertService` methods. Low priority — functional but inconsistent.
+
+---
+
+## Part B: Backend Work (Kidus's Work)
+
+> These require new backend route files + service files. The **database models already exist**.
+
+### 🔴 ROUTE 1: Intel IOC Endpoint
+
+| What | Details |
+|------|---------|
+| **Frontend expects** | `GET /api/v1/intel/iocs` → `{ items: IOCResponse[], total: number }` |
+| **Model exists** | [models/intel.py](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/backend/app/models/intel.py) ✅ |
+| **Missing** | `api/v1/intel.py` (route) + `services/intel_service.py` (service) |
+| **Frontend hook ready** | [useIntel.ts](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/frontend/hooks/useIntel.ts) — gracefully handles 404 |
+
+---
+
+### 🔴 ROUTE 2: ML Models Endpoint
+
+| What | Details |
+|------|---------|
+| **Frontend expects** | `GET /api/v1/ml/models` → `{ items: MLModelResponse[], total: number }` |
+| **Model exists** | [models/ml_model.py](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/backend/app/models/ml_model.py) ✅ |
+| **Missing** | `api/v1/ml.py` (route) + `services/ml_service.py` (service) |
+| **Frontend hook ready** | [useMLModels.ts](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/frontend/hooks/useMLModels.ts) — gracefully handles 404 |
+
+---
+
+### 🔴 ROUTE 3: PCAP/Capture Endpoints
+
+| What | Details |
+|------|---------|
+| **Frontend expects** | `GET /api/v1/pcap/uploads` → `PCAPUploadResponse[]` |
+|  | `POST /api/v1/pcap/upload` → file upload |
+| **Models exist** | [models/pcap.py](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/backend/app/models/pcap.py) + [models/capture.py](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/backend/app/models/capture.py) ✅ |
+| **Missing** | `api/v1/pcap.py` (route) + `services/pcap_service.py` (service) |
+| **Frontend hook ready** | [useCapture.ts](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/frontend/hooks/useCapture.ts) — gracefully handles 404 |
+
+---
+
+### 🟡 ROUTE 4: LLM Chat (SSE Streaming)
+
+| What | Details |
+|------|---------|
+| **Frontend expects** | `POST /api/v1/llm/chat` → SSE stream |
+| **Model exists** | [models/conversation.py](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/backend/app/models/conversation.py) ✅ |
+| **Missing** | `api/v1/llm.py` (route) + `services/llm_service.py` (service) |
+| **Frontend hook ready** | [useLLM.ts](file:///c:/Users/caleb_8h6kswm/Documents/GitHub/threatmatrix-ai/frontend/hooks/useLLM.ts) — uses fetch+ReadableStream |
+
+---
+
+## Backend Model vs Route Gap (Visual)
+
+```
+backend/app/models/         backend/app/api/v1/         backend/app/services/
+├── alert.py          ✅    ├── alerts.py         ✅    ├── alert_service.py    ✅
+├── flow.py           ✅    ├── flows.py          ✅    ├── flow_service.py     ✅
+├── user.py           ✅    ├── auth.py           ✅    ├── auth_service.py     ✅
+├── intel.py          ✅    │   (no intel.py)      ❌    │   (no intel_service)   ❌
+├── ml_model.py       ✅    │   (no ml.py)         ❌    │   (no ml_service)      ❌
+├── pcap.py           ✅    │   (no pcap.py)       ❌    │   (no pcap_service)    ❌
+├── capture.py        ✅    │   (no capture.py)    ❌    │   (no capture_service) ❌
+├── conversation.py   ✅    │   (no llm.py)        ❌    │   (no llm_service)     ❌
+└── base.py           ✅    ├── system.py          ✅    └── __init__.py         ✅
+```
+
+---
+
+## Fix Priority Order
+
+### You (Integration) — Do First
+1. **FIX 1**: Alert PATCH body (5 min)
+2. **FIX 2**: Alert assign body (5 min)
+3. **FIX 3**: Alert acknowledge body (5 min)
+4. **FIX 4**: Flow stats interval `'1m'` → `'1h'` (1 min)
+5. **FIX 5**: Refactor useAlerts to use alertService (30 min, optional)
+
+### Kidus (Backend) — After Your Fixes
+1. **ROUTE 1**: Intel IOC endpoint (model ready)
+2. **ROUTE 2**: ML Models endpoint (model ready)
+3. **ROUTE 3**: PCAP/Capture endpoints (model ready)
+4. **ROUTE 4**: LLM Chat SSE endpoint (model ready)
