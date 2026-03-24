@@ -117,7 +117,11 @@ export function useWebSocket(): UseWebSocketReturn {
   }, []);
 
   useEffect(() => {
-    // Subscribe to all channels
+    // Connect using stored token (if available)
+    const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
+    if (token) wsClient.connect(token);
+
+    // Subscribe to all channels (will be sent once WS is open)
     const unsubFlows  = wsClient.subscribe(WS_CHANNELS.FLOWS,  (d) => setLastFlowEvent(d as FlowEvent));
     const unsubAlerts = wsClient.subscribe(WS_CHANNELS.ALERTS, (d) => setLastAlertEvent(d as AlertEvent));
     const unsubSystem = wsClient.subscribe(WS_CHANNELS.SYSTEM, (d) => {
@@ -141,10 +145,6 @@ export function useWebSocket(): UseWebSocketReturn {
         checkConnection();
       }
     }, 30000);
-
-    // Connect using stored token (if available)
-    const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
-    if (token) wsClient.connect(token);
 
     return () => {
       unsubFlows();
