@@ -10,18 +10,30 @@ export type AlertSeverity = Severity;
 
 export interface AlertResponse {
   id: string;
+  alert_id: string;
+  severity: AlertSeverity;
   title: string;
   description?: string;
-  severity: AlertSeverity;
-  status: AlertStatus;
   category?: string;
-  confidence?: number;
   source_ip?: string;
   dest_ip?: string;
-  flow_ids?: string[];
+  confidence?: number;
+  status: AlertStatus;
   assigned_to?: string;
+  flow_ids?: string[];
+  ml_model?: string;
+  ai_narrative?: string;
+  ai_playbook?: string;
+  resolved_at?: string;
+  resolved_by?: string;
+  resolution_note?: string;
   created_at: string;
   updated_at?: string;
+  // Additional fields that may be present
+  composite_score?: number;
+  label?: string;
+  flow_count?: number;
+  timestamp?: string;
 }
 
 export interface AlertFilters {
@@ -35,31 +47,46 @@ export interface AlertFilters {
 
 export interface FlowResponse {
   id: string;
+  timestamp: string;
   src_ip: string;
   dst_ip: string;
   src_port: number;
   dst_port: number;
   protocol: number;
-  bytes_sent: number;
-  bytes_received: number;
-  packets_sent: number;
-  packets_received: number;
-  start_time: string;
-  end_time?: string;
-  duration_ms?: number;
-  flags?: string;
-  label?: string;
-  score?: number;
+  duration: number | null;
+  total_bytes: number | null;
+  total_packets: number | null;
+  src_bytes: number | null;
+  dst_bytes: number | null;
+  features: Record<string, unknown>;
+  anomaly_score: number | null;
+  is_anomaly: boolean;
+  ml_model: string | null;
+  label: string | null;
+  source: string;
+  created_at: string;
 }
 
-export interface NetworkFlow extends Omit<FlowResponse, 'protocol'> {
-  protocol: string; // Transformed to human-readable name
-  timestamp: string; // Alias for start_time used in UI
-  total_bytes: number; // Computed: bytes_sent + bytes_received
-  anomaly_score: number; // Alias for score
-  src_bytes: number; // Alias for bytes_sent
-  dst_bytes: number; // Alias for bytes_received
-  is_anomaly: boolean; // Computed: score > threshold
+export interface NetworkFlow {
+  id: string;
+  src_ip: string;
+  dst_ip: string;
+  src_port: number;
+  dst_port: number;
+  protocol: string; // Transformed to human-readable name (TCP, UDP, ICMP)
+  duration: number | null;
+  total_bytes: number | null;
+  total_packets: number | null;
+  src_bytes: number | null;
+  dst_bytes: number | null;
+  features: Record<string, unknown>;
+  anomaly_score: number | null;
+  is_anomaly: boolean;
+  ml_model: string | null;
+  label: string | null;
+  source: string;
+  created_at: string;
+  timestamp: string; // Alias for the flow timestamp
 }
 
 export interface TopTalker {
@@ -92,10 +119,13 @@ export interface FlowTimeline {
 export interface TopTalkersResponse {
   top_talkers: Array<{
     ip: string;
-    total_bytes: number;
     flow_count: number;
+    total_bytes: number;
+    total_packets: number;
     anomaly_count: number;
   }>;
+  period: string;
+  total_talkers: number;
 }
 
 export interface ProtocolDistResponse {
@@ -103,14 +133,18 @@ export interface ProtocolDistResponse {
     count: number;
     percentage: number;
   }>;
+  total_flows: number;
+  period: string;
 }
 
 export interface FlowStatsResponse {
+  interval: string;
   total_flows: number;
-  total_bytes: number;
-  avg_duration_ms: number;
   anomaly_count: number;
-  time_range: string;
+  anomaly_percentage: number;
+  protocol_distribution: Record<string, { count: number; percentage: number }>;
+  top_source_ips: Array<Record<string, unknown>>;
+  top_dest_ips: Array<Record<string, unknown>>;
 }
 
 export interface FlowFilters {

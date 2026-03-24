@@ -4,6 +4,20 @@
 
 import type { Severity, ThreatLevel } from './constants';
 
+// ── Protocol mapping ─────────────────────────────────────
+
+/** Map protocol number to human-readable name (6=TCP, 17=UDP, 1=ICMP) */
+export const PROTOCOL_MAP: Record<number, string> = {
+  1: 'ICMP',
+  6: 'TCP',
+  17: 'UDP',
+};
+
+/** Convert protocol number to string, with fallback for unknown */
+export function mapProtocolNumber(proto: number): string {
+  return PROTOCOL_MAP[proto] ?? `Other(${proto})`;
+}
+
 // ── Number formatting ──────────────────────────────────
 
 /** 12847 → "12.8K" | 2_300_000 → "2.3M" */
