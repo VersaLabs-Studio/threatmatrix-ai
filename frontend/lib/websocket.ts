@@ -15,6 +15,7 @@ class WebSocketClient {
   private reconnectDelay = 1000;
   private maxDelay = 30_000;
   private shouldConnect = false;
+  private subscribedChannels: Set<WSChannel> = new Set();
 
   connect(token: string) {
     this.shouldConnect = true;
@@ -36,6 +37,12 @@ class WebSocketClient {
       this.listeners.set(channel, new Set());
     }
     this.listeners.get(channel)!.add(listener);
+    
+    // If already connected, send subscribe message to backend
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this._sendSubscribeMessage([channel]);
+    }
+    
     return () => this.listeners.get(channel)?.delete(listener);
   }
 
@@ -46,12 +53,17 @@ class WebSocketClient {
   private _open(token: string) {
     if (this.ws) this.ws.close();
 
-    const url = `${WS_BASE_URL}/ws/?token=${token}`;
+    const url = `${WS_BASE_URL}/api/v1/ws/?token=${token}`;
     this.ws = new WebSocket(url);
 
     this.ws.onopen = () => {
       this.reconnectDelay = 1000;
       console.log('[ThreatMatrix WS] Connected');
+      
+      // Send subscribe message for all currently subscribed channels
+      if (this.subscribedChannels.size > 0) {
+        this._sendSubscribeMessage(Array.from(this.subscribedChannels));
+      }
     };
 
     this.ws.onmessage = (event: MessageEvent) => {
@@ -78,6 +90,17 @@ class WebSocketClient {
     this.ws.onerror = () => {
       this.ws?.close();
     };
+  }
+
+  private _sendSubscribeMessage(channels: WSChannel[]) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      const message = JSON.stringify({
+        action: 'subscribe',
+        channels: channels,
+      });
+      this.ws.send(message);
+      console.log('[ThreatMatrix WS] Subscribed to channels:', channels);
+    }
   }
 }
 
