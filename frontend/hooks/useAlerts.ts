@@ -6,33 +6,9 @@
 // ═══════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api';
+import { alertService } from '@/lib/services';
 import type { Severity, AlertStatus } from '@/lib/constants';
-
-export interface Alert {
-  id: string;
-  severity: Severity;
-  category: string;
-  src_ip: string;
-  dst_ip: string;
-  src_port?: number;
-  dst_port?: number;
-  composite_score: number;
-  label: string;
-  status: AlertStatus;
-  assigned_to?: string;
-  ai_narrative?: string;
-  flow_count: number;
-  timestamp: string;
-  updated_at: string;
-}
-
-export interface AlertsResponse {
-  items: Alert[];
-  total: number;
-  page: number;
-  limit: number;
-}
+import type { AlertResponse } from '@/lib/types';
 
 interface AlertFilters {
   severity?: Severity | 'all';
@@ -42,7 +18,7 @@ interface AlertFilters {
 }
 
 interface UseAlertsReturn {
-  alerts: Alert[];
+  alerts: AlertResponse[];
   total: number;
   loading: boolean;
   error: string | null;
@@ -53,7 +29,7 @@ interface UseAlertsReturn {
 }
 
 export function useAlerts(filters: AlertFilters = {}): UseAlertsReturn {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alerts, setAlerts] = useState<AlertResponse[]>([]);
   const [total, setTotal]   = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState<string | null>(null);
@@ -61,11 +37,11 @@ export function useAlerts(filters: AlertFilters = {}): UseAlertsReturn {
   const { severity = 'all', status = 'all', page = 1, limit = 50 } = filters;
 
   const fetchAlerts = useCallback(async () => {
-    const params: Record<string, string | number | undefined> = { page, limit };
-    if (severity !== 'all') params.severity = severity;
-    if (status   !== 'all') params.status   = status;
+    const filters: any = { page, limit };
+    if (severity !== 'all') filters.severity = severity;
+    if (status !== 'all') filters.status = status;
 
-    const { data, error: err } = await api.get<AlertsResponse>('/api/v1/alerts', params);
+    const { data, error: err } = await alertService.list(filters);
     if (err) {
       setError(err);
     } else if (data) {
@@ -101,7 +77,7 @@ export function useAlerts(filters: AlertFilters = {}): UseAlertsReturn {
       )
     );
 
-    const { error: err } = await api.patch(`/api/v1/alerts/${id}/status`, { status: newStatus });
+    const { error: err } = await alertService.updateStatus(id, newStatus);
     if (err) {
       // Revert on error
       setError(err);
@@ -110,7 +86,7 @@ export function useAlerts(filters: AlertFilters = {}): UseAlertsReturn {
   }, [fetchAlerts]);
 
   const assignAlert = useCallback(async (id: string, userId: string) => {
-    const { error: err } = await api.patch(`/api/v1/alerts/${id}/assign`, { assigned_to: userId });
+    const { error: err } = await alertService.assign(id, userId);
     if (err) {
       setError(err);
     } else {
@@ -127,7 +103,7 @@ export function useAlerts(filters: AlertFilters = {}): UseAlertsReturn {
     );
 
     const results = await Promise.allSettled(
-      ids.map((id) => api.patch(`/api/v1/alerts/${id}/status`, { status: 'acknowledged' }))
+      ids.map((id) => alertService.updateStatus(id, 'acknowledged'))
     );
 
     const hasError = results.some((r) => r.status === 'rejected');
