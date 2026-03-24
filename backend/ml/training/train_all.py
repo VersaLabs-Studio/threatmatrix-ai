@@ -19,6 +19,7 @@ import sys
 import time
 from pathlib import Path
 
+import joblib
 import numpy as np
 
 from ml.datasets.nsl_kdd import NSLKDDLoader
@@ -52,6 +53,13 @@ def train_all() -> bool:
 
     X_train, y_train, feature_names = loader.preprocess(train_df, fit=True)
     X_test, y_test, _ = loader.preprocess(test_df, fit=False)
+
+    # Save preprocessing artifacts for live inference
+    save_dir = Path(__file__).parent.parent / "saved_models"
+    save_dir.mkdir(parents=True, exist_ok=True)
+    joblib.dump(loader.label_encoders, save_dir / "preprocessor_encoders.pkl")
+    joblib.dump(loader.scaler, save_dir / "preprocessor_scaler.pkl")
+    logger.info("Preprocessing artifacts saved for live inference")
 
     normal_mask_train = loader.get_normal_mask(y_train)
     normal_mask_test = loader.get_normal_mask(y_test)

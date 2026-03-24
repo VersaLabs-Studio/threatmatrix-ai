@@ -3,6 +3,7 @@ ThreatMatrix AI — FastAPI Application Entry Point
 Application factory with middleware, CORS, and API router mounting.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,6 +54,30 @@ async def lifespan(app: FastAPI):
             print(f"[TM] Flow consumer failed: {e}")
             app.state.flow_consumer = None
 
+    # Start Alert Engine (Redis alerts:live → PostgreSQL alerts table)
+    from app.services.alert_engine import AlertEngine
+    if app.state.redis_manager:
+        try:
+            alert_engine = AlertEngine(redis_url=settings.REDIS_URL)
+            asyncio.create_task(alert_engine.start())
+            app.state.alert_engine = alert_engine
+            print("[TM] Alert engine started — persisting ML alerts to PostgreSQL")
+        except Exception as e:
+            print(f"[TM] Alert engine failed: {e}")
+            app.state.alert_engine = None
+
+    # Start Flow Score Updater (Redis ml:scored → PostgreSQL network_flows)
+    from app.services.flow_scorer import FlowScoreUpdater
+    if app.state.redis_manager:
+        try:
+            flow_scorer = FlowScoreUpdater(redis_url=settings.REDIS_URL)
+            asyncio.create_task(flow_scorer.start())
+            app.state.flow_scorer = flow_scorer
+            print("[TM] Flow score updater started — updating anomaly scores")
+        except Exception as e:
+            print(f"[TM] Flow score updater failed: {e}")
+            app.state.flow_scorer = None
+
     yield
     
     # ── Shutdown ─────────────────────────────────────────────
@@ -63,6 +88,22 @@ async def lifespan(app: FastAPI):
         try:
             await app.state.flow_consumer.stop()
             print("[TM] Flow consumer stopped")
+        except Exception:
+            pass
+
+    # Stop Alert Engine
+    if hasattr(app.state, 'alert_engine') and app.state.alert_engine:
+        try:
+            await app.state.alert_engine.stop()
+            print("[TM] Alert engine stopped")
+        except Exception:
+            pass
+
+    # Stop Flow Score Updater
+    if hasattr(app.state, 'flow_scorer') and app.state.flow_scorer:
+        try:
+            await app.state.flow_scorer.stop()
+            print("[TM] Flow score updater stopped")
         except Exception:
             pass
 

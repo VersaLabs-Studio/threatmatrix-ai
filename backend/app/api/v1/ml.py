@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/ml", tags=["ML Models"])
 logger = logging.getLogger(__name__)
@@ -72,3 +73,54 @@ async def compare_models() -> Dict[str, Any]:
         "best_accuracy": best_acc["model"],
         "best_f1": best_f1["model"],
     }
+
+
+class PredictRequest(BaseModel):
+    """Request body for ML prediction."""
+    features: Dict[str, Any]
+
+
+class PredictResponse(BaseModel):
+    """Response from ML prediction."""
+    composite_score: float
+    severity: str
+    is_anomaly: bool
+    label: str
+    model_agreement: str
+    scores: Dict[str, float]
+
+
+@router.post("/predict", response_model=PredictResponse)
+async def predict_flow(request: PredictRequest) -> PredictResponse:
+    """Score a flow with the ML ensemble."""
+    import numpy as np
+    from ml.inference.preprocessor import FlowPreprocessor
+    from ml.inference.model_manager import ModelManager
+
+    preprocessor = FlowPreprocessor()
+    preprocessor.load()
+
+    manager = ModelManager()
+    manager.load_all()
+
+    X = preprocessor.preprocess_flow(request.features)
+    if X is None:
+        raise HTTPException(status_code=400, detail="Failed to preprocess features")
+
+    results = manager.score_flows(X.reshape(1, -1))
+    if not results:
+        raise HTTPException(status_code=500, detail="Scoring failed")
+
+    r = results[0]
+    return PredictResponse(
+        composite_score=r["composite_score"],
+        severity=r["severity"],
+        is_anomaly=r["is_anomaly"],
+        label=r["label"],
+        model_agreement=r["model_agreement"],
+        scores={
+            "isolation_forest": r["if_score"],
+            "autoencoder": r["ae_score"],
+            "random_forest_confidence": r["rf_confidence"],
+        },
+    )

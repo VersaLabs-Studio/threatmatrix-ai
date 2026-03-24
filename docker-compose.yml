@@ -71,8 +71,10 @@ services:
       - ./backend/ml/saved_models:/app/ml/saved_models
     command: python -m ml.inference.worker
     depends_on:
-      - redis
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   capture:
