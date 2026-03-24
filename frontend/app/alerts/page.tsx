@@ -12,72 +12,60 @@ import { StatusBadge }   from '@/components/shared/StatusBadge';
 import { AlertDetailDrawer } from '@/components/alerts/AlertDetailDrawer';
 import { formatTime, formatIP } from '@/lib/utils';
 import { GlassPanel }    from '@/components/shared/GlassPanel';
-import type { Alert }    from '@/hooks/useAlerts';
+import type { AlertResponse } from '@/lib/types';
 import type { Severity, AlertStatus } from '@/lib/constants';
-
-const MOCK_ALERTS: Alert[] = [
-  { id: 'al-01', severity: 'critical', category: 'C2 Beaconing', label: 'C2 Beaconing', src_ip: '192.168.1.45', dst_ip: '104.21.55.12', composite_score: 0.94, status: 'open', flow_count: 124, timestamp: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'al-02', severity: 'high',     category: 'Large Exfiltration', label: 'Large Exfiltration', src_ip: '192.168.1.12', dst_ip: '45.33.22.11', composite_score: 0.88, status: 'open', flow_count: 32, timestamp: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'al-03', severity: 'medium',   category: 'Port Scan', label: 'Port Scan', src_ip: '10.0.0.5', dst_ip: '192.168.1.1', composite_score: 0.62, status: 'acknowledged', flow_count: 850, timestamp: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'al-04', severity: 'low',      category: 'Unauthorized Login', label: 'Unauthorized Login', src_ip: '172.16.0.4', dst_ip: '172.16.0.10', composite_score: 0.45, status: 'open', flow_count: 1, timestamp: new Date().toISOString(), updated_at: new Date().toISOString() },
-];
+import { AuthGuard } from '@/components/auth/AuthGuard';
 
 export default function AlertConsolePage() {
   const [severityFilter, setSeverityFilter] = useState<Severity | 'all'>('all');
-  const [statusFilter,   setStatusFilter]   = useState<AlertStatus | 'all'>('all');
-  const [selectedAlert,  setSelectedAlert]  = useState<Alert | null>(null);
+  const [statusFilter, setStatusFilter]     = useState<AlertStatus | 'all'>('all');
+  const [selectedAlert, setSelectedAlert]   = useState<AlertResponse | null>(null);
 
-  const { alerts: apiAlerts, loading, updateStatus } = useAlerts({ 
+  const { alerts, loading, updateStatus } = useAlerts({ 
     severity: severityFilter, 
     status: statusFilter, 
     limit: 100 
   });
-
-  // Use mocks if API is empty (for demo/dev)
-  const alerts = apiAlerts.length > 0 ? apiAlerts : MOCK_ALERTS.filter(a => 
-    (severityFilter === 'all' || a.severity === severityFilter) &&
-    (statusFilter === 'all' || a.status === statusFilter)
-  );
 
   const COLUMNS = [
     { 
       key: 'severity', 
       header: 'Sev', 
       width: 80, 
-      render: (r: Alert) => <StatusBadge severity={r.severity} /> 
+      render: (r: AlertResponse) => <StatusBadge severity={r.severity} /> 
     },
     { 
-      key: 'category', 
-      header: 'Category', 
-      width: 140 
+      key: 'title', 
+      header: 'Title', 
+      width: 250 
     },
     { 
-      key: 'src_ip', 
+      key: 'source_ip', 
       header: 'Source IP', 
       width: 130, 
-      render: (r: Alert) => formatIP(r.src_ip) 
+      render: (r: AlertResponse) => formatIP(r.source_ip || '') 
     },
     { 
-      key: 'composite_score', 
+      key: 'confidence', 
       header: 'Score', 
       width: 70, 
-      render: (r: Alert) => (
-        <span style={{ color: r.composite_score > 0.8 ? 'var(--critical)' : 'var(--warning)', fontWeight: 600 }}>
-          {(r.composite_score * 100).toFixed(0)}%
+      render: (r: AlertResponse) => (
+        <span style={{ color: (r.confidence || 0) > 0.8 ? 'var(--critical)' : 'var(--warning)', fontWeight: 600 }}>
+          {((r.confidence || 0) * 100).toFixed(0)}%
         </span>
       )
     },
     { 
-      key: 'timestamp', 
+      key: 'created_at', 
       header: 'Time', 
       width: 100, 
-      render: (r: Alert) => formatTime(r.timestamp) 
+      render: (r: AlertResponse) => formatTime(r.created_at) 
     },
     { 
       key: 'status', 
       header: 'Status', 
       width: 100, 
-      render: (r: Alert) => (
+      render: (r: AlertResponse) => (
         <span style={{ 
           fontSize: '0.65rem', 
           color: r.status === 'open' ? 'var(--warning)' : 'var(--text-muted)',
@@ -91,57 +79,59 @@ export default function AlertConsolePage() {
   ];
 
   return (
-    <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: '1.2rem' }}>🚨</span>
-          <div>
-            <h1 style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--cyan)', letterSpacing: '0.12em', margin: 0 }}>
-              INCIDENT ALERT CONSOLE
-            </h1>
-            <p style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>
-              Live monitoring · {alerts.length} alerts in queue
-            </p>
+    <AuthGuard>
+      <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: '1.2rem' }}>🚨</span>
+            <div>
+              <h1 style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--cyan)', letterSpacing: '0.12em', margin: 0 }}>
+                INCIDENT ALERT CONSOLE
+              </h1>
+              <p style={{ fontFamily: 'var(--font-data)', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0 }}>
+                Live monitoring · {alerts.length} alerts in queue
+              </p>
+            </div>
           </div>
         </div>
+
+        {/* Filter Toolbar */}
+        <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+          <FilterGroup 
+            label="SEVERITY" 
+            options={['all', 'critical', 'high', 'medium', 'low']} 
+            current={severityFilter} 
+            onSelect={(v: string) => setSeverityFilter(v as any)} 
+          />
+          <FilterGroup 
+            label="STATUS" 
+            options={['all', 'open', 'acknowledged', 'resolved']} 
+            current={statusFilter} 
+            onSelect={(v: string) => setStatusFilter(v as any)} 
+          />
+        </div>
+
+        {/* Main Table */}
+        <GlassPanel static title="INCIDENT QUEUE" icon="📋">
+          <DataTable
+            columns={COLUMNS}
+            data={alerts}
+            loading={loading}
+            rowKey={(r) => r.id}
+            onRowClick={(r) => setSelectedAlert(r as AlertResponse)}
+            maxHeight="calc(100vh - 280px)"
+          />
+        </GlassPanel>
+
+        {/* Detail Drawer */}
+        <AlertDetailDrawer 
+          alert={selectedAlert} 
+          onClose={() => setSelectedAlert(null)} 
+          onUpdateStatus={updateStatus}
+        />
       </div>
-
-      {/* Filter Toolbar */}
-      <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-        <FilterGroup 
-          label="SEVERITY" 
-          options={['all', 'critical', 'high', 'medium', 'low']} 
-          current={severityFilter} 
-          onSelect={(v: string) => setSeverityFilter(v as any)} 
-        />
-        <FilterGroup 
-          label="STATUS" 
-          options={['all', 'open', 'acknowledged', 'resolved']} 
-          current={statusFilter} 
-          onSelect={(v: string) => setStatusFilter(v as any)} 
-        />
-      </div>
-
-      {/* Main Table */}
-      <GlassPanel static title="INCIDENT QUEUE" icon="📋">
-        <DataTable
-          columns={COLUMNS}
-          data={alerts as any}
-          loading={loading}
-          rowKey={(r) => r.id}
-          onRowClick={(r) => setSelectedAlert(r as Alert)}
-          maxHeight="calc(100vh - 280px)"
-        />
-      </GlassPanel>
-
-      {/* Detail Drawer */}
-      <AlertDetailDrawer 
-        alert={selectedAlert} 
-        onClose={() => setSelectedAlert(null)} 
-        onUpdateStatus={updateStatus}
-      />
-    </div>
+    </AuthGuard>
   );
 }
 

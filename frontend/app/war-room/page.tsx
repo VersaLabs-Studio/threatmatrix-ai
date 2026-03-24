@@ -4,7 +4,7 @@
 // ThreatMatrix AI — War Room (v0.3.0)
 // The primary operational command view.
 // Deck.gl ThreatMap loaded dynamically (browser-only WebGL)
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 
 import dynamic from 'next/dynamic';
 import { useWebSocket }      from '@/hooks/useWebSocket';
@@ -19,6 +19,7 @@ import { AIBriefingWidget }  from '@/components/war-room/AIBriefingWidget';
 import { GeoDistribution }   from '@/components/war-room/GeoDistribution';
 import { ThreatLevel }       from '@/components/war-room/ThreatLevel';
 import { formatPercent }     from '@/lib/utils';
+import { AuthGuard }         from '@/components/auth/AuthGuard';
 
 // Dynamic import ensures Deck.gl never runs at SSR time
 const ThreatMap = dynamic(
@@ -44,15 +45,12 @@ export default function WarRoomPage() {
   const { stats, protocols, topTalkers, loading: flowsLoading } = useFlows({ time_range: '1h' });
   const { alerts, total: alertTotal, loading: alertsLoading } = useAlerts({ limit: 100 });
 
-  // Derive live metric values from system status or the latest stats point
-  const latestStat = stats[stats.length - 1];
-  const pps        = systemStatus?.packets_per_second ?? latestStat?.packets_per_second ?? 0;
-  const flows      = systemStatus?.active_flows       ?? latestStat?.active_flows       ?? 0;
+  // Derive live metric values from system status (WebSocket)
+  const pps = systemStatus?.packets_per_second ?? 0;
+  const flows = systemStatus?.active_flows ?? 0;
 
-  // Compute anomaly rate from stats array
-  const totalPackets  = stats.reduce((s, d) => s + d.packets_per_second, 0);
-  const anomalyPkts   = stats.reduce((s, d) => s + d.anomaly_count, 0);
-  const anomalyRate   = totalPackets > 0 ? anomalyPkts / totalPackets : 0;
+  // Compute anomaly rate from stats object (percentage -> fraction)
+  const anomalyRate = stats?.anomaly_percentage ? stats.anomaly_percentage / 100 : 0;
 
   // Calculate threat level from alert stats
   const criticalCount = alerts.filter((a) => a.severity === 'critical').length;
@@ -60,76 +58,78 @@ export default function WarRoomPage() {
   const threatLevel = criticalCount > 0 ? 'CRITICAL' : highCount > 0 ? 'HIGH' : 'ELEVATED';
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-4)',
-        padding: 'var(--space-4)',
-        minHeight: '100%',
-      }}
-    >
-      {/* ── Row 1: Metric Cards ───────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-3)' }}>
-        <MetricCard label="PACKETS/SEC"  value={pps}       unit="pkt/s"  accent="cyan"     loading={flowsLoading} />
-        <MetricCard label="ACTIVE FLOWS" value={flows}     unit="flows"  accent="cyan"     loading={flowsLoading} />
-        <MetricCard
-          label="ANOMALY RATE"
-          value={parseFloat(formatPercent(anomalyRate))}
-          unit="%"
-          accent={anomalyRate > 0.05 ? 'critical' : 'warning'}
-          loading={flowsLoading}
-        />
-        <MetricCard
-          label="THREATS (24H)"
-          value={alertTotal}
-          unit="alerts"
-          accent="critical"
-          loading={alertsLoading}
-        />
-      </div>
+    <AuthGuard>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-4)',
+          padding: 'var(--space-4)',
+          minHeight: '100%',
+        }}
+      >
+        {/* ── Row 1: Metric Cards ───────────────────────── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-3)' }}>
+          <MetricCard label="PACKETS/SEC"  value={pps}       unit="pkt/s"  accent="cyan"     loading={flowsLoading} />
+          <MetricCard label="ACTIVE FLOWS" value={flows}     unit="flows"  accent="cyan"     loading={flowsLoading} />
+          <MetricCard
+            label="ANOMALY RATE"
+            value={parseFloat(formatPercent(anomalyRate))}
+            unit="%"
+            accent={anomalyRate > 0.05 ? 'critical' : 'warning'}
+            loading={flowsLoading}
+          />
+          <MetricCard
+            label="THREATS (24H)"
+            value={alertTotal}
+            unit="alerts"
+            accent="critical"
+            loading={alertsLoading}
+          />
+        </div>
 
-      {/* ── Row 2: Threat Map + Protocols + Timeline ──── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 'var(--space-4)', flex: 1 }}>
+        {/* ── Row 2: Threat Map + Protocols + Timeline ──── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 'var(--space-4)', flex: 1 }}>
 
-        {/* Left: Live Deck.gl ThreatMap */}
-        <div
-          className="glass-panel-static"
-          style={{ display: 'flex', flexDirection: 'column', minHeight: 380 }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 'var(--space-3)' }}>
-            <span style={{ fontSize: '1rem' }}>🌐</span>
-            <span style={{
-              fontFamily: 'var(--font-data)', fontSize: 'var(--text-xs)',
-              fontWeight: 600, color: 'var(--text-secondary)',
-              textTransform: 'uppercase', letterSpacing: '0.08em', flex: 1,
-            }}>
-              LIVE THREAT MAP
-            </span>
-            <span className="status-dot status-dot--live" />
+          {/* Left: Live Deck.gl ThreatMap */}
+          <div
+            className="glass-panel-static"
+            style={{ display: 'flex', flexDirection: 'column', minHeight: 380 }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 'var(--space-3)' }}>
+              <span style={{ fontSize: '1rem' }}>🌐</span>
+              <span style={{
+                fontFamily: 'var(--font-data)', fontSize: 'var(--text-xs)',
+                fontWeight: 600, color: 'var(--text-secondary)',
+                textTransform: 'uppercase', letterSpacing: '0.08em', flex: 1,
+              }}>
+                LIVE THREAT MAP
+              </span>
+              <span className="status-dot status-dot--live" />
+            </div>
+            <div style={{ flex: 1, borderRadius: 8, overflow: 'hidden', minHeight: 320 }}>
+              <ThreatMap />
+            </div>
           </div>
-          <div style={{ flex: 1, borderRadius: 8, overflow: 'hidden', minHeight: 320 }}>
-            <ThreatMap />
+
+          {/* Right: Protocol Distribution + Traffic Timeline + Threat Level stacked */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <ProtocolChart data={protocols} loading={flowsLoading} />
+            <TrafficTimeline data={[]} loading={flowsLoading} />  {/* Timeline endpoint not yet available */}
+            <ThreatLevel level={threatLevel} loading={alertsLoading} />
           </div>
         </div>
 
-        {/* Right: Protocol Distribution + Traffic Timeline + Threat Level stacked */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          <ProtocolChart data={protocols} loading={flowsLoading} />
-          <TrafficTimeline data={stats} loading={flowsLoading} />
-          <ThreatLevel level={threatLevel} loading={alertsLoading} />
+        {/* ── Row 3: AI Briefing ────────────────────────── */}
+        <AIBriefingWidget />
+
+        {/* ── Row 4: Alert Feed + Top Talkers + Geo ────── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-4)' }}>
+          <LiveAlertFeed   lastAlertEvent={lastAlertEvent} />
+          <TopTalkers      data={topTalkers} loading={flowsLoading} />
+          <GeoDistribution />
         </div>
       </div>
-
-      {/* ── Row 3: AI Briefing ────────────────────────── */}
-      <AIBriefingWidget />
-
-      {/* ── Row 4: Alert Feed + Top Talkers + Geo ────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-4)' }}>
-        <LiveAlertFeed   lastAlertEvent={lastAlertEvent} />
-        <TopTalkers      data={topTalkers} loading={flowsLoading} />
-        <GeoDistribution />
-      </div>
-    </div>
+    </AuthGuard>
   );
 }
