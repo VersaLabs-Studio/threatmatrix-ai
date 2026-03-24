@@ -5,59 +5,26 @@
 // Fetches network flow data and aggregations
 // ═══════════════════════════════════════════════════════
 
-import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { flowService } from '@/lib/services';
+import { mapProtocolNumber } from '@/lib/utils';
+import type {
+  NetworkFlow,
+  TopTalker,
+  ProtocolStats,
+  FlowResponse,
+  TopTalkersResponse,
+  ProtocolDistResponse,
+  FlowStatsResponse,
+} from '@/lib/types';
 
-export interface NetworkFlow {
-  id: string;
-  src_ip: string;
-  dst_ip: string;
-  src_port: number;
-  dst_port: number;
-  protocol: string;
-  duration: number;
-  src_bytes: number;
-  dst_bytes: number;
-  total_packets: number;
-  anomaly_score: number;
-  is_anomaly: boolean;
-  label: string;
-  timestamp: string;
-  // Geo fields (resolved from IP)
-  src_lat?: number;
-  src_lon?: number;
-  dst_lat?: number;
-  dst_lon?: number;
-  src_country?: string;
-  dst_country?: string;
-}
-
-export interface FlowStats {
-  timestamp: string;
-  packets_per_second: number;
-  bytes_per_second: number;
-  active_flows: number;
-  anomaly_count: number;
-}
-
-export interface TopTalker {
-  ip: string;
-  bytes_total: number;
-  flow_count: number;
-  country?: string;
-  is_anomalous: boolean;
-}
-
-export interface ProtocolStats {
-  protocol: string;
-  count: number;
-  percent: number;
-}
+// Export types for component usage
+export type { NetworkFlow, TopTalker, ProtocolStats, FlowResponse, TopTalkersResponse, ProtocolDistResponse, FlowStatsResponse };
 
 interface FlowFilters {
   src_ip?: string;
   dst_ip?: string;
-  protocol?: string;
+  protocol?: number;
   time_range?: '1h' | '6h' | '24h' | '7d';
   min_score?: number;
   label?: string;
@@ -67,7 +34,7 @@ interface FlowFilters {
 
 interface UseFlowsReturn {
   flows: NetworkFlow[];
-  stats: FlowStats[];
+  stats: FlowStatsResponse | null;  // Aggregated stats (single object)
   topTalkers: TopTalker[];
   protocols: ProtocolStats[];
   total: number;
@@ -77,41 +44,64 @@ interface UseFlowsReturn {
   searchFlows: (query: FlowFilters) => Promise<NetworkFlow[]>;
 }
 
+// Transform backend FlowResponse to frontend NetworkFlow
+const transformFlow = (flow: FlowResponse): NetworkFlow => ({
+  ...flow,
+  protocol: mapProtocolNumber(flow.protocol),
+  timestamp: flow.timestamp,
+});
+
+// Transform backend TopTalkersResponse to frontend TopTalker[]
+const transformTopTalkers = (res: TopTalkersResponse): TopTalker[] =>
+  res.top_talkers.map(t => ({
+    ip: t.ip,
+    bytes_total: t.total_bytes,
+    flow_count: t.flow_count,
+    is_anomalous: t.anomaly_count > 0,
+  }));
+
+// Transform backend ProtocolDistResponse to frontend ProtocolStats[]
+const transformProtocols = (res: ProtocolDistResponse): ProtocolStats[] =>
+  Object.entries(res.protocols).map(([protocol, data]) => ({
+    protocol,
+    count: data.count,
+    percent: data.percentage,
+  }));
+
 export function useFlows(filters: FlowFilters = {}): UseFlowsReturn {
   const [flows, setFlows]           = useState<NetworkFlow[]>([]);
-  const [stats, setStats]           = useState<FlowStats[]>([]);
+  const [stats, setStats]           = useState<FlowStatsResponse | null>(null);
   const [topTalkers, setTopTalkers] = useState<TopTalker[]>([]);
   const [protocols, setProtocols]   = useState<ProtocolStats[]>([]);
   const [total, setTotal]           = useState(0);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
+  const initialLoadDone = useRef(false);
 
   const fetchAll = useCallback(async () => {
-    setLoading(true);
+    // Only show skeleton on initial fetch, not on poll refreshes
+    if (!initialLoadDone.current) setLoading(true);
 
     const [flowsRes, statsRes, talkersRes, protocolsRes] = await Promise.allSettled([
-      api.get<{ items: NetworkFlow[]; total: number }>('/api/v1/flows', {
-        ...filters,
-        page: filters.page ?? 1,
-        limit: filters.limit ?? 50,
-      }),
-      api.get<FlowStats[]>('/api/v1/flows/stats', { interval: '1m' }),
-      api.get<TopTalker[]>('/api/v1/flows/top-talkers'),
-      api.get<ProtocolStats[]>('/api/v1/flows/protocols'),
+      flowService.list(filters),
+      flowService.getStats('1h'),
+      flowService.getTopTalkers(10, '1h'),
+      flowService.getProtocols('1h'),
     ]);
 
     if (flowsRes.status === 'fulfilled' && flowsRes.value.data) {
-      setFlows(flowsRes.value.data.items);
+      const transformed = flowsRes.value.data.items.map(transformFlow);
+      setFlows(transformed);
       setTotal(flowsRes.value.data.total);
     }
     if (statsRes.status === 'fulfilled' && statsRes.value.data) {
-      setStats(statsRes.value.data);
+      setStats(statsRes.value.data as FlowStatsResponse);
     }
     if (talkersRes.status === 'fulfilled' && talkersRes.value.data) {
-      setTopTalkers(talkersRes.value.data);
+      setTopTalkers(transformTopTalkers(talkersRes.value.data));
     }
     if (protocolsRes.status === 'fulfilled' && protocolsRes.value.data) {
-      setProtocols(protocolsRes.value.data);
+      setProtocols(transformProtocols(protocolsRes.value.data));
     }
 
     // Set error only if ALL requests failed
@@ -119,15 +109,17 @@ export function useFlows(filters: FlowFilters = {}): UseFlowsReturn {
       .every((r) => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error));
     setError(allFailed ? 'Failed to load flow data' : null);
     setLoading(false);
-  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
+    initialLoadDone.current = true;
+  }, [JSON.stringify(filters)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const searchFlows = useCallback(async (query: FlowFilters): Promise<NetworkFlow[]> => {
-    const { data, error: err } = await api.post<{ items: NetworkFlow[] }>('/api/v1/flows/search', query);
+    const { data, error: err } = await flowService.search(query);
     if (err) {
       console.error('[useFlows] Search error:', err);
       return [];
     }
-    return data?.items ?? [];
+    const transformed = data?.items?.map(transformFlow) ?? [];
+    return transformed;
   }, []);
 
   useEffect(() => {
