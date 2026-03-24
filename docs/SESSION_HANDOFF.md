@@ -1,38 +1,114 @@
 # ThreatMatrix AI — Session Handoff Document
 
-> **Last Updated:** 2026-03-23 00:53 UTC+3
+> **Last Updated:** 2026-03-24 19:20 UTC+3
 > **Purpose:** Complete context transfer for new chat session
 > **Project:** ThreatMatrix AI — AI-Powered Network Anomaly Detection System
-> **Current Phase:** Week 2 Day 2 COMPLETE ✅ — Capture hardened, ML scaffolded, NSL-KDD ready
-> **Paused At:** Day 8 all 6 tasks complete — capture engine hardened, 63 features, ML pipeline scaffolded
-> **Next Session Resumes:** Day 9 — NSL-KDD validation + Isolation Forest + Random Forest implementation
+> **Current Phase:** Week 2 Day 3 COMPLETE ✅ — ML models trained, NSL-KDD validated
+> **Paused At:** Day 9 all 6 tasks complete — IF + RF trained on VPS, eval results saved
+> **Next Session Resumes:** Day 10 — Autoencoder, ensemble scorer, hyperparameter tuning, ML Worker
 
 ---
 
 ## 📋 EXECUTIVE SUMMARY
 
-ThreatMatrix AI is an enterprise-grade, AI-powered cybersecurity platform. It's a **senior project (CS bachelor's)** with an 8-week window (Feb 24 → Apr 20, 2026) and a 4-person team. The lead architect (you, the user) handles ~60% of the codebase — backend, ML, LLM, capture engine.
+ThreatMatrix AI is an enterprise-grade, AI-powered cybersecurity platform. It's a **senior project (CS bachelor's)** with an 8-week window (Feb 24 → Apr 20, 2026) and a 4-person team. The lead architect handles ~60% of the codebase — backend, ML, LLM, capture engine.
 
-**🎉 WEEK 2 DAY 2 IS COMPLETE.** The capture engine is hardened with malformed packet guards, multicast filtering, and Redis reconnection. Feature extraction now produces 63 features (40 NSL-KDD + 23 extended) with ConnectionTracker for time/host-based features. The full `backend/ml/` directory is scaffolded with 18 files. NSL-KDD dataset (125,973 train + 22,544 test) is downloaded on VPS.
+**🎉 DAY 9 COMPLETE.** Two ML models trained on actual NSL-KDD dataset on VPS:
+- **Isolation Forest:** 79.68% accuracy, 97.26% precision, 78.75% F1 (unsupervised)
+- **Random Forest:** 74.16% test accuracy, 99.96% train accuracy (supervised, 5-class)
+- Both models saved as `.pkl` in `backend/ml/saved_models/`
+- Evaluation results saved as JSON in `saved_models/eval_results/`
+- Feature importance validates architecture: src_bytes, dst_bytes, service are top features — matching PART4 §5.4 predictions
 
-### Day 8 Completion Status
+### ⚠️ CRITICAL CONTEXT: Performance Gap
 
-| Objective | Status | Evidence |
-|-----------|--------|----------|
-| Capture engine hardening | ✅ Complete | Malformed packet guard, multicast filter, Redis 3-attempt reconnection, 80% buffer warning |
-| NSL-KDD feature mapping (63 features) | ✅ Complete | 40 NSL-KDD + 23 extended, ConnectionTracker with time/host features, land detection |
-| ML pipeline scaffolding | ✅ Complete | 18 files in 5 subdirs, nsl_kdd.py full loader, hyperparams.py exact PART4 configs |
-| NSL-KDD dataset download | ✅ Complete | 4 files on VPS (125,973 train + 22,544 test), .gitignore updated |
-| Docker Compose cleanup | ✅ Complete | `version: "3.8"` removed |
-| Pipeline verification | ✅ Complete | 63 features in DB, NSL-KDD features present, Redis channels active, 1,860 flows captured |
+The test accuracies are **below MASTER_DOC_PART4 targets** but this is a **known, documented issue** with NSL-KDD:
 
-### Previous Day Completions
+| Model | Actual | PART4 Target | Root Cause |
+|-------|--------|-------------|------------|
+| IF Accuracy | 79.68% | 88-93% | `contamination=0.05` too conservative; test set has different attack distribution |
+| IF Precision | **97.26%** | 85-91% | **Exceeds target** — very precise when it flags |
+| IF Recall | 66.16% | 90-95% | Misses ~34% of attacks due to conservative threshold |
+| RF Test Acc | 74.16% | 95-98% | KDDTest+ has **17 novel attack types** absent from training |
+| RF Train Acc | 99.96% | — | Perfect fit on training data |
+| RF F1 Macro | 49.71% | — | Minority class imbalance (R2L=995, U2R=52 samples) |
+
+**Day 10 remediations planned:**
+1. Tune IF `contamination` → 0.10-0.15 (boost recall)
+2. RF hyperparameter sweep (max_depth, n_estimators)
+3. Cross-validation on training set for realistic estimates
+4. Autoencoder (third model) may capture patterns others miss
+5. Ensemble scoring will combine all three models' strengths
+
+### Cumulative Completion Status
 
 | Day | Focus | Status |
 |-----|-------|--------|
-| Days 1-6 | Foundation: monorepo, DB, auth, UI shell, Docker | ✅ v0.1.0 COMPLETE |
-| Day 7 | Capture engine: Scapy, flow aggregation, features, Redis, persistence | ✅ COMPLETE |
-| Day 8 | Capture hardening, NSL-KDD features (63), ML scaffolding, dataset download | ✅ COMPLETE |
+| Days 1-6 | Foundation: monorepo, DB, auth, UI shell, Docker | ✅ v0.1.0 |
+| Day 7 | Capture engine: Scapy, flow aggregation, features, Redis, persistence | ✅ |
+| Day 8 | Capture hardening, 63 features, ML scaffolding (18 files), NSL-KDD download | ✅ |
+| Day 9 | NSL-KDD validation, IF + RF trained, evaluation framework, train_all.py | ✅ |
+
+---
+
+## 🧠 ML PIPELINE STATUS (Critical for Day 10)
+
+### Models Trained
+
+| Model | Type | Status | File | Key Metrics |
+|-------|------|--------|------|-------------|
+| **Isolation Forest** | Unsupervised | ✅ Trained | `saved_models/isolation_forest.pkl` | Acc: 79.68%, P: 97.26%, R: 66.16%, F1: 78.75% |
+| **Random Forest** | Supervised (5-class) | ✅ Trained | `saved_models/random_forest.pkl` | Acc: 74.16%, F1w: 69.45%, F1m: 49.71% |
+| **Autoencoder** | Deep Learning | 📋 Day 10 | — | Not yet implemented |
+
+### NSL-KDD Dataset (Validated ✅)
+
+| Attribute | Value |
+|-----------|-------|
+| Location | `backend/ml/saved_models/datasets/KDDTrain+.txt` |
+| Train records | 125,973 (43 columns → 40 features after preprocessing) |
+| Test records | 22,544 |
+| Classes | 5: normal (67,343), dos (45,927), probe (11,656), r2l (995), u2r (52) |
+| Extra column | `_extra_40` exists in raw CSV (dropped during preprocessing) |
+| Preprocessing | StandardScaler + LabelEncoder (protocol_type, service, flag) |
+| Normal samples | 67,343 (53.5%) — used for IF + AE unsupervised training |
+
+### Feature Importance (Random Forest — Top 10)
+
+| Rank | Feature | Importance | Category |
+|------|---------|------------|----------|
+| 1 | src_bytes | 0.1173 | Volume |
+| 2 | dst_host_same_srv_rate | 0.0843 | Host-based |
+| 3 | dst_bytes | 0.0819 | Volume |
+| 4 | service | 0.0702 | Basic |
+| 5 | logged_in | 0.0534 | Content |
+| 6 | dst_host_same_src_port_rate | 0.0443 | Host-based |
+| 7 | serror_rate | 0.0411 | Time-based |
+| 8 | dst_host_srv_diff_host_rate | 0.0379 | Host-based |
+| 9 | srv_count | 0.0377 | Time-based |
+| 10 | dst_host_srv_serror_rate | 0.0349 | Host-based |
+
+### Ensemble Scoring (Not Yet Implemented — Day 10)
+
+Per MASTER_DOC_PART4 §1.2:
+```
+composite = W_IF × IF_score + W_RF × RF_confidence + W_AE × AE_recon_error
+W_IF = 0.30, W_RF = 0.45, W_AE = 0.25
+```
+
+Alert thresholds: Critical ≥ 0.90, High ≥ 0.75, Medium ≥ 0.50, Low ≥ 0.30
+
+### Training Output (VPS — March 24, 2026)
+
+```
+TRAINING COMPLETE in 17.7 seconds
+  Isolation Forest: saved to saved_models/isolation_forest.pkl
+  Random Forest:    saved to saved_models/random_forest.pkl
+  Evaluations:      saved to saved_models/eval_results/
+  
+IF — Acc: 0.7968 | P: 0.9726 | R: 0.6616 | F1: 0.7875
+RF — Acc: 0.7416 | F1(w): 0.6945 | F1(m): 0.4971 | Train: 0.9996
+```
 
 ---
 
@@ -42,82 +118,73 @@ ThreatMatrix AI is an enterprise-grade, AI-powered cybersecurity platform. It's 
 - **Name:** ThreatMatrix AI
 - **Tagline:** "Real-Time Cyber Defense, Powered by Intelligence"
 - **Type:** AI-powered SIEM-Lite — network anomaly detection + cyber threat intelligence
-- **Context:** Bachelor's CS Senior Project — but built as enterprise-grade _sellable_ product
-- **Timeline:** Feb 24 → Apr 20, 2026 (8 weeks, Day 8 complete)
+- **Context:** Bachelor's CS Senior Project — enterprise-grade product
+- **Timeline:** Feb 24 → Apr 20, 2026 (8 weeks, Day 9 complete = 16.1%)
 - **Team:** 4 members (Lead Architect 60%, Full-Stack Dev 30%, Business Mgr, Tester/QA 10%)
-- **Budget:** $100-200 (LLM APIs + optional services)
-- **Infrastructure:** High-spec VPS at `187.124.45.161`, Vercel for frontend hosting
+- **Budget:** $100-200 (LLM APIs)
+- **VPS:** `187.124.45.161` (Hostinger KVM 4, 4 vCPU, 16GB RAM, Ubuntu 22.04)
 
 ### Technology Stack (LOCKED — DO NOT CHANGE)
 | Layer | Technology | Version |
-|-------|-----------|---------| 
+|-------|-----------|---------|
 | Frontend | Next.js (App Router) | 16.x |
-| Language (FE) | TypeScript | 5.x (strict) |
+| Language (FE) | TypeScript (strict) | 5.x |
 | Styling | Vanilla CSS + CSS Variables | — |
 | Maps | Deck.gl + Maplibre GL | Latest |
 | Charts | Recharts | Latest |
-| Real-time (client) | Native WebSocket API | — |
 | Backend | FastAPI | 0.115+ |
 | Language (BE) | Python | 3.11+ |
 | Database | PostgreSQL | 16 |
 | Cache/PubSub | Redis | 7 |
-| ORM | SQLAlchemy | 2.x (async) |
-| Migrations | Alembic | Latest |
+| ORM | SQLAlchemy 2.x (async) | Latest |
 | ML | scikit-learn + TensorFlow | Latest |
 | Packet Capture | Scapy | 2.5+ |
 | LLM Providers | DeepSeek V3, GLM-4-Flash, Groq Llama 3.3 | — |
-| i18n | next-intl | Latest |
-| PDF Generation | ReportLab | — |
 | Deployment | Docker Compose V2 | — |
-| Frontend Hosting | Vercel | — |
-| Icons | Lucide React | Latest |
-| Animations | Framer Motion | 12.x |
 
 ### Three-Tier Architecture
 ```
-TIER 1: CAPTURE ENGINE (Python/Scapy) — ✅ HARDENED + OPERATIONAL
-  ├── Sniffs packets on VPS eth0 interface ✅
-  ├── Malformed packet guard + multicast filter ✅ Day 8
-  ├── Aggregates into flows (5-tuple + timing + volume) ✅
-  ├── Extracts 63 features per flow (40 NSL-KDD + 23 extended) ✅ Day 8
-  ├── ConnectionTracker: time-based (2s) + host-based (100-conn) features ✅ Day 8
-  ├── Redis pub/sub with 3-attempt reconnection + backoff ✅ Day 8
-  ├── Publishes flow data to Redis → flows:live ✅
-  └── PCAP file ingestion — 📋 Week 5
+TIER 1: CAPTURE ENGINE — ✅ HARDENED + OPERATIONAL
+  ├── Scapy sniffing eth0 on VPS ✅
+  ├── Malformed packet guard + multicast filter ✅
+  ├── 63 features per flow (40 NSL-KDD + 23 extended) ✅
+  ├── ConnectionTracker (2s time window + 100-conn host window) ✅
+  ├── Redis pub/sub with 3-attempt reconnection ✅
+  └── 1,860+ flows captured and persisted ✅
 
-TIER 2: INTELLIGENCE ENGINE (FastAPI) — ✅ Core Complete
-  ├── REST API (23 endpoints implemented) ✅
-  ├── WebSocket server for real-time event broadcasting ✅
-  ├── Flow Consumer (Redis → PostgreSQL persistence) ✅
-  ├── ML Pipeline scaffolded (18 files in backend/ml/) ✅ Day 8
-  ├── NSL-KDD dataset on VPS (125,973 + 22,544 records) ✅ Day 8
-  ├── ML Worker: 3 models — Week 3
-  ├── LLM Gateway: DeepSeek/GLM/Groq — Week 4
-  ├── Threat Intel: OTX, AbuseIPDB, VirusTotal — Week 4
-  ├── Alert Engine: Auto-create from ML anomalies — Week 4
-  └── Auth: JWT + RBAC (4 roles) + DEV_MODE bypass ✅
+TIER 2: INTELLIGENCE ENGINE — ✅ Core + ML Training Complete
+  ├── REST API (23 endpoints) ✅
+  ├── WebSocket server ✅
+  ├── Flow Consumer (Redis → PostgreSQL) ✅
+  ├── ML Pipeline: IF + RF trained ✅ Day 9
+  ├── NSL-KDD dataset validated ✅ Day 9
+  ├── Autoencoder — 📋 Day 10
+  ├── Ensemble Scorer — 📋 Day 10
+  ├── ML Worker (inference loop) — 📋 Day 10-11
+  ├── LLM Gateway — 📋 Week 4
+  ├── Threat Intel — 📋 Week 4
+  └── Alert Engine — 📋 Week 4
 
-TIER 3: COMMAND CENTER (Next.js 16) — ✅ Shell Complete, Data Connection DEFERRED
-  ├── War Room dashboard (9 components built) ✅
-  ├── WebSocket client hook ✅
-  ├── Glassmorphism UI, dark theme ✅
-  ├── Components connected to live VPS data — 📋 Full-Stack Dev (FRONTEND_TASKS_DAY8.md)
-  └── Amharic/English bilingual — Week 7
+TIER 3: COMMAND CENTER — ✅ Shell Complete
+  ├── 9 War Room components + 3 AI Analyst + 4 shared + 3 layout ✅
+  ├── 4 hooks (useWebSocket, useFlows, useAlerts, useLLM) ✅
+  ├── Data connection to VPS — 📋 Full-Stack Dev (FRONTEND_TASKS_DAY8.md)
+  └── Amharic/English — Week 7
 ```
 
-### 10 Modules (Scope Locked — NO additions)
-| # | Module | Route | Priority | Frontend Status | Backend Status |
-|---|--------|-------|----------|----------------|----------------|
-| 1 | War Room | `/war-room` | P0 | ✅ 9 components, needs VPS connection | ✅ Flow/Alert APIs |
-| 2 | Threat Hunt | `/hunt` | P0 | 📋 Stub page | 📋 Week 4-5 |
-| 3 | Intel Hub | `/intel` | P0 | 📋 Stub page | 📋 Week 4 |
-| 4 | Network Flow | `/network` | P0 | 📋 Stub page | ✅ Flow APIs |
-| 5 | AI Analyst | `/ai-analyst` | P0 | ✅ 3 components | 📋 Week 4 |
-| 6 | Alert Console | `/alerts` | P1 | ✅ 1 component | ✅ Alert APIs |
-| 7 | Forensics Lab | `/forensics` | P1 | 📋 Stub page | 📋 Week 5 |
-| 8 | ML Operations | `/ml-ops` | P1 | 📋 Stub page | 📋 Week 3-5 |
-| 9 | Reports | `/reports` | P1 | 📋 Stub page | 📋 Week 6 |
-| 10 | Administration | `/admin` | P2 | 📋 Stub page | 📋 Week 6 |
+### 10 Modules (Scope Locked)
+| # | Module | Route | Frontend | Backend |
+|---|--------|-------|----------|---------|
+| 1 | War Room | `/war-room` | ✅ 9 components | ✅ APIs |
+| 2 | Threat Hunt | `/hunt` | 📋 Stub | 📋 Week 4 |
+| 3 | Intel Hub | `/intel` | 📋 Stub | 📋 Week 4 |
+| 4 | Network Flow | `/network` | 📋 Stub | ✅ APIs |
+| 5 | AI Analyst | `/ai-analyst` | ✅ 3 components | 📋 Week 4 |
+| 6 | Alert Console | `/alerts` | ✅ 1 component | ✅ APIs |
+| 7 | Forensics Lab | `/forensics` | 📋 Stub | 📋 Week 5 |
+| 8 | ML Operations | `/ml-ops` | 📋 Stub | 🟡 Training done |
+| 9 | Reports | `/reports` | 📋 Stub | 📋 Week 6 |
+| 10 | Administration | `/admin` | 📋 Stub | 📋 Week 6 |
 
 ---
 
@@ -126,153 +193,134 @@ TIER 3: COMMAND CENTER (Next.js 16) — ✅ Shell Complete, Data Connection DEFE
 ```
 threatmatrix-ai/
 ├── backend/
-│   ├── alembic/
-│   │   └── versions/
-│   │       ├── 20260226_000000_initial_schema.py  ✅
-│   │       └── 20260322_000001_fix_uuid_defaults.py  ✅
+│   ├── alembic/versions/
+│   │   ├── 20260226_000000_initial_schema.py    ✅
+│   │   └── 20260322_000001_fix_uuid_defaults.py ✅
 │   ├── capture/
-│   │   ├── __init__.py               ✅ Day 7
-│   │   ├── config.py                 ✅ Day 7
-│   │   ├── engine.py                 ✅ Day 7+8 (hardened)
-│   │   ├── feature_extractor.py      ✅ Day 7+8 (63 features + ConnectionTracker)
-│   │   ├── flow_aggregator.py        ✅ Day 7
-│   │   └── publisher.py              ✅ Day 7+8 (reconnection logic)
-│   ├── ml/                            ✅ Day 8 (NEW — 18 files)
-│   │   ├── __init__.py
+│   │   ├── __init__.py, config.py               ✅ Day 7
+│   │   ├── engine.py                            ✅ Day 7+8 (hardened)
+│   │   ├── feature_extractor.py                 ✅ Day 7+8 (63 features)
+│   │   ├── flow_aggregator.py                   ✅ Day 7
+│   │   └── publisher.py                         ✅ Day 7+8 (reconnection)
+│   ├── ml/
+│   │   ├── __init__.py                          ✅ Day 8
 │   │   ├── datasets/
-│   │   │   ├── __init__.py
-│   │   │   ├── nsl_kdd.py            ✅ Full loader + preprocessor
-│   │   │   └── cicids2017.py         📋 Stub (Week 5)
+│   │   │   ├── nsl_kdd.py                       ✅ Day 8+9 (full loader, validated)
+│   │   │   ├── validate_nsl_kdd.py              ✅ Day 9
+│   │   │   └── cicids2017.py                    📋 Stub (Week 5)
 │   │   ├── models/
-│   │   │   ├── __init__.py
-│   │   │   ├── isolation_forest.py   📋 Stub → Day 9 full implementation
-│   │   │   ├── random_forest.py      📋 Stub → Day 9 full implementation
-│   │   │   └── autoencoder.py        📋 Stub → Day 10
+│   │   │   ├── isolation_forest.py              ✅ Day 9 (full implementation)
+│   │   │   ├── random_forest.py                 ✅ Day 9 (full implementation)
+│   │   │   └── autoencoder.py                   📋 Stub → Day 10
 │   │   ├── training/
-│   │   │   ├── __init__.py
-│   │   │   ├── train_all.py          📋 Stub → Day 9
-│   │   │   ├── evaluate.py           📋 Stub → Day 9
-│   │   │   └── hyperparams.py        ✅ All params from PART4
+│   │   │   ├── train_all.py                     ✅ Day 9 (full orchestrator)
+│   │   │   ├── evaluate.py                      ✅ Day 9 (binary + multiclass)
+│   │   │   └── hyperparams.py                   ✅ Day 8
 │   │   ├── inference/
-│   │   │   ├── __init__.py
-│   │   │   ├── model_manager.py      📋 Stub (Week 4)
-│   │   │   ├── ensemble_scorer.py    📋 Stub → Day 10
-│   │   │   └── worker.py             📋 Stub (Week 4)
+│   │   │   ├── ensemble_scorer.py               📋 Stub → Day 10
+│   │   │   ├── model_manager.py                 📋 Stub → Day 10
+│   │   │   └── worker.py                        📋 Stub → Day 10-11
 │   │   └── saved_models/
-│   │       ├── .gitkeep
+│   │       ├── isolation_forest.pkl             ✅ Day 9 (trained on VPS)
+│   │       ├── random_forest.pkl                ✅ Day 9 (trained on VPS)
+│   │       ├── eval_results/
+│   │       │   ├── isolation_forest_eval.json   ✅ Day 9
+│   │       │   └── random_forest_eval.json      ✅ Day 9
 │   │       └── datasets/
-│   │           ├── KDDTrain+.txt      ✅ 125,973 records
-│   │           ├── KDDTest+.txt       ✅ 22,544 records
-│   │           ├── KDDTrain+_20Percent.txt  ✅
-│   │           └── KDDTest-21.txt     ✅
+│   │           ├── KDDTrain+.txt                ✅ 125,973 records
+│   │           ├── KDDTest+.txt                 ✅ 22,544 records
+│   │           ├── KDDTrain+_20Percent.txt      ✅
+│   │           └── KDDTest-21.txt               ✅
 │   ├── app/
-│   │   ├── config.py                 ✅ DEV_MODE=true
-│   │   ├── database.py
-│   │   ├── dependencies.py           ✅ DEV_MODE bypass
-│   │   ├── main.py                   ✅ FlowConsumer lifespan
-│   │   ├── redis.py
-│   │   ├── api/v1/
-│   │   │   ├── __init__.py           ✅ All routers mounted
-│   │   │   ├── auth.py, capture.py, flows.py, alerts.py, system.py, websocket.py
-│   │   ├── models/                   ✅ 10 models (all DB entities)
-│   │   ├── schemas/                  ✅ 8 schema files
-│   │   └── services/
-│   │       ├── auth_service.py, flow_service.py, alert_service.py
-│   │       ├── flow_persistence.py   ✅ gen_random_uuid + is_anomaly
-│   │       └── flow_consumer.py      ✅ Redis → PostgreSQL
-│   ├── requirements.txt
-│   └── Dockerfile
+│   │   ├── main.py, config.py, database.py, dependencies.py, redis.py
+│   │   ├── api/v1/ (auth, capture, flows, alerts, system, websocket)  ✅
+│   │   ├── models/ (10 SQLAlchemy models)                             ✅
+│   │   ├── schemas/ (8 Pydantic schema files)                         ✅
+│   │   └── services/ (auth, flow, alert, flow_consumer, flow_persistence) ✅
+│   ├── requirements.txt, Dockerfile
+│   └── seed_mock_data.py
 │
 ├── frontend/
-│   ├── app/                          ✅ 10 module pages + layout
-│   ├── components/
-│   │   ├── war-room/                 ✅ 9 components
-│   │   ├── ai-analyst/               ✅ 3 components
-│   │   ├── alerts/                   ✅ 1 component
-│   │   ├── shared/                   ✅ 4 components
-│   │   └── layout/                   ✅ 3 components
-│   ├── hooks/                        ✅ 4 hooks
-│   ├── lib/                          ✅ api.ts, websocket.ts, constants.ts, utils.ts
+│   ├── app/ (10 module pages + layout + globals.css 21KB)              ✅
+│   ├── components/ (war-room/9, ai-analyst/3, alerts/1, shared/4, layout/3) ✅
+│   ├── hooks/ (useWebSocket, useFlows, useAlerts, useLLM)             ✅
+│   ├── lib/ (api.ts, websocket.ts, constants.ts, utils.ts)            ✅
 │   └── package.json
 │
-├── docker-compose.yml                ✅ 5 services (version key removed)
-├── .env                              ✅ DEV_MODE=true
+├── docker-compose.yml  ✅ 5 services (version key removed)
+├── .env                ✅ DEV_MODE=true
 └── docs/
-    ├── master-documentation/         ✅ 5 parts (source of truth)
-    ├── worklog/
-    │   ├── DAY_01 ... DAY_07         ✅ Complete
-    │   ├── DAY_08_MAR04.md           ✅ Day 8 tasks (COMPLETE)
-    │   └── DAY_09_MAR05.md           ✅ Day 9 tasks (NEXT)
-    ├── SESSION_HANDOFF.md            ✅ This file
-    └── FRONTEND_TASKS_DAY8.md        ✅ Full-stack dev tasks
+    ├── master-documentation/ (5 parts — source of truth)
+    ├── worklog/ (DAY_01 through DAY_09 + PDFs)
+    ├── SESSION_HANDOFF.md (this file)
+    └── FRONTEND_TASKS_DAY8.md
 ```
 
 ---
 
 ## 📊 API ENDPOINT COVERAGE
 
-### Implemented (23 REST + 1 WebSocket) ✅
-
-| Service | Endpoints | Status |
-|---------|-----------|--------|
-| Auth | POST register, login, refresh; GET me; POST logout | ✅ 5 |
-| Flows | GET /, {id}, stats, top-talkers, protocols; POST search | ✅ 6 |
-| Alerts | GET /, {id}; PATCH {id}/status, {id}/assign; GET stats | ✅ 5 |
-| Capture | GET status, interfaces; POST start, stop | ✅ 4 |
-| System | GET health, info | ✅ 2 |
-| WebSocket | WS /ws/ | ✅ 1 |
-
-### Not Yet Implemented (on schedule)
-
-| Service | Planned Week |
-|---------|-------------|
-| ML endpoints (5) | Week 3-4 |
-| Intel endpoints (4) | Week 4 |
-| LLM endpoints (5) | Week 4 |
-| Capture upload-pcap (1) | Week 5 |
-| Reports endpoints (3) | Week 6 |
+| Service | Count | Status |
+|---------|-------|--------|
+| Auth | 5 | ✅ |
+| Flows | 6 | ✅ |
+| Alerts | 5 | ✅ |
+| Capture | 4 | ✅ |
+| System | 2 | ✅ |
+| WebSocket | 1 | ✅ |
+| ML | 0/5 | 📋 Week 3-4 |
+| Intel | 0/4 | 📋 Week 4 |
+| LLM | 0/5 | 📋 Week 4 |
+| Reports | 0/3 | 📋 Week 6 |
+| **TOTAL** | **23/42** | **54.8%** |
 
 ---
 
 ## 🔧 VPS OPERATIONS
 
-### VPS Services Status
-
-| Service | Container | Status | Notes |
-|---------|-----------|--------|-------|
-| PostgreSQL 16 | tm-postgres | ✅ Healthy | Port 5432, 1,860+ flows |
-| Redis 7 | tm-redis | ✅ Healthy | Port 6379, pub/sub active |
-| FastAPI Backend | tm-backend | ✅ Running | Port 8000, DEV_MODE=true |
-| Capture Engine | tm-capture | ✅ Running | Host network, privileged, 63 features |
-| ML Worker | tm-ml-worker | 🟡 Restarting | Expected — models not trained yet |
-
-### How to Test on VPS
+| Service | Container | Status |
+|---------|-----------|--------|
+| PostgreSQL 16 | tm-postgres | ✅ Healthy (1,860+ flows) |
+| Redis 7 | tm-redis | ✅ Healthy (pub/sub active) |
+| FastAPI | tm-backend | ✅ Running (DEV_MODE=true) |
+| Capture Engine | tm-capture | ✅ Running (63 features) |
+| ML Worker | tm-ml-worker | 🟡 Restarting (expected until Day 10-11) |
 
 ```bash
 ssh root@187.124.45.161
+cd /home/threatmatrix/threatmatrix-ai
 docker compose ps
-docker compose logs capture --tail=5
-docker compose exec postgres psql -U threatmatrix -d threatmatrix \
-  -c "SELECT COUNT(*) FROM network_flows;"
-curl http://localhost:8000/api/v1/capture/status | jq .
+docker compose exec backend python -m ml.training.train_all  # Re-run training
 ```
 
 ---
 
-## 📋 DAY 9 PLAN
+## 📋 DAY 10 PLAN — Autoencoder + Ensemble + Tuning
 
-### Lead Architect Tasks (see `docs/worklog/DAY_09_MAR05.md`)
+### Lead Architect Tasks
 
 | # | Task | Priority | Time | Deliverable |
 |---|------|----------|------|-------------|
-| 1 | NSL-KDD loader validation | 🔴 | 60m | Validation script, verified on VPS |
-| 2 | Isolation Forest full implementation | 🔴 | 90m | Train, predict, score, save/load |
-| 3 | Random Forest full implementation | 🔴 | 90m | Train, predict, confidence, feature importance |
-| 4 | Model evaluation framework | 🔴 | 60m | Binary + multiclass metrics, compare models |
-| 5 | Training orchestrator (train_all.py) | 🟡 | 60m | Trains IF+RF, evaluates, saves |
-| 6 | Week 2 demo readiness check | 🟡 | 30m | All Week 2 deliverables verified |
+| 1 | Autoencoder (TensorFlow/Keras) full implementation | 🔴 | 120m | Train on normal data, reconstruction error scoring |
+| 2 | Hyperparameter tuning (IF + RF) | 🔴 | 60m | IF contamination → 0.10-0.15; RF grid search |
+| 3 | Ensemble scorer implementation | 🔴 | 60m | Composite scoring per PART4 §1.2 weights |
+| 4 | Model manager (load all 3 models) | 🟡 | 45m | Single interface for inference |
+| 5 | Re-train all models with tuned params | 🟡 | 30m | Updated .pkl files + eval JSON |
+| 6 | ML API endpoints (begin) | 🟡 | 60m | GET /ml/models, GET /ml/comparison |
 
-### Full-Stack Dev: In parallel per `FRONTEND_TASKS_DAY8.md`
+### Key Implementation Notes for Day 10
+
+**Autoencoder (PART4 §6):**
+```
+Architecture: Input(40) → Dense(64,relu) → BN → Drop(0.2) → Dense(32,relu) → BN → Drop(0.2) → Dense(16,relu) [bottleneck] → Dense(32,relu) → BN → Drop(0.2) → Dense(64,relu) → BN → Dense(40,sigmoid)
+Loss: MSE | Optimizer: Adam(lr=0.001) | Epochs: 100 | Early stopping: patience=10
+Train on NORMAL only | Anomaly = high reconstruction error | Threshold: 95th percentile
+```
+
+**Ensemble weights:** W_IF=0.30, W_RF=0.45, W_AE=0.25
+
+**IF tuning target:** Increase recall from 66% → 85%+ by adjusting contamination
+**RF tuning target:** Cross-validate to identify optimal depth/estimators
 
 ---
 
@@ -280,26 +328,26 @@ curl http://localhost:8000/api/v1/capture/status | jq .
 
 | Version | Target | Status |
 |---------|--------|--------|
-| `v0.1.0` | Week 1 (Mar 2) | ✅ **COMPLETE** |
-| `v0.2.0` | Week 2 (Mar 9) | 🟡 **IN PROGRESS** — capture ✅, ML scaffold ✅, frontend data connection pending (Full-Stack Dev) |
-| `v0.3.0` | Week 3 (Mar 16) | 📋 ML models trained — **starting early** |
+| `v0.1.0` | Week 1 | ✅ COMPLETE |
+| `v0.2.0` | Week 2 (Mar 9) | 🟡 IN PROGRESS (capture ✅, ML ✅, frontend pending Full-Stack Dev) |
+| `v0.3.0` | Week 3 (Mar 16) | 🟡 **STARTED EARLY** — IF+RF trained, AE next |
 | **`v0.4.0`** | **Week 4 (Mar 23)** | **📋 CRITICAL MVP** |
-| `v0.5.0` → `v1.0.0` | Weeks 5-8 | 📋 Upcoming |
 
-### Schedule Status: ✅ AHEAD OF SCHEDULE
-
-Day 8 capture hardening + ML scaffolding complete. Starting ML model implementation (Week 3 deliverables) early, giving buffer for the critical v0.4.0 MVP.
+**Status: ✅ AHEAD OF SCHEDULE** — ML models (Week 3 deliverable) trained on Day 9 (Week 2 Day 3).
 
 ---
 
-## ⚠️ KNOWN ISSUES & BLOCKERS
+## ⚠️ KNOWN ISSUES
 
-| Issue | Severity | Status |
-|-------|----------|--------|
-| Next.js 16 build error (`workUnitAsyncStorage`) | 🟡 | `npm run dev` works |
-| ml-worker restarting | 🟢 | Expected until Week 3-4 |
-| DEV_MODE enabled on VPS | 🟡 | Required for dev |
-| No LLM/Intel API keys | 🟢 | Not needed until Week 4 |
+| Issue | Severity | Notes |
+|-------|----------|-------|
+| IF accuracy 79.68% (target 88-93%) | 🟡 | Tune contamination; NSL-KDD test set is harder |
+| RF accuracy 74.16% (target 95-98%) | 🟡 | Novel attack types in test; hyperparameter tuning needed |
+| RF F1 macro 49.71% | 🟡 | Minority class imbalance (R2L/U2R); class_weight='balanced' helps but not enough |
+| NSL-KDD has 40 features (not 41) | 🟢 | `_extra_40` column is artifact; 40 is correct |
+| Next.js 16 build error | 🟡 | `npm run dev` works; known framework bug |
+| ml-worker restarting | 🟢 | Expected until worker.py implemented |
+| DEV_MODE enabled | 🟡 | Required for dev; disable before production |
 
 ---
 
@@ -314,11 +362,13 @@ Day 8 capture hardening + ML scaffolding complete. Starting ML model implementat
 7. Follow MASTER_DOC_PART5 §2.1 file structure exactly
 8. Python: **type hints, Pydantic, async/await, SQLAlchemy 2.x mapped_column**
 9. TypeScript: **strict mode**, React Server Components where possible
-10. UI must follow **War Room / Intelligence Agency** design language
+10. UI: **War Room / Intelligence Agency** design language
 11. **Every task must have dense verification steps**
 12. **Master documentation (5 parts)** is the single source of truth
 13. Colors: `#0a0a0f` (bg), `#00f0ff` (cyan), `#ef4444` (critical), `#22c55e` (safe)
 14. Fonts: JetBrains Mono (data), Inter (UI)
+15. **ML models must be re-evaluated after any hyperparameter change**
+16. **NSL-KDD test set accuracy gaps are expected** — document in academic submission
 
 ---
 
@@ -326,20 +376,18 @@ Day 8 capture hardening + ML scaffolding complete. Starting ML model implementat
 
 | Metric | Value |
 |--------|-------|
-| **Current Phase** | Week 2 Day 2 COMPLETE ✅ |
-| **Next Task** | Day 9 — NSL-KDD validation + IF/RF implementation |
-| **Days Completed** | 8 of 56 total (14.3%) |
-| **Backend Files** | ~65 files (including 18 ML files) |
-| **Frontend Components** | 20+ components |
-| **Frontend Hooks** | 4 hooks |
-| **Database Tables** | 10 (all per spec) |
-| **API Endpoints** | 23 REST + 1 WS of 42 planned (57.1%) |
+| **Current Phase** | Week 2 Day 3 COMPLETE ✅ |
+| **Next Task** | Day 10 — Autoencoder + Ensemble + Tuning |
+| **Days Completed** | 9 of 56 (16.1%) |
+| **Backend Files** | ~70 files |
+| **Frontend Components** | 20+ |
+| **API Endpoints** | 23/42 (54.8%) |
 | **Feature Count** | 63 per flow (40 NSL-KDD + 23 extended) |
-| **Live Flows** | 1,860+ captured, persisting to PostgreSQL |
-| **NSL-KDD Dataset** | ✅ Downloaded (125,973 train + 22,544 test) |
-| **ML Models** | 0/3 trained (IF + RF starting Day 9, AE Day 10) |
-| **Capture Engine** | ✅ Hardened + running on VPS |
-| **Docker Services** | ✅ 5 running (ml-worker restarting = expected) |
+| **Live Flows** | 1,860+ in PostgreSQL |
+| **ML Models Trained** | 2/3 (IF ✅, RF ✅, AE 📋) |
+| **IF Accuracy** | 79.68% (P: 97.26%) |
+| **RF Accuracy** | 74.16% (Train: 99.96%) |
+| **Capture Engine** | ✅ Hardened + running |
 | **Scope Compliance** | ✅ No violations |
 | **Architecture Compliance** | ✅ Zero deviations |
 
@@ -349,17 +397,17 @@ Day 8 capture hardening + ML scaffolding complete. Starting ML model implementat
 
 | Document | Path | Purpose |
 |----------|------|---------| 
-| **Master Doc Part 1** | `docs/master-documentation/MASTER_DOC_PART1_STRATEGY.md` | Strategy, business case |
-| **Master Doc Part 2** | `docs/master-documentation/MASTER_DOC_PART2_ARCHITECTURE.md` | DB schema, API, security |
-| **Master Doc Part 3** | `docs/master-documentation/MASTER_DOC_PART3_MODULES.md` | 10 modules, UI/UX design |
-| **Master Doc Part 4** | `docs/master-documentation/MASTER_DOC_PART4_ML_LLM.md` | ML pipeline, datasets, LLM |
-| **Master Doc Part 5** | `docs/master-documentation/MASTER_DOC_PART5_TIMELINE.md` | Timeline, structure, deploy |
-| **Frontend Tasks** | `docs/FRONTEND_TASKS_DAY8.md` | Full-stack dev task sheet |
-| **Day 9 Tasks** | `docs/worklog/DAY_09_MAR05.md` | Next task workflow |
-| **All Worklogs** | `docs/worklog/DAY_0*` | Full dev history (Days 1-8) |
+| Master Doc Part 1 | `docs/master-documentation/MASTER_DOC_PART1_STRATEGY.md` | Strategy |
+| Master Doc Part 2 | `docs/master-documentation/MASTER_DOC_PART2_ARCHITECTURE.md` | Architecture |
+| Master Doc Part 3 | `docs/master-documentation/MASTER_DOC_PART3_MODULES.md` | Modules, UI/UX |
+| **Master Doc Part 4** | `docs/master-documentation/MASTER_DOC_PART4_ML_LLM.md` | **ML pipeline — CRITICAL for Day 10** |
+| Master Doc Part 5 | `docs/master-documentation/MASTER_DOC_PART5_TIMELINE.md` | Timeline, structure |
+| Frontend Tasks | `docs/FRONTEND_TASKS_DAY8.md` | Full-stack dev tasks |
+| Day 10 Tasks | `docs/worklog/DAY_10_MAR06.md` | Next task workflow (to be created) |
+| All Worklogs | `docs/worklog/DAY_0*` | Full dev history (Days 1-9) |
 
 ---
 
-_End of Session Handoff — Updated for Day 8 (Week 2 Day 2) completion_  
-_Created for seamless continuation in new chat session_  
-**Day 8 Grade: A | Status: COMPLETE ✅ | Next: Day 9 — NSL-KDD Validation + ML Models**
+_End of Session Handoff — Updated for Day 9 (Week 2 Day 3) completion_  
+_ML models trained on VPS: IF (79.68% acc, 97.26% precision) + RF (74.16% acc, 99.96% train)_  
+**Day 9 Grade: A- | Status: COMPLETE ✅ | Next: Day 10 — Autoencoder + Ensemble + Tuning**

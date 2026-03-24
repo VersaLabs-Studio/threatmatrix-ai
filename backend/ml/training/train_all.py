@@ -5,8 +5,9 @@ Trains all models on NSL-KDD dataset:
 1. Load and preprocess NSL-KDD
 2. Train Isolation Forest on normal data
 3. Train Random Forest on all labeled data
-4. Evaluate both models
-5. Save models + evaluation results
+4. Train Autoencoder on normal data (deep learning)
+5. Ensemble scoring test (composite = 0.30×IF + 0.45×RF + 0.25×AE)
+6. Model comparison
 
 Run: python -m ml.training.train_all
 """
@@ -23,6 +24,7 @@ import numpy as np
 from ml.datasets.nsl_kdd import NSLKDDLoader
 from ml.models.isolation_forest import IsolationForestModel
 from ml.models.random_forest import RandomForestModel
+from ml.models.autoencoder import AutoencoderModel
 from ml.training.evaluate import ModelEvaluator
 
 logging.basicConfig(
@@ -115,9 +117,64 @@ def train_all() -> bool:
     for i, fi in enumerate(importance[:10], 1):
         logger.info("  %d. %s: %.4f", i, fi["feature"], fi["importance"])
 
-    # -- Step 4: Model Comparison --
+    # -- Step 4: Train Autoencoder --
     logger.info("=" * 60)
-    logger.info("STEP 4: Model Comparison")
+    logger.info("STEP 4: Training Autoencoder (deep learning)")
+    logger.info("=" * 60)
+
+    ae_model = AutoencoderModel()
+    ae_meta = ae_model.train(X_train_normal)
+
+    # Evaluate AE (binary: normal vs anomaly)
+    ae_preds = ae_model.predict(X_test)
+    ae_scores = ae_model.score(X_test)
+
+    ae_eval = evaluator.evaluate_binary(
+        y_true=y_test_binary,
+        y_pred=ae_preds,
+        y_scores=ae_scores,
+        model_name="autoencoder",
+    )
+    evaluator.save_results(ae_eval)
+    all_results.append(ae_eval)
+
+    ae_model.save()
+    logger.info("[AE] Accuracy: %.4f | F1: %.4f", ae_eval["accuracy"], ae_eval["f1_score"])
+
+    # -- Step 5: Ensemble Test --
+    logger.info("=" * 60)
+    logger.info("STEP 5: Ensemble Scoring Test")
+    logger.info("=" * 60)
+
+    from ml.inference.ensemble_scorer import EnsembleScorer
+
+    scorer = EnsembleScorer()
+    rf_preds_full = rf_model.predict_with_confidence(X_test)
+    rf_attack_conf = np.array([
+        1.0 - p["class_probabilities"].get("normal", 1.0) if p["is_anomaly"]
+        else 0.0
+        for p in rf_preds_full
+    ])
+
+    composite = scorer.score(if_scores, rf_attack_conf, ae_scores)
+    composite_preds = (composite >= 0.30).astype(int)
+
+    ensemble_eval = evaluator.evaluate_binary(
+        y_true=y_test_binary,
+        y_pred=composite_preds,
+        y_scores=composite,
+        model_name="ensemble",
+    )
+    evaluator.save_results(ensemble_eval)
+    all_results.append(ensemble_eval)
+
+    logger.info("[Ensemble] Accuracy: %.4f | F1: %.4f | AUC: %.4f",
+                ensemble_eval["accuracy"], ensemble_eval["f1_score"],
+                ensemble_eval.get("auc_roc", 0.0))
+
+    # -- Step 6: Model Comparison --
+    logger.info("=" * 60)
+    logger.info("STEP 6: Model Comparison")
     logger.info("=" * 60)
 
     comparison = evaluator.compare_models(all_results)
@@ -130,6 +187,7 @@ def train_all() -> bool:
     logger.info("TRAINING COMPLETE in %.1f seconds", elapsed)
     logger.info("  Isolation Forest: saved to saved_models/isolation_forest.pkl")
     logger.info("  Random Forest:    saved to saved_models/random_forest.pkl")
+    logger.info("  Autoencoder:      saved to saved_models/autoencoder/")
     logger.info("  Evaluations:      saved to saved_models/eval_results/")
     logger.info("=" * 60)
 
