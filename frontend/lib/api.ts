@@ -53,8 +53,9 @@ async function apiFetch<T>(
 ): Promise<ApiResponse<T>> {
   const token = getToken();
 
+  // Only set Content-Type to application/json if body is NOT FormData
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers as Record<string, string>),
   };
 
