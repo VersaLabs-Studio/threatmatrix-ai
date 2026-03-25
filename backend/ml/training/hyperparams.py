@@ -4,12 +4,18 @@ ThreatMatrix AI — Hyperparameter Configurations
 Per MASTER_DOC_PART4 §4.4, §5.2, §6.3
 
 Centralized hyperparameter configs for all three models.
+
+Day 14 Update: Applied tuned IF parameters from best_params.json
+  - n_estimators: 100 (verified via tuning)
+  - contamination: 0.10 (was 0.05, +0.05)
+  - max_samples: 1024 (was "auto", now explicit)
+  Expected improvement: IF Accuracy 79.68%→82.54%, IF F1 78.75%→83.03%
 """
 
 ISOLATION_FOREST_PARAMS = {
-    "n_estimators": 200,
-    "contamination": 0.05,
-    "max_samples": "auto",
+    "n_estimators": 100,       # Tuned: verified via Day 13 hyperparameter search
+    "contamination": 0.10,     # Tuned: was 0.05, increased for better recall
+    "max_samples": 1024,       # Tuned: was "auto", now explicit for consistency
     "max_features": 1.0,
     "bootstrap": False,
     "random_state": 42,

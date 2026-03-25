@@ -4,6 +4,7 @@ ThreatMatrix AI — Threat Intelligence Service
 Per MASTER_DOC_PART4 §11:
   - AlienVault OTX: Pull pulses, IOCs (free, unlimited)
   - AbuseIPDB: On-demand IP reputation lookup (free, 1K/day)
+  - VirusTotal: File hash / IP / domain analysis (free, 500/day)
   - Normalizer: Deduplicate, score merge, tag enrich
   - Correlator: Match IOCs against live network flows
 """
@@ -164,15 +165,105 @@ class AbuseIPDBClient:
             await self._client.aclose()
 
 
+class VirusTotalClient:
+    """VirusTotal file/IP/domain analysis client."""
+
+    BASE_URL = "https://www.virustotal.com/api/v3"
+
+    def __init__(self) -> None:
+        self.api_key = os.environ.get("VIRUSTOTAL_API_KEY", "")
+        self.enabled = bool(self.api_key)
+        self._client: Optional[httpx.AsyncClient] = None
+        if self.enabled:
+            logger.info("[ThreatIntel] VirusTotal client initialized")
+        else:
+            logger.warning("[ThreatIntel] VIRUSTOTAL_API_KEY not set")
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                base_url=self.BASE_URL,
+                headers={"x-apikey": self.api_key},
+                timeout=30.0,
+            )
+        return self._client
+
+    async def check_hash(self, file_hash: str) -> Dict[str, Any]:
+        """
+        Check a file hash against VirusTotal.
+        Per §11.3 item 3: if detected → flag as malware.
+
+        Args:
+            file_hash: MD5, SHA1, or SHA256 hash.
+
+        Returns:
+            Dict with detection results.
+        """
+        if not self.enabled:
+            return {"error": "VirusTotal not configured"}
+        client = await self._get_client()
+        try:
+            resp = await client.get(f"/files/{file_hash}")
+            resp.raise_for_status()
+            data = resp.json().get("data", {}).get("attributes", {})
+            stats = data.get("last_analysis_stats", {})
+            return {
+                "hash": file_hash,
+                "malicious": stats.get("malicious", 0),
+                "suspicious": stats.get("suspicious", 0),
+                "undetected": stats.get("undetected", 0),
+                "total_engines": sum(stats.values()) if stats else 0,
+                "detection_ratio": f"{stats.get('malicious', 0)}/{sum(stats.values()) if stats else 0}",
+                "is_malware": stats.get("malicious", 0) > 3,  # >3 engines flagged
+                "file_type": data.get("type_description", "unknown"),
+                "names": data.get("names", [])[:5],
+            }
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return {"hash": file_hash, "is_malware": False, "message": "Not found in VT"}
+            logger.error("[VT] Hash check failed: %s", e)
+            return {"hash": file_hash, "error": str(e)}
+        except Exception as e:
+            logger.error("[VT] Hash check failed: %s", e)
+            return {"hash": file_hash, "error": str(e)}
+
+    async def check_ip(self, ip: str) -> Dict[str, Any]:
+        """Check IP reputation on VirusTotal."""
+        if not self.enabled:
+            return {"error": "VirusTotal not configured"}
+        client = await self._get_client()
+        try:
+            resp = await client.get(f"/ip_addresses/{ip}")
+            resp.raise_for_status()
+            data = resp.json().get("data", {}).get("attributes", {})
+            stats = data.get("last_analysis_stats", {})
+            return {
+                "ip": ip,
+                "malicious": stats.get("malicious", 0),
+                "suspicious": stats.get("suspicious", 0),
+                "country": data.get("country", ""),
+                "as_owner": data.get("as_owner", ""),
+                "reputation": data.get("reputation", 0),
+            }
+        except Exception as e:
+            logger.error("[VT] IP check failed: %s", e)
+            return {"ip": ip, "error": str(e)}
+
+    async def close(self) -> None:
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+
+
 class ThreatIntelService:
     """
     Unified threat intelligence service.
-    Aggregates OTX + AbuseIPDB results.
+    Aggregates OTX + AbuseIPDB + VirusTotal results.
     """
 
     def __init__(self) -> None:
         self.otx = OTXClient()
         self.abuseipdb = AbuseIPDBClient()
+        self.virustotal = VirusTotalClient()
         self.stats = {"lookups": 0, "iocs_found": 0}
 
     async def lookup_ip(self, ip: str) -> Dict[str, Any]:
@@ -209,9 +300,11 @@ class ThreatIntelService:
         return {
             "otx_enabled": self.otx.enabled,
             "abuseipdb_enabled": self.abuseipdb.enabled,
+            "virustotal_enabled": self.virustotal.enabled,
             "stats": self.stats,
         }
 
     async def close(self) -> None:
         await self.otx.close()
         await self.abuseipdb.close()
+        await self.virustotal.close()

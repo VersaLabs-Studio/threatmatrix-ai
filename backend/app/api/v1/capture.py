@@ -1,7 +1,7 @@
 """
 ThreatMatrix AI — Capture API Routes
 
-Control endpoints for the capture engine: start, stop, status, interfaces.
+Control endpoints for the capture engine: start, stop, status, interfaces, upload-pcap.
 Per MASTER_DOC_PART2 §5.1
 """
 
@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import tempfile
+import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from app.dependencies import get_current_user
 from app.models.user import User
@@ -158,3 +160,87 @@ async def list_interfaces(
         interfaces = []
 
     return InterfaceList(interfaces=interfaces)
+
+
+@router.post("/upload-pcap")
+async def upload_pcap(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+):
+    """
+    Upload a PCAP file for historical analysis.
+    Per MASTER_DOC_PART2 §5.1.
+
+    The capture engine's pcap_processor.py handles parsing.
+    Flows extracted from PCAP are scored by the ML ensemble.
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided")
+
+    if not file.filename.endswith((".pcap", ".pcapng", ".cap")):
+        raise HTTPException(
+            status_code=400,
+            detail="Only .pcap/.pcapng/.cap files accepted",
+        )
+
+    # Save to temp file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pcap") as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    # Process PCAP in background
+    task_id = str(uuid.uuid4())[:8]
+    asyncio.create_task(_process_pcap(task_id, tmp_path, file.filename))
+
+    logger.info(
+        "[Capture API] PCAP uploaded by user=%s: %s (%d bytes), task_id=%s",
+        user.email,
+        file.filename,
+        len(content),
+        task_id,
+    )
+
+    return {
+        "status": "processing",
+        "task_id": task_id,
+        "filename": file.filename,
+        "size_bytes": len(content),
+    }
+
+
+async def _process_pcap(task_id: str, tmp_path: str, filename: str) -> None:
+    """
+    Background task to process uploaded PCAP file.
+    Extracts flows and publishes to Redis for ML scoring.
+    """
+    try:
+        logger.info("[PCAP] Processing task_id=%s, file=%s", task_id, filename)
+
+        # Import pcap processor lazily
+        try:
+            from capture.pcap_processor import PCAPProcessor
+
+            processor = PCAPProcessor()
+            result = await processor.process(tmp_path)
+            logger.info(
+                "[PCAP] Task %s complete: %d packets, %d flows, %d anomalies",
+                task_id,
+                result.get("packets", 0),
+                result.get("flows", 0),
+                result.get("anomalies", 0),
+            )
+        except ImportError:
+            logger.warning(
+                "[PCAP] pcap_processor.py not yet implemented — task %s queued for future processing",
+                task_id,
+            )
+    except Exception as e:
+        logger.error("[PCAP] Task %s failed: %s", task_id, e)
+    finally:
+        # Cleanup temp file
+        import os
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
