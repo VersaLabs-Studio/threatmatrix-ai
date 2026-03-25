@@ -78,6 +78,33 @@ async def lifespan(app: FastAPI):
             print(f"[TM] Flow score updater failed: {e}")
             app.state.flow_scorer = None
 
+    # Initialize LLM Gateway (OpenRouter)
+    from app.services.llm_gateway import LLMGateway
+    from app.api.v1.llm import set_gateway
+    try:
+        llm_gw = LLMGateway()
+        set_gateway(llm_gw)
+        app.state.llm_gateway = llm_gw
+        if llm_gw.enabled:
+            print("[TM] LLM Gateway initialized — OpenRouter connected")
+        else:
+            print("[TM] LLM Gateway initialized — no API key (disabled)")
+    except Exception as e:
+        print(f"[TM] LLM Gateway init failed: {e}")
+        app.state.llm_gateway = None
+
+    # Initialize Threat Intelligence Service (OTX + AbuseIPDB)
+    from app.services.threat_intel import ThreatIntelService
+    from app.api.v1.intel import set_service
+    try:
+        intel_service = ThreatIntelService()
+        set_service(intel_service)
+        app.state.intel_service = intel_service
+        print("[TM] Threat Intel service initialized — OTX + AbuseIPDB")
+    except Exception as e:
+        print(f"[TM] Threat Intel init failed: {e}")
+        app.state.intel_service = None
+
     yield
     
     # ── Shutdown ─────────────────────────────────────────────
@@ -104,6 +131,22 @@ async def lifespan(app: FastAPI):
         try:
             await app.state.flow_scorer.stop()
             print("[TM] Flow score updater stopped")
+        except Exception:
+            pass
+
+    # Close LLM Gateway
+    if hasattr(app.state, 'llm_gateway') and app.state.llm_gateway:
+        try:
+            await app.state.llm_gateway.close()
+            print("[TM] LLM Gateway closed")
+        except Exception:
+            pass
+
+    # Close Threat Intel Service
+    if hasattr(app.state, 'intel_service') and app.state.intel_service:
+        try:
+            await app.state.intel_service.close()
+            print("[TM] Threat Intel service closed")
         except Exception:
             pass
 

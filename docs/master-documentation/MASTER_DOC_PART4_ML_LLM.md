@@ -675,42 +675,88 @@ class ModelManager:
 
 ### 9.1 LLM Gateway Service
 
-The LLM Gateway is a **centralized service** that manages all LLM interactions with provider routing, caching, budget tracking, and fallback logic.
+The LLM Gateway is a **centralized service** that manages all LLM interactions with model routing, caching, budget tracking, and fallback logic.
+
+> **⚠️ ARCHITECTURAL DEVIATION (Confirmed — March 24, 2026):**
+>
+> All LLM calls are routed through **OpenRouter** (`https://openrouter.ai/api/v1`) instead of direct provider APIs (DeepSeek, Groq, GLM). This replaces per-provider API keys with a single `OPENROUTER_API_KEY` environment variable.
+>
+> **What changed:** Unified API gateway, single credential, access to best-of-class free models.
+>
+> **What is preserved:** Task-type → model routing logic, middleware stack, prompt templates (§9.2), streaming SSE pattern (§9.3), budget tracking, fallback routing.
+>
+> **Rationale:** Cost optimization (free-tier models available), simplified key management, broader model access, $20 credits loaded for development + demo.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    LLM GATEWAY SERVICE                       │
-│                                                              │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │              REQUEST ROUTER                             │ │
-│  │                                                         │ │
-│  │  Task Type → Provider Selection:                        │ │
-│  │  • Complex Analysis    → DeepSeek V3 (best reasoning)   │ │
-│  │  • Real-time Alerts    → Groq Llama 3.3 (fastest)       │ │
-│  │  • Bulk/Translation    → GLM-4-Flash (cheapest)         │ │
-│  │  • Fallback            → Next available provider        │ │
-│  └────────┬───────────────┬────────────────┬───────────────┘ │
-│           │               │                │                  │
-│     ┌─────▼─────┐   ┌────▼────┐    ┌──────▼──────┐         │
-│     │ DeepSeek  │   │ Groq    │    │ GLM (Zhipu) │         │
-│     │ V3        │   │ Llama   │    │ 4-Flash     │         │
-│     │           │   │ 3.3 70B │    │             │         │
-│     │ $0.14/M   │   │ $0.06/M │    │ $0.01/M     │         │
-│     │ in tokens │   │ tokens  │    │ tokens      │         │
-│     └───────────┘   └─────────┘    └─────────────┘         │
-│                                                              │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │  MIDDLEWARE STACK                                       │ │
-│  │  1. Budget Check    → Reject if monthly budget exceeded │ │
-│  │  2. Cache Lookup    → Return cached if identical query  │ │
-│  │  3. Rate Limiter    → Max 20 req/min per user           │ │
-│  │  4. Prompt Builder  → Construct system + user prompt    │ │
-│  │  5. Token Counter   → Track input/output tokens         │ │
-│  │  6. Response Cache  → Cache response (TTL: 1 hour)      │ │
-│  │  7. Cost Logger     → Log cost to PostgreSQL            │ │
-│  └────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    LLM GATEWAY SERVICE                           │
+│              (via OpenRouter — OpenAI-compatible API)             │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │              REQUEST ROUTER                               │    │
+│  │                                                           │    │
+│  │  Task Type → Model Selection (via OpenRouter):            │    │
+│  │  • Complex Analysis → Nemotron Ultra 253B (best reason.)  │    │
+│  │  • Real-time Alerts → Step 3.5 Flash (fastest MoE)        │    │
+│  │  • Chat / General   → GPT-OSS 120B (balanced)             │    │
+│  │  • Bulk/Translation → GLM-4.1v (bilingual, cheapest)      │    │
+│  │  • Fallback/Code    → Qwen3-Coder 480B (agentic coding)   │    │
+│  └────────┬───────────────┬──────────────┬──────────────┬────┘    │
+│           │               │              │              │          │
+│     ┌─────▼──────┐  ┌────▼─────┐  ┌─────▼─────┐  ┌────▼──────┐  │
+│     │ Nemotron   │  │ Step 3.5 │  │ GPT-OSS   │  │ GLM-4.1v  │  │
+│     │ Ultra 253B │  │ Flash    │  │ 120B      │  │ 9B        │  │
+│     │ (free)     │  │ 196B MoE │  │ 117B MoE  │  │ (free)    │  │
+│     │            │  │ (free)   │  │ (free)    │  │           │  │
+│     └────────────┘  └──────────┘  └───────────┘  └───────────┘  │
+│                          │                                        │
+│                    ┌─────▼─────┐                                  │
+│                    │ OpenRouter│   ← Single API endpoint          │
+│                    │ API       │   ← Single API key               │
+│                    │ (v1)      │   ← OpenAI-compatible format     │
+│                    └───────────┘                                  │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │  MIDDLEWARE STACK (unchanged)                             │    │
+│  │  1. Budget Check    → Reject if monthly budget exceeded   │    │
+│  │  2. Cache Lookup    → Return cached if identical query    │    │
+│  │  3. Rate Limiter    → Max 20 req/min per user             │    │
+│  │  4. Prompt Builder  → Construct system + user prompt      │    │
+│  │  5. Token Counter   → Track input/output tokens           │    │
+│  │  6. Response Cache  → Cache response (TTL: 1 hour)        │    │
+│  │  7. Cost Logger     → Log cost to PostgreSQL              │    │
+│  └──────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+#### 9.1.1 OpenRouter Configuration
+
+```python
+# Environment variable (single key replaces per-provider keys)
+OPENROUTER_API_KEY=sk-or-v1-XXXXXXXX
+
+# API endpoint (OpenAI-compatible)
+BASE_URL = "https://openrouter.ai/api/v1"
+
+# Required headers
+headers = {
+    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+    "HTTP-Referer": "https://threatmatrix-ai.com",
+    "X-Title": "ThreatMatrix AI",
+    "Content-Type": "application/json",
+}
+```
+
+#### 9.1.2 Task-to-Model Routing Table
+
+| Task Type | Primary Model | Fallback Model | Rationale |
+| --------- | ------------- | -------------- | --------- |
+| **Complex Analysis** | `nvidia/llama-3.1-nemotron-ultra-253b-v1:free` | `openai/gpt-oss-120b:free` | 253B params, best reasoning for alert narratives |
+| **Daily Briefing** | `nvidia/llama-3.1-nemotron-ultra-253b-v1:free` | `stepfun/step-3.5-flash:free` | Deep analysis for executive summaries |
+| **IP Investigation** | `nvidia/llama-3.1-nemotron-ultra-253b-v1:free` | `openai/gpt-oss-120b:free` | Reasoning-heavy threat assessment |
+| **Chat / General** | `openai/gpt-oss-120b:free` | `nvidia/llama-3.1-nemotron-ultra-253b-v1:free` | Balanced speed + quality for interactive chat |
+| **Translation** | `zhipu-ai/glm-4.1v-9b-thinking:free` | `stepfun/step-3.5-flash:free` | GLM family: strong bilingual (Amharic/English) |
+| **Quick Summary** | `stepfun/step-3.5-flash:free` | `openai/gpt-oss-120b:free` | Fastest MoE for real-time alert summaries |
 
 ### 9.2 Prompt Templates
 
@@ -816,38 +862,53 @@ async def chat(request: ChatRequest, user: User = Depends(get_current_user)):
 
 ## 10. LLM Provider Strategy & Budget
 
-### 10.1 Provider Comparison
+> **⚠️ UPDATED (March 24, 2026):** All providers accessed via OpenRouter. Budget structure revised to reflect free-tier models and $20 OpenRouter credits.
 
-| Provider        | Model         | Speed           | Quality | Cost/M tokens        | Best For                                 |
-| --------------- | ------------- | --------------- | ------- | -------------------- | ---------------------------------------- |
-| **DeepSeek**    | V3            | Medium          | ★★★★★   | $0.14 in / $0.28 out | Complex analysis, reasoning              |
-| **Groq**        | Llama 3.3 70B | ★★★★★ (fastest) | ★★★★    | $0.06                | Real-time alerts, quick queries          |
-| **GLM (Zhipu)** | GLM-4-Flash   | Fast            | ★★★★    | $0.01                | Bulk tasks, translations, classification |
-| **Together AI** | Llama 3.1 8B  | Fast            | ★★★     | $0.02                | Fallback, simple tasks                   |
+### 10.1 Provider Comparison (via OpenRouter)
 
-### 10.2 Budget Allocation (Total: $100-200)
+| Model (OpenRouter ID) | Architecture | Params (Active) | Speed | Quality | Cost | Best For |
+| --------------------- | ------------ | --------------- | ----- | ------- | ---- | -------- |
+| **NVIDIA Nemotron Ultra 253B** (`nvidia/llama-3.1-nemotron-ultra-253b-v1:free`) | Hybrid Mamba-Transformer MoE | 253B (12B active) | Medium | ★★★★★ | **Free** | Complex analysis, reasoning, alert narratives |
+| **Step 3.5 Flash** (`stepfun/step-3.5-flash:free`) | Sparse MoE | 196B (11B active) | ★★★★★ (fastest) | ★★★★ | **Free** | Real-time alerts, quick summaries |
+| **OpenAI GPT-OSS 120B** (`openai/gpt-oss-120b:free`) | MoE | 117B (5.1B active) | Fast | ★★★★★ | **Free** | Chat, general analysis, investigation |
+| **GLM-4.1v 9B** (`zhipu-ai/glm-4.1v-9b-thinking:free`) | Dense (thinking mode) | 9B | Fast | ★★★★ | **Free** | Translations (Amharic/English), bulk tasks |
+| **Qwen3-Coder 480B** (`qwen/qwen3-coder-480b-a35b:free`) | Sparse MoE | 480B (35B active) | Medium | ★★★★ | **Free** | Coding, fallback, agentic tasks |
 
-| Category             | Allocation   | Provider      | Est. Requests          |
-| -------------------- | ------------ | ------------- | ---------------------- |
-| **Complex Analysis** | $40-60       | DeepSeek V3   | ~3,000-4,000 analyses  |
-| **Real-time Alerts** | $20-30       | Groq          | ~5,000-8,000 summaries |
-| **Bulk/Translation** | $15-25       | GLM-4-Flash   | ~50,000+ operations    |
-| **Demo Day Reserve** | $30-50       | All providers | Buffer for live demo   |
-| **Total**            | **$105-165** |               |                        |
+#### 10.1.1 Original vs. Updated Provider Mapping
 
-### 10.3 Cost Per Feature
+| Task Type | Original Provider (PART4 v1.0) | Updated Provider (OpenRouter) | Migration Impact |
+| --------- | ----------------------------- | ----------------------------- | ---------------- |
+| Complex Analysis | DeepSeek V3 ($0.14/M) | Nemotron Ultra 253B (free) | ✅ Better quality, zero cost |
+| Real-time Alerts | Groq Llama 3.3 ($0.06/M) | Step 3.5 Flash (free) | ✅ Comparable speed, zero cost |
+| Chat / General | DeepSeek V3 ($0.14/M) | GPT-OSS 120B (free) | ✅ Strong general, zero cost |
+| Bulk / Translation | GLM-4-Flash ($0.01/M) | GLM-4.1v 9B (free) | ✅ Same family, zero cost |
+| Fallback | Together Llama 3.1 8B ($0.02/M) | Qwen3-Coder 480B (free) | ✅ Massive upgrade, zero cost |
 
-| Feature             | Est. Tokens/Request | Provider | Cost/Request | Daily Usage | Daily Cost  |
-| ------------------- | ------------------- | -------- | ------------ | ----------- | ----------- |
-| Alert Narrative     | ~500 in + 300 out   | DeepSeek | $0.00015     | 50 alerts   | $0.0075     |
-| Chat Query          | ~800 in + 500 out   | DeepSeek | $0.00025     | 20 queries  | $0.005      |
-| Daily Briefing      | ~1500 in + 800 out  | DeepSeek | $0.00044     | 2 briefings | $0.0009     |
-| Quick Summary       | ~300 in + 200 out   | Groq     | $0.00003     | 100/day     | $0.003      |
-| Amharic Translation | ~500 in + 500 out   | GLM      | $0.00001     | 30/day      | $0.0003     |
-| **Total Daily**     |                     |          |              |             | **~$0.017** |
-| **Total Monthly**   |                     |          |              |             | **~$0.50**  |
+### 10.2 Budget Allocation (Revised: OpenRouter)
 
-At $0.50/month, the $100-200 budget covers **the entire development + demo period with massive headroom**.
+| Category             | Credits   | Model                    | Est. Requests          |
+| -------------------- | --------- | ------------------------ | ---------------------- |
+| **Complex Analysis** | Free tier | Nemotron Ultra 253B      | Unlimited (free model) |
+| **Real-time Alerts** | Free tier | Step 3.5 Flash           | Unlimited (free model) |
+| **Chat / General**   | Free tier | GPT-OSS 120B             | Unlimited (free model) |
+| **Bulk/Translation** | Free tier | GLM-4.1v 9B              | Unlimited (free model) |
+| **Fallback/Overflow**| $20       | Any premium model        | ~50,000+ requests      |
+| **Demo Day Reserve** | $20       | All models               | Guaranteed availability|
+| **Total Credits**    | **$20**   | **OpenRouter balance**   |                        |
+
+### 10.3 Cost Per Feature (Updated)
+
+| Feature             | Est. Tokens/Request | Model             | Cost/Request | Daily Usage | Daily Cost  |
+| ------------------- | ------------------- | ----------------- | ------------ | ----------- | ----------- |
+| Alert Narrative     | ~500 in + 300 out   | Nemotron Ultra    | **$0.00**    | 50 alerts   | **$0.00**   |
+| Chat Query          | ~800 in + 500 out   | GPT-OSS 120B      | **$0.00**    | 20 queries  | **$0.00**   |
+| Daily Briefing      | ~1500 in + 800 out  | Nemotron Ultra    | **$0.00**    | 2 briefings | **$0.00**   |
+| Quick Summary       | ~300 in + 200 out   | Step 3.5 Flash    | **$0.00**    | 100/day     | **$0.00**   |
+| Amharic Translation | ~500 in + 500 out   | GLM-4.1v 9B       | **$0.00**    | 30/day      | **$0.00**   |
+| **Total Daily**     |                     |                   |              |             | **$0.00**   |
+| **Total Monthly**   |                     |                   |              |             | **$0.00**   |
+
+With free-tier models on OpenRouter, operational LLM cost is **$0.00/month**. The $20 credit balance serves as a safety net for premium model fallback or rate-limit overflow during demo day. This is a **significant improvement** over the original $0.50/month projection — the LLM budget is effectively eliminated while upgrading model quality (253B Nemotron vs 8B Llama fallback).
 
 ---
 
