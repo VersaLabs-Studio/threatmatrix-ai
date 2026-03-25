@@ -7,12 +7,10 @@ ARCHITECTURAL DEVIATION from MASTER_DOC_PART4 §9.1:
   - Model routing preserved: task_type → best model for that task
   - Middleware stack unchanged: budget, cache, rate limit, prompt, token count
 
-Verified working providers via OpenRouter (March 25, 2026):
-  - openai/gpt-oss-120b:free                       → Complex analysis / Chat
-  - stepfun/step-3.5-flash:free                    → Real-time alerts / Translation
-
-NOTE: nvidia/nemotron (404) and zhipu-ai/glm (400) are NOT available on
-OpenRouter free tier. All tasks routed through the two verified models.
+Verified providers via OpenRouter (March 25, 2026):
+  - nvidia/nemotron-3-super-120b-a12b:free  → Complex analysis (120B MoE, 12B active)
+  - openai/gpt-oss-120b:free                → Chat / General  (117B MoE, 5.1B active)
+  - stepfun/step-3.5-flash:free             → Real-time / Translation (196B MoE, 11B active)
 """
 
 from __future__ import annotations
@@ -42,27 +40,26 @@ class TaskType(str, Enum):
 
 
 # Task → Model routing (preserves PART4 §9.1 logic)
-# Using ONLY verified-working OpenRouter models (March 25 2026):
-#   ✅ openai/gpt-oss-120b:free   — 117B MoE, strong reasoning
-#   ✅ stepfun/step-3.5-flash:free — 196B MoE, fast inference
-#   ❌ nvidia/nemotron — 404 on OpenRouter
-#   ❌ zhipu-ai/glm   — 400 on OpenRouter
+# Verified-working OpenRouter models (March 25 2026):
+#   ✅ nvidia/nemotron-3-super-120b-a12b:free — 120B hybrid MoE, 12B active, best reasoning
+#   ✅ openai/gpt-oss-120b:free               — 117B MoE, 5.1B active, strong general
+#   ✅ stepfun/step-3.5-flash:free             — 196B MoE, 11B active, fastest
 TASK_MODEL_ROUTING: Dict[TaskType, List[str]] = {
     TaskType.ALERT_ANALYSIS: [
+        "nvidia/nemotron-3-super-120b-a12b:free",
         "openai/gpt-oss-120b:free",
-        "stepfun/step-3.5-flash:free",
     ],
     TaskType.DAILY_BRIEFING: [
-        "openai/gpt-oss-120b:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
         "stepfun/step-3.5-flash:free",
     ],
     TaskType.IP_INVESTIGATION: [
+        "nvidia/nemotron-3-super-120b-a12b:free",
         "openai/gpt-oss-120b:free",
-        "stepfun/step-3.5-flash:free",
     ],
     TaskType.CHAT: [
         "openai/gpt-oss-120b:free",
-        "stepfun/step-3.5-flash:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
     ],
     TaskType.TRANSLATION: [
         "stepfun/step-3.5-flash:free",
