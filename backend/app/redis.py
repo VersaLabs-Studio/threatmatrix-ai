@@ -23,6 +23,7 @@ settings = get_settings()
 CHANNEL_FLOWS_LIVE = "flows:live"
 CHANNEL_ALERTS_LIVE = "alerts:live"
 CHANNEL_SYSTEM_STATUS = "system:status"
+CHANNEL_ML_LIVE = "ml:live"
 
 
 class RedisManager:

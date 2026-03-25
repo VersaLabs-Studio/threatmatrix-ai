@@ -6,10 +6,12 @@ Per MASTER_DOC_PART2 §5.1: ML model management and inference endpoints.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import uuid
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -124,3 +126,133 @@ async def predict_flow(request: PredictRequest) -> PredictResponse:
             "random_forest_confidence": r["rf_confidence"],
         },
     )
+
+
+# ── Retrain Endpoint (per MASTER_DOC_PART2 §5.1) ──────────────────
+
+
+class RetrainRequest(BaseModel):
+    """Request body for model retraining trigger."""
+    dataset: str = "nsl_kdd"
+    models: List[str] = [
+        "isolation_forest",
+        "random_forest",
+        "autoencoder",
+    ]
+
+
+class RetrainResponse(BaseModel):
+    """Response from retrain trigger."""
+    status: str
+    task_id: str
+    message: str
+
+
+# In-memory retrain task tracking (sufficient for single-worker deployment)
+_retrain_tasks: Dict[str, Dict[str, Any]] = {}
+
+
+@router.post("/retrain", response_model=RetrainResponse)
+async def retrain_models(request: RetrainRequest) -> RetrainResponse:
+    """
+    Trigger model retraining as a background subprocess.
+
+    Per MASTER_DOC_PART2 §5.1: POST /ml/retrain
+    Admin-only endpoint. Launches training in a background subprocess
+    to avoid blocking the ML Worker inference pipeline.
+
+    Args:
+        request: RetrainRequest with dataset and models list.
+
+    Returns:
+        RetrainResponse with task_id for tracking.
+    """
+    task_id = uuid.uuid4().hex[:8]
+
+    # Validate requested models
+    valid_models = {"isolation_forest", "random_forest", "autoencoder"}
+    invalid = set(request.models) - valid_models
+    if invalid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid model(s): {invalid}. Valid: {valid_models}",
+        )
+
+    # Launch background retraining task
+    _retrain_tasks[task_id] = {
+        "status": "started",
+        "dataset": request.dataset,
+        "models": request.models,
+    }
+    asyncio.create_task(_run_retraining(task_id, request.dataset))
+
+    logger.info(
+        "[ML] Retrain triggered: task=%s, dataset=%s, models=%s",
+        task_id,
+        request.dataset,
+        request.models,
+    )
+
+    return RetrainResponse(
+        status="started",
+        task_id=task_id,
+        message=f"Retraining {len(request.models)} model(s) on {request.dataset} dataset",
+    )
+
+
+@router.get("/retrain/{task_id}")
+async def get_retrain_status(task_id: str) -> Dict[str, Any]:
+    """
+    Check the status of a retraining task.
+
+    Args:
+        task_id: Task ID returned from POST /ml/retrain.
+
+    Returns:
+        Task status dict.
+    """
+    task = _retrain_tasks.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    return {"task_id": task_id, **task}
+
+
+async def _run_retraining(task_id: str, dataset: str) -> None:
+    """
+    Execute model retraining in a background subprocess.
+
+    Uses python -m ml.training.train_all to retrain all models.
+    Does NOT block the ML Worker or API server.
+
+    Args:
+        task_id: Unique task identifier.
+        dataset: Dataset name (e.g., 'nsl_kdd').
+    """
+    logger.info("[ML] Retrain started: task=%s, dataset=%s", task_id, dataset)
+    _retrain_tasks[task_id]["status"] = "running"
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "python", "-m", "ml.training.train_all",
+            "--dataset", dataset,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+
+        if proc.returncode == 0:
+            _retrain_tasks[task_id]["status"] = "completed"
+            logger.info("[ML] Retrain complete: task=%s", task_id)
+        else:
+            _retrain_tasks[task_id]["status"] = "failed"
+            stderr_text = stderr.decode()[:500] if stderr else "unknown"
+            _retrain_tasks[task_id]["error"] = stderr_text
+            logger.error(
+                "[ML] Retrain failed: task=%s, stderr=%s",
+                task_id,
+                stderr_text,
+            )
+    except Exception as exc:
+        _retrain_tasks[task_id]["status"] = "failed"
+        _retrain_tasks[task_id]["error"] = str(exc)
+        logger.error("[ML] Retrain exception: task=%s, error=%s", task_id, exc)
