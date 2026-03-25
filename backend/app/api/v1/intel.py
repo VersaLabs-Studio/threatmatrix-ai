@@ -97,7 +97,7 @@ async def sync_feeds():
                         VALUES
                             (:ioc_type, :ioc_value, :threat_type, :severity, 'otx',
                              :confidence, :tags, true, NOW(), NOW())
-                        ON CONFLICT (ioc_type, ioc_value)
+                        ON CONFLICT (ioc_type, ioc_value, source)
                         DO UPDATE SET last_seen = NOW(), is_active = true
                     """),
                     {
@@ -106,7 +106,7 @@ async def sync_feeds():
                         "threat_type": pulse.get("adversary", "unknown"),
                         "severity": "high" if "malware" in str(pulse.get("tags", [])).lower() else "medium",
                         "confidence": 0.8,
-                        "tags": ",".join(pulse.get("tags", [])[:5]),
+                        "tags": pulse.get("tags", [])[:5],
                     },
                 )
                 iocs_inserted += 1
