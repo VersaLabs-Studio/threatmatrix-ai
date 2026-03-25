@@ -3,6 +3,8 @@ ThreatMatrix AI — System Endpoints
 Health check, system status, and configuration.
 """
 
+import os
+
 from fastapi import APIRouter, Request
 from datetime import datetime, timezone
 
@@ -71,4 +73,52 @@ async def system_info():
         ],
         "llm_providers": ["deepseek", "glm", "groq"],
         "threat_feeds": ["otx", "abuseipdb", "virustotal"],
+    }
+
+
+@router.get("/config")
+async def system_config():
+    """
+    System configuration.
+    Per MASTER_DOC_PART2 §5.1.
+
+    Returns non-sensitive configuration values.
+    API keys are NOT exposed in this response.
+    """
+    return {
+        "capture": {
+            "engine": "scapy",
+            "features_per_flow": 63,
+            "interface": os.environ.get("CAPTURE_INTERFACE", "eth0"),
+        },
+        "ml": {
+            "ensemble_weights": {
+                "isolation_forest": 0.30,
+                "random_forest": 0.45,
+                "autoencoder": 0.25,
+            },
+            "alert_thresholds": {
+                "critical": 0.90,
+                "high": 0.75,
+                "medium": 0.50,
+                "low": 0.30,
+            },
+            "dataset": "nsl_kdd",
+            "scoring_mode": "ensemble",
+        },
+        "threat_intel": {
+            "otx_enabled": bool(os.environ.get("OTX_API_KEY")),
+            "abuseipdb_enabled": bool(os.environ.get("ABUSEIPDB_API_KEY")),
+            "virustotal_enabled": bool(os.environ.get("VIRUSTOTAL_API_KEY")),
+            "sync_interval_hours": 6,
+        },
+        "llm": {
+            "provider": "openrouter",
+            "models_count": 3,
+        },
+        "system": {
+            "version": "0.4.0",
+            "environment": os.environ.get("ENVIRONMENT", "production"),
+            "dev_mode": os.environ.get("DEV_MODE", "false").lower() == "true",
+        },
     }

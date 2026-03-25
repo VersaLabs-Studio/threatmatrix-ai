@@ -3,6 +3,7 @@ ThreatMatrix AI — Alert Endpoints
 Alert management, lifecycle, and statistics.
 """
 
+import logging
 from typing import Any, Optional
 from uuid import UUID
 
@@ -14,6 +15,7 @@ from app.database import get_db
 from app.dependencies import get_current_active_user
 from app.services import alert_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -67,10 +69,43 @@ async def get_alert(
     db: AsyncSession = Depends(get_db),
     user: Any = Depends(get_current_active_user),
 ) -> dict[str, Any]:
-    """Get detailed alert information."""
+    """
+    Get detailed alert information with IOC enrichment.
+    Per MASTER_DOC_PART4 §11.3: alert responses include IOC correlation data.
+    """
     alert = await alert_service.get_alert_by_id(db=db, alert_id=alert_id)
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
+
+    # IOC Enrichment — correlate alert IPs against IOC database
+    # Per §11.3: IP match → escalate, domain → C2/phishing, hash → malware
+    ioc_enrichment: dict[str, Any] = {"has_match": False}
+    try:
+        from app.services.ioc_correlator import IOCCorrelator
+
+        correlator = IOCCorrelator()
+        ioc_result = await correlator.correlate_flow(
+            {
+                "source_ip": alert.get("source_ip"),
+                "dest_ip": alert.get("dest_ip"),
+            }
+        )
+        if ioc_result.get("has_ioc_match"):
+            ioc_enrichment = {
+                "has_match": True,
+                "src_match": ioc_result.get("src_match"),
+                "dst_match": ioc_result.get("dst_match"),
+                "domain_match": ioc_result.get("domain_match"),
+                "flags": ioc_result.get("flags", []),
+                "escalation": ioc_result.get("escalation_severity"),
+            }
+        else:
+            ioc_enrichment = {"has_match": False}
+    except Exception as e:
+        logger.error("[Alerts] IOC enrichment failed for %s: %s", alert_id, e)
+        ioc_enrichment = {"has_match": False, "error": str(e)}
+
+    alert["ioc_enrichment"] = ioc_enrichment
     return alert
 
 
