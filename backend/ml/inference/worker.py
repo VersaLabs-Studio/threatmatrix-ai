@@ -207,7 +207,7 @@ class MLWorker:
                     "flow_id": flow_id,
                     "composite_score": result["composite_score"],
                     "severity": severity,
-                    "category": category_map.get(result["label"], "anomaly"),
+                    "category": self.CATEGORY_MAP.get(result["label"], "anomaly"),
                     "source_ip": flow_data.get("src_ip", "unknown"),
                     "dest_ip": flow_data.get("dst_ip", "unknown"),
                     "if_score": result["if_score"],
@@ -239,19 +239,11 @@ class MLWorker:
 
     async def _create_alert(self, flow_data: Dict, result: Dict) -> None:
         """Create and publish an alert for an anomalous flow."""
-        # Map RF label → alert category per PART4 §5.3
-        category_map = {
-            "dos": "ddos",
-            "probe": "port_scan",
-            "r2l": "unauthorized_access",
-            "u2r": "privilege_escalation",
-        }
-
         alert = {
             "event": "new_alert",
             "payload": {
                 "severity": result["severity"],
-                "category": category_map.get(result["label"], "anomaly"),
+                "category": self.CATEGORY_MAP.get(result["label"], "anomaly"),
                 "title": f"{result['severity'].upper()} — {result['label']} detected",
                 "description": (
                     f"ML ensemble detected {result['label']} activity. "
