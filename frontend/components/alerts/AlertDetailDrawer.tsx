@@ -20,6 +20,10 @@ interface AlertDetailDrawerProps {
 export function AlertDetailDrawer({ alert, onClose, onUpdateStatus }: AlertDetailDrawerProps) {
   if (!alert) return null;
 
+  // Ensure IP values are strings for formatIP
+  const sourceIP: string = alert.source_ip ?? '';
+  const destIP: string = alert.dest_ip ?? '';
+
   return (
     <div
       style={{
@@ -73,8 +77,8 @@ export function AlertDetailDrawer({ alert, onClose, onUpdateStatus }: AlertDetai
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
           <DetailItem icon={<Shield size={14} />} label="Category" value={alert.category || 'N/A'} />
           <DetailItem icon={<Zap size={14} />} label="ML Score" value={`${((alert.composite_score || 0) * 100).toFixed(1)}%`} accent="warning" />
-          <DetailItem icon={<MapPin size={14} />} label="Source IP" value={formatIP(alert.source_ip || '')} />
-          <DetailItem icon={<MapPin size={14} />} label="Target IP" value={formatIP(alert.dest_ip || '')} />
+          <DetailItem icon={<MapPin size={14} />} label="Source IP" value={formatIP(sourceIP)} />
+          <DetailItem icon={<MapPin size={14} />} label="Target IP" value={formatIP(destIP)} />
           <DetailItem icon={<Clock size={14} />} label="Status" value={alert.status.toUpperCase()} />
           <DetailItem icon={<User size={14} />} label="Owner" value={alert.assigned_to || 'UNASSIGNED'} />
         </div>
