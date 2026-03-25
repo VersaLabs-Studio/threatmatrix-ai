@@ -20,6 +20,7 @@ import { GeoDistribution } from '@/components/war-room/GeoDistribution';
 import { GlassPanel }      from '@/components/shared/GlassPanel';
 import { DataTable }       from '@/components/shared/DataTable';
 import { StatusBadge }     from '@/components/shared/StatusBadge';
+import { FlowDetailPanel } from '@/components/network/FlowDetailPanel';
 import { shortNumber, formatBytes, formatTime } from '@/lib/utils';
 import type { NetworkFlow } from '@/hooks/useFlows';
 import type { Severity }    from '@/lib/constants';
@@ -75,6 +76,7 @@ export default function NetworkFlowPage() {
   const [protoFilter,   setProtoFilter]   = useState('ALL');
   const [anomalyFilter, setAnomalyFilter] = useState('ALL');
   const [search,        setSearch]        = useState('');
+  const [selectedFlow,  setSelectedFlow]  = useState<NetworkFlow | null>(null);
 
   // Merge live + mock flows
   const allFlows = flows.length > 0 ? flows : MOCK_FLOWS;
@@ -88,8 +90,8 @@ export default function NetworkFlowPage() {
     return true;
   });
 
-  const pps   = systemStatus?.packets_per_second ?? (stats[stats.length - 1]?.packets_per_second ?? 0);
-  const fCnt  = systemStatus?.active_flows       ?? (stats[stats.length - 1]?.active_flows       ?? 0);
+  const pps   = systemStatus?.packets_per_second ?? 0;
+  const fCnt  = systemStatus?.active_flows       ?? 0;
   const anomalyCount = allFlows.filter((f) => f.is_anomaly).length;
 
   return (
@@ -119,7 +121,7 @@ export default function NetworkFlowPage() {
 
       {/* ── Row 2: Charts ───────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 'var(--space-4)' }}>
-        <TrafficTimeline data={stats}    loading={loading} />
+        <TrafficTimeline data={[]}    loading={loading} />
         <ProtocolChart   data={protocols} loading={loading} />
       </div>
 
@@ -196,6 +198,7 @@ export default function NetworkFlowPage() {
           data={filtered}
           loading={loading}
           rowKey={(r) => String(r.id)}
+          onRowClick={(r) => setSelectedFlow(r)}
           maxHeight={320}
           emptyMessage="No flows match the current filters"
         />
@@ -206,6 +209,11 @@ export default function NetworkFlowPage() {
         <TopTalkers    data={topTalkers} loading={loading} />
         <GeoDistribution />
       </div>
+
+      {/* ── Flow Detail Panel (shown when flow selected) ── */}
+      {selectedFlow && (
+        <FlowDetailPanel flow={selectedFlow} onClose={() => setSelectedFlow(null)} />
+      )}
     </div>
   );
 }

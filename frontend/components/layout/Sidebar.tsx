@@ -14,6 +14,8 @@ import {
   Bell, FlaskConical, BrainCircuit, BarChart3, Settings,
 } from 'lucide-react';
 import { cx } from '@/lib/utils';
+import { useAlerts } from '@/hooks/useAlerts';
+import { useMLModels } from '@/hooks/useMLModels';
 
 const ICON_MAP = {
   Target, Search, Shield, Radio, Bot,
@@ -36,6 +38,8 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const pathname = usePathname();
   const router   = useRouter();
+  const { alerts } = useAlerts({ limit: 100 });
+  const { trainedCount } = useMLModels();
 
   // Keyboard shortcuts: Alt+1 through Alt+0
   useEffect(() => {
@@ -69,8 +73,16 @@ export function Sidebar() {
         const Icon    = ICON_MAP[item.icon];
         const isActive = pathname.startsWith(item.href);
 
+        // Compute badge count for specific items
+        let badgeCount = 0;
+        if (item.href === '/alerts') {
+          badgeCount = alerts.filter(a => a.severity === 'critical' || a.severity === 'high').length;
+        } else if (item.href === '/ml-ops') {
+          badgeCount = trainedCount;
+        }
+
         return (
-          <Link key={item.href} href={item.href} style={{ textDecoration: 'none', width: '100%', display: 'flex', justifyContent: 'center' }}>
+          <Link key={item.href} href={item.href} style={{ textDecoration: 'none', width: '100%', display: 'flex', justifyContent: 'center', position: 'relative' }}>
             <div
               className={cx('nav-icon', isActive && 'nav-icon--active')}
               title={`${item.label} (Alt+${item.key})`}
@@ -79,6 +91,26 @@ export function Sidebar() {
               aria-current={isActive ? 'page' : undefined}
             >
               <Icon size={18} />
+              {badgeCount > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: 2,
+                  right: 2,
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  background: item.href === '/alerts' ? 'var(--critical)' : 'var(--safe)',
+                  color: 'white',
+                  fontSize: '0.55rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontFamily: 'var(--font-data)',
+                }}>
+                  {badgeCount}
+                </span>
+              )}
             </div>
           </Link>
         );

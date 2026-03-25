@@ -6,13 +6,13 @@
 // ═══════════════════════════════════════════════════════
 
 import { X, Shield, Clock, MapPin, Zap, User, CheckCircle, AlertTriangle } from 'lucide-react';
-import type { Alert } from '@/hooks/useAlerts';
+import type { AlertResponse } from '@/lib/types';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatTime, formatIP } from '@/lib/utils';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 
 interface AlertDetailDrawerProps {
-  alert: Alert | null;
+  alert: AlertResponse | null;
   onClose: () => void;
   onUpdateStatus: (id: string, status: any) => void;
 }
@@ -71,13 +71,28 @@ export function AlertDetailDrawer({ alert, onClose, onUpdateStatus }: AlertDetai
         
         {/* Core Metadata */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
-          <DetailItem icon={<Shield size={14} />} label="Category" value={alert.category} />
-          <DetailItem icon={<Zap size={14} />} label="ML Score" value={`${(alert.composite_score * 100).toFixed(1)}%`} accent="warning" />
-          <DetailItem icon={<MapPin size={14} />} label="Source IP" value={formatIP(alert.src_ip)} />
-          <DetailItem icon={<MapPin size={14} />} label="Target IP" value={formatIP(alert.dst_ip)} />
+          <DetailItem icon={<Shield size={14} />} label="Category" value={alert.category || 'N/A'} />
+          <DetailItem icon={<Zap size={14} />} label="ML Score" value={`${((alert.composite_score || 0) * 100).toFixed(1)}%`} accent="warning" />
+          <DetailItem icon={<MapPin size={14} />} label="Source IP" value={formatIP(alert.source_ip || '')} />
+          <DetailItem icon={<MapPin size={14} />} label="Target IP" value={formatIP(alert.dest_ip || '')} />
           <DetailItem icon={<Clock size={14} />} label="Status" value={alert.status.toUpperCase()} />
           <DetailItem icon={<User size={14} />} label="Owner" value={alert.assigned_to || 'UNASSIGNED'} />
         </div>
+
+        {/* ML Scores Panel */}
+        <GlassPanel static title="ML SCORES" icon="🧠">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+            <ScoreItem label="Composite" value={`${((alert.composite_score || 0) * 100).toFixed(1)}%`} accent="cyan" />
+            <ScoreItem label="IF Score" value={alert.if_score?.toFixed(3) || 'N/A'} />
+            <ScoreItem label="RF Label" value={alert.rf_label?.toUpperCase() || 'N/A'} />
+            <ScoreItem label="RF Confidence" value={`${((alert.rf_confidence || 0) * 100).toFixed(1)}%`} />
+            <ScoreItem label="AE Score" value={alert.ae_score?.toFixed(3) || 'N/A'} />
+            <ScoreItem label="Agreement" value={alert.model_agreement?.toUpperCase() || 'N/A'} accent={
+              alert.model_agreement === 'unanimous' ? 'safe' :
+              alert.model_agreement === 'majority' ? 'warning' : undefined
+            } />
+          </div>
+        </GlassPanel>
 
         {/* AI Narrative */}
         <GlassPanel static title="AI NARRATIVE" icon="🤖">
@@ -161,6 +176,15 @@ function DetailItem({ icon, label, value, accent }: { icon: React.ReactNode, lab
       <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.75rem', color: accent ? `var(--${accent})` : 'var(--text-primary)', fontWeight: 600 }}>
         {value}
       </div>
+    </div>
+  );
+}
+
+function ScoreItem({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+      <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>{label}</span>
+      <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.8rem', fontWeight: 700, color: accent ? `var(--${accent})` : 'var(--text-primary)' }}>{value}</span>
     </div>
   );
 }

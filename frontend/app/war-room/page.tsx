@@ -7,10 +7,12 @@
 // ═══════════════════════════════════════════════════
 
 import dynamic from 'next/dynamic';
+import { useState, useEffect } from 'react';
 import { useWebSocket }      from '@/hooks/useWebSocket';
 import { useFlows }          from '@/hooks/useFlows';
 import { useAlerts }         from '@/hooks/useAlerts';
 import { useMLModels }       from '@/hooks/useMLModels';
+import { api }               from '@/lib/api';
 import { MetricCard }        from '@/components/war-room/MetricCard';
 import { ProtocolChart }     from '@/components/war-room/ProtocolChart';
 import { TrafficTimeline }   from '@/components/war-room/TrafficTimeline';
@@ -47,6 +49,19 @@ export default function WarRoomPage() {
   const { alerts, total: alertTotal, loading: alertsLoading } = useAlerts({ limit: 100 });
   const { trainedCount, loading: mlLoading } = useMLModels();
 
+  // Alert stats for accurate threat level computation
+  const [alertStats, setAlertStats] = useState<{ critical: number; high: number; medium: number; low: number } | null>(null);
+
+  useEffect(() => {
+    const fetchAlertStats = async () => {
+      const { data } = await api.get<{ critical: number; high: number; medium: number; low: number }>('/api/v1/alerts/stats');
+      if (data) setAlertStats(data);
+    };
+    fetchAlertStats();
+    const interval = setInterval(fetchAlertStats, 10000); // Refresh every 10s
+    return () => clearInterval(interval);
+  }, []);
+
   // Derive live metric values from system status (WebSocket)
   const pps = systemStatus?.packets_per_second ?? 0;
   const flows = systemStatus?.active_flows ?? 0;
@@ -54,10 +69,12 @@ export default function WarRoomPage() {
   // Compute anomaly rate from stats object (percentage -> fraction)
   const anomalyRate = stats?.anomaly_percentage ? stats.anomaly_percentage / 100 : 0;
 
-  // Calculate threat level from alert stats
-  const criticalCount = alerts.filter((a) => a.severity === 'critical').length;
-  const highCount = alerts.filter((a) => a.severity === 'high').length;
-  const threatLevel = criticalCount > 0 ? 'CRITICAL' : highCount > 0 ? 'HIGH' : 'ELEVATED';
+  // Calculate threat level from ML alert distribution
+  const threatLevel: 'CRITICAL' | 'HIGH' | 'ELEVATED' | 'SAFE' =
+    (alertStats?.critical ?? 0) > 0 ? 'CRITICAL' :
+    (alertStats?.high ?? 0) > 3 ? 'HIGH' :
+    (alertStats?.medium ?? 0) > 10 ? 'ELEVATED' :
+    'SAFE';
 
   return (
     <AuthGuard>

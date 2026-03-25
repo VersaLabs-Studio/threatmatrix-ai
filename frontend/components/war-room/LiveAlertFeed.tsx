@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 import { SEVERITY_COLORS, type Severity } from '@/lib/constants';
 import { formatTime } from '@/lib/utils';
@@ -50,6 +51,7 @@ const MAX_FEED_SIZE = 50;
 export function LiveAlertFeed({ lastAlertEvent }: LiveAlertFeedProps) {
   const [alerts, setAlerts] = useState<AlertFeedItem[]>(SEED_ALERTS);
   const listRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   // Ingest new WebSocket alert events
   useEffect(() => {
@@ -93,6 +95,7 @@ export function LiveAlertFeed({ lastAlertEvent }: LiveAlertFeedProps) {
           <div
             key={alert.id}
             className={alert.severity === 'critical' ? 'alert-card alert-card--critical' : 'alert-card'}
+            onClick={() => router.push('/alerts')}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -102,11 +105,12 @@ export function LiveAlertFeed({ lastAlertEvent }: LiveAlertFeedProps) {
               background: 'var(--bg-tertiary)',
               border: `1px solid ${alert.isNew ? SEVERITY_COLORS[alert.severity] + '66' : 'var(--border)'}`,
               backdropFilter: 'blur(4px)',
-              transition: 'border-color 0.4s ease, background 0.4s ease, opacity 0.4s ease, filter 0.4s ease',
+              transition: 'border-color 0.4s ease, background 0.4s ease, opacity 0.4s ease, filter 0.4s ease, transform 0.2s ease',
               animation: alert.isNew ? `stagger-in 0.3s ease forwards` : undefined,
               animationDelay: alert.isNew ? `${idx * 50}ms` : undefined,
-              opacity: alert.isNew ? 0 : (idx > alerts.length - 3 ? 0.4 : 1), // Ghosting effect for older items
+              opacity: alert.isNew ? 0 : (idx > alerts.length - 3 ? 0.4 : 1),
               filter: idx > alerts.length - 3 ? 'grayscale(0.5)' : 'none',
+              cursor: 'pointer',
             }}
           >
             <span style={{ fontSize: '0.7rem' }}>{SEVERITY_ICONS[alert.severity]}</span>
