@@ -19,6 +19,7 @@ import { AuthGuard } from '@/components/auth/AuthGuard';
 export default function AlertConsolePage() {
   const [severityFilter, setSeverityFilter] = useState<Severity | 'all'>('all');
   const [statusFilter, setStatusFilter]     = useState<AlertStatus | 'all'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [selectedAlert, setSelectedAlert]   = useState<AlertResponse | null>(null);
 
   const { alerts, loading, updateStatus } = useAlerts({ 
@@ -33,6 +34,16 @@ export default function AlertConsolePage() {
       header: 'Sev', 
       width: 80, 
       render: (r: AlertResponse) => <StatusBadge severity={r.severity} /> 
+    },
+    { 
+      key: 'category', 
+      header: 'Category', 
+      width: 120,
+      render: (r: AlertResponse) => (
+        <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+          {r.category || '—'}
+        </span>
+      )
     },
     { 
       key: 'title', 
@@ -109,6 +120,12 @@ export default function AlertConsolePage() {
             options={['all', 'open', 'acknowledged', 'resolved']} 
             current={statusFilter} 
             onSelect={(v: string) => setStatusFilter(v as any)} 
+          />
+          <FilterGroup 
+            label="CATEGORY" 
+            options={['all', 'ddos', 'port_scan', 'unauthorized_access', 'privilege_escalation', 'anomaly']} 
+            current={categoryFilter} 
+            onSelect={(v: string) => setCategoryFilter(v)} 
           />
         </div>
 

@@ -56,6 +56,7 @@ export const WS_CHANNELS = {
   FLOWS:  'flows:live',
   ALERTS: 'alerts:live',
   SYSTEM: 'system:status',
+  ML:     'ml:live',
 } as const;
 
 // ── Navigation items ───────────────────────────────────

@@ -2,29 +2,26 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
-import type { MLModelResponse } from '@/lib/types';
+import type { MLModelDetail, MLModelsResponse } from '@/lib/types';
 
 export function useMLModels() {
-  const [models, setModels] = useState<MLModelResponse[]>([]);
-  const [total, setTotal] = useState(0);
+  const [models, setModels] = useState<MLModelDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error: err } = await api.get<{ items: MLModelResponse[]; total: number }>('/api/v1/ml/models');
+    const { data, error: err } = await api.get<MLModelsResponse>('/api/v1/ml/models');
     if (err) {
       // Gracefully handle 404 (backend route not yet created)
       if (err.includes('404') || err.includes('Not Found')) {
         setModels([]);
-        setTotal(0);
       } else {
         setError(err);
       }
-    } else if (data) {
-      setModels(data.items || []);
-      setTotal(data.total || 0);
+    } else if (data?.models) {
+      setModels(data.models);
     }
     setLoading(false);
   }, []);
@@ -33,5 +30,7 @@ export function useMLModels() {
     void fetch();
   }, [fetch]);
 
-  return { models, total, loading, error, refetch: fetch };
+  const trainedCount = models.filter(m => m.trained).length;
+
+  return { models, trainedCount, loading, error, refetch: fetch };
 }

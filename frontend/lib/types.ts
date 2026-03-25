@@ -17,6 +17,7 @@ export interface AlertResponse {
   category?: string;
   source_ip?: string;
   dest_ip?: string;
+  destination_ip?: string;
   confidence?: number;
   status: AlertStatus;
   assigned_to?: string;
@@ -29,8 +30,13 @@ export interface AlertResponse {
   resolution_note?: string;
   created_at: string;
   updated_at?: string;
-  // Additional fields that may be present
+  // ML-specific fields
   composite_score?: number;
+  model_agreement?: 'unanimous' | 'majority' | 'single' | 'none';
+  rf_label?: string;
+  rf_confidence?: number;
+  if_score?: number;
+  ae_score?: number;
   label?: string;
   flow_count?: number;
   timestamp?: string;
@@ -212,6 +218,40 @@ export interface MLModelResponse {
   created_at: string;
   updated_at?: string;
   trained_at?: string;
+}
+
+// ── ML API Response Types (Day 10) ─────────────────────
+
+export interface MLModelEvalResults {
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1_score: number;
+  auc_roc: number;
+  confusion_matrix: number[][];
+}
+
+export interface MLModelDetail {
+  name: string;
+  trained: boolean;
+  eval_results: MLModelEvalResults;
+}
+
+export interface MLModelsResponse {
+  models: MLModelDetail[];
+}
+
+export interface MLComparisonModel {
+  model: string;
+  accuracy: number;
+  f1_score: number;
+  auc_roc: number;
+}
+
+export interface MLComparisonResponse {
+  models: MLComparisonModel[];
+  best_accuracy: string;
+  best_f1: string;
 }
 
 // ── System Health Types ────────────────────────────────

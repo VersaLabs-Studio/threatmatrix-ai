@@ -49,10 +49,21 @@ export interface SystemStatusEvent {
   active_flows: number;
 }
 
+export interface AnomalyDetectedEvent {
+  flow_id: string;
+  src_ip: string;
+  dst_ip: string;
+  anomaly_score: number;
+  composite_score: number;
+  label: string;
+  timestamp: string;
+}
+
 interface UseWebSocketReturn {
   isConnected: boolean;
   lastFlowEvent: FlowEvent | null;
   lastAlertEvent: AlertEvent | null;
+  lastAnomalyEvent: AnomalyDetectedEvent | null;
   systemStatus: SystemStatusEvent | null;
   subscribe: (channels: string[]) => void;
   unsubscribe: (channels: string[]) => void;
@@ -63,6 +74,7 @@ export function useWebSocket(): UseWebSocketReturn {
   const [isConnected, setIsConnected]       = useState(false);
   const [lastFlowEvent, setLastFlowEvent]   = useState<FlowEvent | null>(null);
   const [lastAlertEvent, setLastAlertEvent] = useState<AlertEvent | null>(null);
+  const [lastAnomalyEvent, setLastAnomalyEvent] = useState<AnomalyDetectedEvent | null>(null);
   const [systemStatus, setSystemStatus]     = useState<SystemStatusEvent | null>(null);
 
   // Track unsubscribe functions per channel
@@ -128,11 +140,13 @@ export function useWebSocket(): UseWebSocketReturn {
       setSystemStatus(d as SystemStatusEvent);
       checkConnection();
     });
+    const unsubML     = wsClient.subscribe(WS_CHANNELS.ML,     (d) => setLastAnomalyEvent(d as AnomalyDetectedEvent));
 
     // Store unsubscribe functions for dynamic unsubscribe support
     unsubFunctionsRef.current.set(WS_CHANNELS.FLOWS, unsubFlows);
     unsubFunctionsRef.current.set(WS_CHANNELS.ALERTS, unsubAlerts);
     unsubFunctionsRef.current.set(WS_CHANNELS.SYSTEM, unsubSystem);
+    unsubFunctionsRef.current.set(WS_CHANNELS.ML, unsubML);
 
     // Poll connection state every 2 seconds
     const interval = setInterval(checkConnection, 2000);
@@ -156,5 +170,5 @@ export function useWebSocket(): UseWebSocketReturn {
     };
   }, [checkConnection]);
 
-  return { isConnected, lastFlowEvent, lastAlertEvent, systemStatus, subscribe, unsubscribe, reconnect };
+  return { isConnected, lastFlowEvent, lastAlertEvent, lastAnomalyEvent, systemStatus, subscribe, unsubscribe, reconnect };
 }

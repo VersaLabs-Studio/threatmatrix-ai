@@ -19,6 +19,7 @@ interface AlertFeedItem {
   category: string;
   src_ip: string;
   timestamp: string;
+  composite_score?: number;
   isNew?: boolean;
 }
 
@@ -59,6 +60,7 @@ export function LiveAlertFeed({ lastAlertEvent }: LiveAlertFeedProps) {
       category:  lastAlertEvent.category,
       src_ip:    lastAlertEvent.src_ip,
       timestamp: lastAlertEvent.timestamp,
+      composite_score: lastAlertEvent.composite_score,
       isNew:     true,
     };
     setAlerts((prev) => [newItem, ...prev].slice(0, MAX_FEED_SIZE));
@@ -143,6 +145,20 @@ export function LiveAlertFeed({ lastAlertEvent }: LiveAlertFeedProps) {
             >
               {alert.src_ip}
             </span>
+            {alert.composite_score !== undefined && (
+              <span
+                style={{
+                  fontFamily: 'var(--font-data)',
+                  fontSize: '0.6rem',
+                  color: 'var(--cyan)',
+                  flexShrink: 0,
+                  width: '2.5rem',
+                  textAlign: 'right',
+                }}
+              >
+                {(alert.composite_score * 100).toFixed(0)}%
+              </span>
+            )}
           </div>
         ))}
       </div>

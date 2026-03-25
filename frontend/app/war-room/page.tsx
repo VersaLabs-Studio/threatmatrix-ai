@@ -10,6 +10,7 @@ import dynamic from 'next/dynamic';
 import { useWebSocket }      from '@/hooks/useWebSocket';
 import { useFlows }          from '@/hooks/useFlows';
 import { useAlerts }         from '@/hooks/useAlerts';
+import { useMLModels }       from '@/hooks/useMLModels';
 import { MetricCard }        from '@/components/war-room/MetricCard';
 import { ProtocolChart }     from '@/components/war-room/ProtocolChart';
 import { TrafficTimeline }   from '@/components/war-room/TrafficTimeline';
@@ -44,6 +45,7 @@ export default function WarRoomPage() {
   const { lastAlertEvent, systemStatus } = useWebSocket();
   const { stats, protocols, topTalkers, loading: flowsLoading } = useFlows({ time_range: '1h' });
   const { alerts, total: alertTotal, loading: alertsLoading } = useAlerts({ limit: 100 });
+  const { trainedCount, loading: mlLoading } = useMLModels();
 
   // Derive live metric values from system status (WebSocket)
   const pps = systemStatus?.packets_per_second ?? 0;
@@ -69,7 +71,7 @@ export default function WarRoomPage() {
         }}
       >
         {/* ── Row 1: Metric Cards ───────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-3)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 'var(--space-3)' }}>
           <MetricCard label="PACKETS/SEC"  value={pps}       unit="pkt/s"  accent="cyan"     loading={flowsLoading} />
           <MetricCard label="ACTIVE FLOWS" value={flows}     unit="flows"  accent="cyan"     loading={flowsLoading} />
           <MetricCard
@@ -85,6 +87,13 @@ export default function WarRoomPage() {
             unit="alerts"
             accent="critical"
             loading={alertsLoading}
+          />
+          <MetricCard
+            label="ML MODELS"
+            value={`${trainedCount}/3`}
+            unit="active"
+            accent="cyan"
+            loading={mlLoading}
           />
         </div>
 

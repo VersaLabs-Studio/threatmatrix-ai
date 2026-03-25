@@ -13,6 +13,8 @@ import type {
   TopTalkersResponse,
   ProtocolDistResponse,
   FlowStatsResponse,
+  MLModelsResponse,
+  MLComparisonResponse,
 } from './types';
 
 // Re-export types for convenience
@@ -153,5 +155,27 @@ export const flowService = {
     return api.get<ProtocolDistResponse>('/api/v1/flows/protocols', {
       time_range: timeRange,
     });
+  },
+};
+
+// ── ML Service (Day 10) ───────────────────────────────
+
+export const mlService = {
+  /** Get all ML models with evaluation results */
+  async getModels() {
+    return api.get<MLModelsResponse>('/api/v1/ml/models');
+  },
+
+  /** Get model performance comparison */
+  async getComparison() {
+    return api.get<MLComparisonResponse>('/api/v1/ml/comparison');
+  },
+
+  /** Score a flow with ML models */
+  async predict(flowId: string) {
+    return api.post<{ prediction: number; scores: Record<string, number> }>(
+      '/api/v1/ml/predict',
+      { flow_id: flowId }
+    );
   },
 };
