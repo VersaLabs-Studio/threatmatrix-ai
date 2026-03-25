@@ -44,17 +44,27 @@ class MLWorker:
     every flow using the three-model ensemble.
     """
 
+    # Map RF label → alert category per MASTER_DOC_PART4 §5.3
+    CATEGORY_MAP = {
+        "dos": "ddos",
+        "probe": "port_scan",
+        "r2l": "unauthorized_access",
+        "u2r": "privilege_escalation",
+    }
+
     def __init__(
         self,
         redis_url: str = "redis://redis:6379",
         flow_channel: str = "flows:live",
         score_channel: str = "ml:scored",
         alert_channel: str = "alerts:live",
+        ml_live_channel: str = "ml:live",
     ) -> None:
         self.redis_url = redis_url
         self.flow_channel = flow_channel
         self.score_channel = score_channel
         self.alert_channel = alert_channel
+        self.ml_live_channel = ml_live_channel
 
         self.model_manager = ModelManager()
         self.preprocessor = FlowPreprocessor()
@@ -187,6 +197,29 @@ class MLWorker:
         if is_anomaly and severity in ("critical", "high", "medium"):
             self.stats["anomalies_detected"] += 1
             await self._create_alert(flow_data, result)
+
+        # Publish anomaly_detected to ml:live for WebSocket broadcasting
+        # (per MASTER_DOC_PART2 §5.2: ml:live → anomaly_detected)
+        if is_anomaly:
+            anomaly_event = {
+                "event": "anomaly_detected",
+                "payload": {
+                    "flow_id": flow_id,
+                    "composite_score": result["composite_score"],
+                    "severity": severity,
+                    "category": category_map.get(result["label"], "anomaly"),
+                    "source_ip": flow_data.get("src_ip", "unknown"),
+                    "dest_ip": flow_data.get("dst_ip", "unknown"),
+                    "if_score": result["if_score"],
+                    "rf_confidence": result["rf_confidence"],
+                    "ae_score": result["ae_score"],
+                    "label": result["label"],
+                    "model_agreement": result["model_agreement"],
+                },
+            }
+            await self._publisher.publish(
+                self.ml_live_channel, json.dumps(anomaly_event)
+            )
 
         # Stats
         elapsed_ms = (time.time() - start) * 1000

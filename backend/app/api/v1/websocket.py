@@ -20,7 +20,13 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from fastapi.websockets import WebSocketState
 
 from app.config import get_settings
-from app.redis import RedisManager, CHANNEL_FLOWS_LIVE, CHANNEL_ALERTS_LIVE, CHANNEL_SYSTEM_STATUS
+from app.redis import (
+    RedisManager,
+    CHANNEL_FLOWS_LIVE,
+    CHANNEL_ALERTS_LIVE,
+    CHANNEL_SYSTEM_STATUS,
+    CHANNEL_ML_LIVE,
+)
 
 router = APIRouter()
 
@@ -43,6 +49,7 @@ class ConnectionManager:
             CHANNEL_FLOWS_LIVE: set(),
             CHANNEL_ALERTS_LIVE: set(),
             CHANNEL_SYSTEM_STATUS: set(),
+            CHANNEL_ML_LIVE: set(),
         }
         # Redis subscriber task
         self._redis_task: asyncio.Task | None = None
@@ -159,6 +166,7 @@ class ConnectionManager:
                 CHANNEL_FLOWS_LIVE,
                 CHANNEL_ALERTS_LIVE,
                 CHANNEL_SYSTEM_STATUS,
+                CHANNEL_ML_LIVE,
             )
             
             # Listen for messages
@@ -260,6 +268,7 @@ async def websocket_endpoint(
             CHANNEL_FLOWS_LIVE,
             CHANNEL_ALERTS_LIVE,
             CHANNEL_SYSTEM_STATUS,
+            CHANNEL_ML_LIVE,
         ],
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
