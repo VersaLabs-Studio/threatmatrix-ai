@@ -97,9 +97,11 @@ class AlertEngine:
             alert_id = str(uuid.uuid4())
             now = datetime.now(timezone.utc)
 
-            # Generate human-readable alert_id
-            alert_counter = self.stats["alerts_persisted"] + 1
-            alert_ref = f"TM-ALERT-{alert_counter:05d}"
+        # Generate unique alert reference (UUID-based to avoid duplicate key)
+            # Previous approach used in-memory counter that reset on restart
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+            unique_suffix = uuid.uuid4().hex[:8].upper()
+            alert_ref = f"TM-{timestamp}-{unique_suffix}"
 
             # Map category for the alert
             category = payload.get("category", "anomaly")
@@ -112,11 +114,15 @@ class AlertEngine:
                 INSERT INTO alerts (
                     id, alert_id, severity, title, description,
                     category, source_ip, dest_ip, confidence,
-                    status, ml_model, flow_ids, created_at, updated_at
+                    status, ml_model, flow_ids,
+                    composite_score, if_score, rf_score, ae_score,
+                    created_at, updated_at
                 ) VALUES (
                     :id, :alert_id, :severity, :title, :description,
                     :category, :source_ip, :dest_ip, :confidence,
-                    'open', :ml_model, :flow_ids, :created_at, :updated_at
+                    'open', :ml_model, :flow_ids,
+                    :composite_score, :if_score, :rf_score, :ae_score,
+                    :created_at, :updated_at
                 )
             """)
 
@@ -132,6 +138,10 @@ class AlertEngine:
                 "confidence": payload.get("composite_score", 0.0),
                 "ml_model": "ensemble",
                 "flow_ids": flow_ids,
+                "composite_score": payload.get("composite_score", 0.0),
+                "if_score": payload.get("if_score", 0.0),
+                "rf_score": payload.get("rf_confidence", 0.0),
+                "ae_score": payload.get("ae_score", 0.0),
                 "created_at": now,
                 "updated_at": now,
             })

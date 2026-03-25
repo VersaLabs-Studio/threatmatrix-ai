@@ -7,12 +7,12 @@ ARCHITECTURAL DEVIATION from MASTER_DOC_PART4 §9.1:
   - Model routing preserved: task_type → best model for that task
   - Middleware stack unchanged: budget, cache, rate limit, prompt, token count
 
-Providers via OpenRouter:
-  - nvidia/llama-3.1-nemotron-ultra-253b-v1:free  → Complex analysis
-  - stepfun/step-3.5-flash:free                    → Real-time alerts
-  - openai/gpt-oss-120b:free                       → Chat / General
-  - zhipu-ai/glm-4.1v-9b-thinking:free             → Bulk / Translation
-  - qwen/qwen3-coder-480b-a35b:free                → Coding / Fallback
+Verified working providers via OpenRouter (March 25, 2026):
+  - openai/gpt-oss-120b:free                       → Complex analysis / Chat
+  - stepfun/step-3.5-flash:free                    → Real-time alerts / Translation
+
+NOTE: nvidia/nemotron (404) and zhipu-ai/glm (400) are NOT available on
+OpenRouter free tier. All tasks routed through the two verified models.
 """
 
 from __future__ import annotations
@@ -42,26 +42,31 @@ class TaskType(str, Enum):
 
 
 # Task → Model routing (preserves PART4 §9.1 logic)
+# Using ONLY verified-working OpenRouter models (March 25 2026):
+#   ✅ openai/gpt-oss-120b:free   — 117B MoE, strong reasoning
+#   ✅ stepfun/step-3.5-flash:free — 196B MoE, fast inference
+#   ❌ nvidia/nemotron — 404 on OpenRouter
+#   ❌ zhipu-ai/glm   — 400 on OpenRouter
 TASK_MODEL_ROUTING: Dict[TaskType, List[str]] = {
     TaskType.ALERT_ANALYSIS: [
-        "nvidia/llama-3.1-nemotron-ultra-253b-v1:free",
         "openai/gpt-oss-120b:free",
+        "stepfun/step-3.5-flash:free",
     ],
     TaskType.DAILY_BRIEFING: [
-        "nvidia/llama-3.1-nemotron-ultra-253b-v1:free",
+        "openai/gpt-oss-120b:free",
         "stepfun/step-3.5-flash:free",
     ],
     TaskType.IP_INVESTIGATION: [
-        "nvidia/llama-3.1-nemotron-ultra-253b-v1:free",
         "openai/gpt-oss-120b:free",
+        "stepfun/step-3.5-flash:free",
     ],
     TaskType.CHAT: [
         "openai/gpt-oss-120b:free",
-        "nvidia/llama-3.1-nemotron-ultra-253b-v1:free",
+        "stepfun/step-3.5-flash:free",
     ],
     TaskType.TRANSLATION: [
-        "zhipu-ai/glm-4.1v-9b-thinking:free",
         "stepfun/step-3.5-flash:free",
+        "openai/gpt-oss-120b:free",
     ],
     TaskType.QUICK_SUMMARY: [
         "stepfun/step-3.5-flash:free",
@@ -254,8 +259,8 @@ class LLMGateway:
             return await self._fallback_chat(messages, task_type, temperature, max_tokens)
         except Exception as e:
             self.stats["errors"] += 1
-            logger.error("[LLM] Request failed: %s", e)
-            return {"error": str(e), "content": ""}
+            logger.error("[LLM] Unexpected error: %s", e)
+            return {"error": str(e), "content": "[LLM temporarily unavailable — please retry]"}
 
     async def _fallback_chat(
         self, messages, task_type, temperature, max_tokens
@@ -289,7 +294,8 @@ class LLMGateway:
                     "tokens_out": usage.get("completion_tokens", 0), "cost_usd": 0.0}
         except Exception as e:
             self.stats["errors"] += 1
-            return {"error": f"Fallback failed: {e}", "content": ""}
+            logger.error("[LLM] Fallback also failed: %s", e)
+            return {"error": f"Fallback failed: {e}", "content": "[All LLM models unavailable — please retry later]"}
 
     async def stream_chat(
         self,

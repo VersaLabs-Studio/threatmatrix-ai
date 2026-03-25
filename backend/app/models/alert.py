@@ -33,10 +33,10 @@ class Alert(Base, TimestampMixin):
     
     # Alert ID (human-readable)
     alert_id: Mapped[str] = mapped_column(
-        String(20),
+        String(50),
         unique=True,
         nullable=False,
-        comment="Human-readable alert ID (e.g., TM-ALERT-00001)"
+        comment="Human-readable alert ID (e.g., TM-20260325-A1B2C3D4)"
     )
     
     # Severity & Classification
@@ -86,6 +86,31 @@ class Alert(Base, TimestampMixin):
         Float,
         nullable=True,
         comment="ML confidence score (0.0-1.0)"
+    )
+
+    # ML Model Scores (per-model breakdown)
+    composite_score: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        comment="Ensemble composite score (0.30*IF + 0.45*RF + 0.25*AE)"
+    )
+
+    if_score: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        comment="Isolation Forest anomaly score"
+    )
+
+    rf_score: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        comment="Random Forest attack confidence"
+    )
+
+    ae_score: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        comment="Autoencoder reconstruction error score"
     )
     
     # Status & Assignment
