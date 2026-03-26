@@ -118,6 +118,7 @@ export interface FlowStats {
 export interface FlowTimeline {
   timestamp: string;
   packets_per_second: number;
+  bytes_per_second: number;
   active_flows: number;
   anomaly_count: number;
 }

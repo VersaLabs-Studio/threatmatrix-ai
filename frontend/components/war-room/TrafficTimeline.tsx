@@ -12,18 +12,18 @@ import {
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { GlassPanel } from '@/components/shared/GlassPanel';
-import type { FlowStats } from '@/hooks/useFlows';
+import type { FlowTimeline } from '@/lib/types';
 import { shortNumber } from '@/lib/utils';
 
 interface TrafficTimelineProps {
-  data: FlowStats[];
+  data: FlowTimeline[];
   loading?: boolean;
   /** Time window label shown in the badge */
   window?: '15 MIN' | '60 MIN' | '24H';
 }
 
 // Generate mock data when backend isn't connected
-function generateMockStats(): FlowStats[] {
+function generateMockStats(): FlowTimeline[] {
   const now = Date.now();
   return Array.from({ length: 60 }, (_, i) => {
     const t    = new Date(now - (59 - i) * 60_000).toISOString();
@@ -146,7 +146,7 @@ export function TrafficTimeline({ data, loading, window = '60 MIN' }: TrafficTim
               {/* Anomaly spike overlay — only where anomaly_count > 0 */}
               <Area
                 type="monotone"
-                dataKey={(d: FlowStats) => d.anomaly_count > 0 ? d.packets_per_second : 0}
+                dataKey={(d: FlowTimeline) => d.anomaly_count > 0 ? d.packets_per_second : 0}
                 name="anomaly"
                 stroke="var(--critical)"
                 strokeWidth={1}
