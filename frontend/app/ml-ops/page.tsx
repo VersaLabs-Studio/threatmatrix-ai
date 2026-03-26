@@ -1,7 +1,7 @@
 'use client';
 
 // ═══════════════════════════════════════════════════════
-// ThreatMatrix AI — ML Operations (v1.0.0)
+// ThreatMatrix AI — ML Operations (v1.1.0)
 // Model Performance and Training Dashboard
 // ═══════════════════════════════════════════════════════
 
@@ -10,8 +10,9 @@ import { useMLModels } from '@/hooks/useMLModels';
 import { mlService } from '@/lib/services';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 import { AuthGuard } from '@/components/auth/AuthGuard';
-import { Brain, Activity, Zap, Target, CheckCircle, Clock } from 'lucide-react';
+import { Brain, Activity, Zap, Target, CheckCircle, Clock, RefreshCw } from 'lucide-react';
 import type { MLComparisonResponse } from '@/lib/types';
+import { API_BASE_URL } from '@/lib/constants';
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   isolation_forest: 'Isolation Forest',
@@ -30,12 +31,63 @@ const MODEL_TYPES: Record<string, string> = {
 export default function MLOpsPage() {
   const { models, trainedCount, loading, error } = useMLModels();
   const [comparison, setComparison] = useState<MLComparisonResponse | null>(null);
+  const [retraining, setRetraining] = useState(false);
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [retrainStatus, setRetrainStatus] = useState<string | null>(null);
 
   useEffect(() => {
     mlService.getComparison().then(({ data }) => {
       if (data) setComparison(data);
     });
   }, []);
+
+  // Poll retrain status if task is active
+  useEffect(() => {
+    if (!taskId) return;
+    const interval = setInterval(async () => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/v1/ml/retrain/${taskId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        setRetrainStatus(data.status);
+        if (data.status === 'completed' || data.status === 'failed') {
+          clearInterval(interval);
+          setRetraining(false);
+        }
+      } catch {
+        clearInterval(interval);
+        setRetraining(false);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [taskId]);
+
+  const triggerRetrain = async () => {
+    setRetraining(true);
+    setRetrainStatus('starting');
+    const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/ml/retrain`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          dataset: 'nsl_kdd',
+          models: ['isolation_forest', 'random_forest', 'autoencoder'],
+        }),
+      });
+      const data = await res.json();
+      setTaskId(data.task_id);
+      setRetrainStatus('running');
+    } catch {
+      setRetraining(false);
+      setRetrainStatus('failed');
+    }
+  };
 
   // Build comparison data for chart
   const chartData = comparison?.models.map(m => ({
@@ -57,6 +109,34 @@ export default function MLOpsPage() {
             {trainedCount}/3 models trained · Ensemble active · Best: {comparison?.best_accuracy || '—'}
           </p>
         </div>
+        {/* Retrain Button */}
+        <button
+          onClick={triggerRetrain}
+          disabled={retraining}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 20px',
+            borderRadius: 'var(--radius-sm)',
+            background: retraining ? 'var(--bg-tertiary)' : 'var(--cyan)',
+            color: retraining ? 'var(--text-muted)' : 'var(--bg-dark)',
+            border: 'none',
+            cursor: retraining ? 'not-allowed' : 'pointer',
+            fontFamily: 'var(--font-data)',
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <RefreshCw size={16} style={{ animation: retraining ? 'spin 1s linear infinite' : 'none' }} />
+          {retraining ? `RETRAINING... (${retrainStatus || 'starting'})` : '🔄 RETRAIN MODELS'}
+        </button>
+        {taskId && (
+          <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+            Task ID: {taskId.slice(0, 8)}...
+          </div>
+        )}
 
         {/* Model Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-4)' }}>
@@ -185,6 +265,36 @@ export default function MLOpsPage() {
             <p>Final Score = <span style={{ color: 'var(--cyan)' }}>0.30</span> × IF_score + <span style={{ color: 'var(--safe)' }}>0.45</span> × RF_confidence + <span style={{ color: 'var(--warning)' }}>0.25</span> × AE_error</p>
             <p style={{ marginTop: 'var(--space-2)' }}>Alert Thresholds: ≥0.90 CRITICAL · ≥0.75 HIGH · ≥0.50 MEDIUM · ≥0.30 LOW</p>
             <p style={{ marginTop: 'var(--space-2)' }}>Datasets: NSL-KDD (125,973 train / 22,544 test) · 40 features · 5 classes</p>
+          </div>
+        </GlassPanel>
+
+        {/* Hyperparameter Tuning Results */}
+        <GlassPanel static title="HYPERPARAMETER TUNING RESULTS" icon="🏆">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-4)' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 8 }}>ISOLATION FOREST</div>
+              <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                <div>Current F1: <span style={{ color: 'var(--text-primary)' }}>78.75%</span></div>
+                <div>Tuned F1: <span style={{ color: 'var(--safe)' }}>83.03%</span></div>
+                <div style={{ color: 'var(--safe)', fontWeight: 700, marginTop: 4 }}>+4.28% F1</div>
+              </div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 8 }}>RANDOM FOREST</div>
+              <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                <div>Current F1: <span style={{ color: 'var(--text-primary)' }}>69.45%</span></div>
+                <div>Tuned F1: <span style={{ color: 'var(--safe)' }}>70.08%</span></div>
+                <div style={{ color: 'var(--safe)', fontWeight: 700, marginTop: 4 }}>+0.63% F1</div>
+              </div>
+            </div>
+            <div style={{ textAlign: 'center', background: 'rgba(0,240,255,0.05)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)' }}>
+              <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--cyan)', marginBottom: 8 }}>🏆 ENSEMBLE (BEST)</div>
+              <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                <div>Accuracy: <span style={{ color: 'var(--cyan)', fontWeight: 700 }}>80.73%</span></div>
+                <div>F1 Score: <span style={{ color: 'var(--cyan)', fontWeight: 700 }}>78.82%</span></div>
+                <div>AUC-ROC: <span style={{ color: 'var(--cyan)', fontWeight: 700 }}>94.77%</span></div>
+              </div>
+            </div>
           </div>
         </GlassPanel>
 
