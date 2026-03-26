@@ -508,6 +508,21 @@ class PcapProcessor:
         upload_id = str(uuid4())
         now = datetime.now(timezone.utc)
 
+        # Verify user exists in DB to avoid FK violation in DEV_MODE
+        # (mock user IDs from get_current_user don't exist in users table)
+        verified_user_id: Optional[str] = None
+        if user_id:
+            try:
+                async with async_session() as session:
+                    result = await session.execute(
+                        text("SELECT 1 FROM users WHERE id = :uid"),
+                        {"uid": user_id},
+                    )
+                    if result.scalar():
+                        verified_user_id = user_id
+            except Exception:
+                pass  # FK will be NULL
+
         async with async_session() as session:
             await session.execute(
                 text(
@@ -526,7 +541,7 @@ class PcapProcessor:
                     "filename": filename,
                     "file_size": file_size,
                     "file_path": file_path,
-                    "uploaded_by": user_id,
+                    "uploaded_by": verified_user_id,
                     "now": now,
                 },
             )

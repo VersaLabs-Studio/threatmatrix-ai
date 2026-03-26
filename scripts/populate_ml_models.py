@@ -146,7 +146,7 @@ async def populate_ml_models() -> int:
                         hyperparams = EXCLUDED.hyperparams,
                         file_path = EXCLUDED.file_path,
                         is_active = EXCLUDED.is_active,
-                        updated_at = EXCLUDED.now
+                        updated_at = CURRENT_TIMESTAMP
                     """
                 ),
                 {
