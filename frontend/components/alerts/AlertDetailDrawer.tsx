@@ -5,7 +5,8 @@
 // Side-drawer for viewing and acting on a specific alert
 // ═══════════════════════════════════════════════════════
 
-import { X, Shield, Clock, MapPin, Zap, User, CheckCircle, AlertTriangle } from 'lucide-react';
+import { X, Shield, Clock, MapPin, Zap, User, CheckCircle, AlertTriangle, Bot } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import type { AlertResponse } from '@/lib/types';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatTime, formatIP } from '@/lib/utils';
@@ -18,6 +19,7 @@ interface AlertDetailDrawerProps {
 }
 
 export function AlertDetailDrawer({ alert, onClose, onUpdateStatus }: AlertDetailDrawerProps) {
+  const router = useRouter();
   if (!alert) return null;
 
   // Ensure IP values are strings for formatIP
@@ -58,7 +60,7 @@ export function AlertDetailDrawer({ alert, onClose, onUpdateStatus }: AlertDetai
               ALERT ID: #{alert.id.slice(-8).toUpperCase()}
             </h2>
             <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>
-              Detected at {formatTime(alert.timestamp)}
+              Detected at {formatTime(alert.timestamp || alert.created_at)}
             </p>
           </div>
         </div>
@@ -99,21 +101,71 @@ export function AlertDetailDrawer({ alert, onClose, onUpdateStatus }: AlertDetai
         </GlassPanel>
 
         {/* AI Narrative */}
-        <GlassPanel static title="AI NARRATIVE" icon="🤖">
-          <div
-            style={{
-              fontFamily: 'var(--font-data)',
-              fontSize: '0.8rem',
-              lineHeight: 1.6,
-              color: 'var(--text-secondary)',
-              background: 'rgba(0,0,0,0.2)',
-              padding: 'var(--space-3)',
-              borderRadius: 'var(--radius-sm)',
-              borderLeft: '2px solid var(--cyan)',
-            }}
-          >
-            {alert.ai_narrative || "AI Analyst is still processing this incident. Full context will be available momentarily."}
-          </div>
+        <GlassPanel static title="AI ANALYST REPORT" icon="🤖">
+          {alert.ai_narrative ? (
+            <div>
+              <div
+                style={{
+                  fontFamily: 'var(--font-data)',
+                  fontSize: '0.8rem',
+                  lineHeight: 1.8,
+                  color: 'var(--text-secondary)',
+                  background: 'rgba(0,240,255,0.03)',
+                  padding: 'var(--space-4)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid rgba(0,240,255,0.15)',
+                  borderLeft: '3px solid var(--cyan)',
+                }}
+                dangerouslySetInnerHTML={{ 
+                  __html: alert.ai_narrative
+                    .replace(/^### (.*$)/gm, '<h3 style="color:var(--cyan);margin:0.75rem 0 0.5rem;font-size:0.85rem;">$1</h3>')
+                    .replace(/^## (.*$)/gm, '<h2 style="color:var(--cyan);margin:1rem 0 0.5rem;font-size:0.9rem;">$1</h2>')
+                    .replace(/^# (.*$)/gm, '<h1 style="color:var(--cyan);margin:1rem 0 0.5rem;font-size:0.95rem;">$1</h1>')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--text-primary)">$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/^- (.*$)/gm, '<div style="padding-left:1rem;margin:0.25rem 0;">• $1</div>')
+                    .replace(/^\d+\. (.*$)/gm, '<div style="padding-left:1rem;margin:0.25rem 0;">$1</div>')
+                    .replace(/\n\n/g, '<br/><br/>')
+                    .replace(/\n/g, '<br/>')
+                }}
+              />
+              <button
+                onClick={() => router.push(`/ai-analyst?alert_id=${alert.id}`)}
+                style={{
+                  marginTop: 'var(--space-3)',
+                  padding: '8px 16px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--cyan)',
+                  color: 'var(--bg-dark)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-data)',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Bot size={14} />
+                ANALYZE WITH AI
+              </button>
+            </div>
+          ) : (
+            <div
+              style={{
+                fontFamily: 'var(--font-data)',
+                fontSize: '0.8rem',
+                color: 'var(--text-muted)',
+                textAlign: 'center',
+                padding: 'var(--space-4)',
+              }}
+            >
+              <Bot size={24} style={{ marginBottom: 8, opacity: 0.5 }} />
+              <div>AI Analyst is still processing this incident.</div>
+              <div style={{ marginTop: 4, fontSize: '0.7rem' }}>Full context will be available momentarily.</div>
+            </div>
+          )}
         </GlassPanel>
 
         {/* Related Flows Mock */}
