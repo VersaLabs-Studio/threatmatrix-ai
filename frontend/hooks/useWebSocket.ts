@@ -164,6 +164,7 @@ export function useWebSocket(): UseWebSocketReturn {
       unsubFlows();
       unsubAlerts();
       unsubSystem();
+      unsubML();
       unsubFunctionsRef.current.clear();
       clearInterval(interval);
       clearInterval(heartbeatInterval);

@@ -149,7 +149,7 @@ export default function MLOpsPage() {
                     <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>Accuracy</span>
                   </div>
                   <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 700 }}>
-                    {(comparison.models.find(m => m.model === 'ensemble')?.accuracy ?? 0 * 100).toFixed(1)}%
+                    {((comparison.models.find(m => m.model === 'ensemble')?.accuracy ?? 0) * 100).toFixed(1)}%
                   </span>
                 </div>
                 <div style={{ textAlign: 'center' }}>
