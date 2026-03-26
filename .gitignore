@@ -30,3 +30,8 @@ backend/ml/saved_models/*.joblib
 # Docker volumes
 pg_data/
 redis_data/
+
+# Node
+node_modules/
+pnpm-lock.yaml
+.next/
