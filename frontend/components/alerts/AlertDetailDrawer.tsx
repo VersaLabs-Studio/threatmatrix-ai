@@ -118,6 +118,10 @@ export function AlertDetailDrawer({ alert, onClose, onUpdateStatus }: AlertDetai
                 }}
                 dangerouslySetInnerHTML={{ 
                   __html: alert.ai_narrative
+                    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                    .replace(/on\w+\s*=\s*"[^"]*"/gi, '')
+                    .replace(/on\w+\s*=\s*'[^']*'/gi, '')
+                    .replace(/javascript:/gi, '')
                     .replace(/^### (.*$)/gm, '<h3 style="color:var(--cyan);margin:0.75rem 0 0.5rem;font-size:0.85rem;">$1</h3>')
                     .replace(/^## (.*$)/gm, '<h2 style="color:var(--cyan);margin:1rem 0 0.5rem;font-size:0.9rem;">$1</h2>')
                     .replace(/^# (.*$)/gm, '<h1 style="color:var(--cyan);margin:1rem 0 0.5rem;font-size:0.95rem;">$1</h1>')

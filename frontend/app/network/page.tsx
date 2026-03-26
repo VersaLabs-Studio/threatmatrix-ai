@@ -39,7 +39,7 @@ const FLOW_COLS = [
     key: 'anomaly_score', header: 'ML Score', width: 80,
     render: (r: NetworkFlow) => {
       const score = r.anomaly_score ?? 0;
-      const color = score >= 0.75 ? '#ef4444' : score >= 0.50 ? '#f59e0b' : score >= 0.30 ? '#f59e0b' : '#22c55e';
+      const color = score >= 0.75 ? '#ef4444' : score >= 0.50 ? '#f59e0b' : score >= 0.30 ? '#fbbf24' : '#22c55e';
       return (
         <span style={{ color, fontFamily: 'var(--font-data)', fontWeight: 700 }}>
           {score ? `${(score * 100).toFixed(0)}%` : '—'}
