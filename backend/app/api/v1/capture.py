@@ -191,7 +191,9 @@ async def upload_pcap(
 
     # Process PCAP in background
     task_id = str(uuid.uuid4())[:8]
-    asyncio.create_task(_process_pcap(task_id, tmp_path, file.filename))
+    asyncio.create_task(
+        _process_pcap(task_id, tmp_path, file.filename, len(content), str(user.id))
+    )
 
     logger.info(
         "[Capture API] PCAP uploaded by user=%s: %s (%d bytes), task_id=%s",
@@ -209,32 +211,40 @@ async def upload_pcap(
     }
 
 
-async def _process_pcap(task_id: str, tmp_path: str, filename: str) -> None:
+async def _process_pcap(task_id: str, tmp_path: str, filename: str, file_size: int = 0, user_id: str | None = None) -> None:
     """
     Background task to process uploaded PCAP file.
-    Extracts flows and publishes to Redis for ML scoring.
+    Creates a pcap_uploads record, extracts flows, scores with ML ensemble.
     """
     try:
         logger.info("[PCAP] Processing task_id=%s, file=%s", task_id, filename)
 
-        # Import pcap processor lazily
-        try:
-            from capture.pcap_processor import PCAPProcessor
+        from app.services.pcap_processor import PcapProcessor
 
-            processor = PCAPProcessor()
-            result = await processor.process(tmp_path)
-            logger.info(
-                "[PCAP] Task %s complete: %d packets, %d flows, %d anomalies",
-                task_id,
-                result.get("packets", 0),
-                result.get("flows", 0),
-                result.get("anomalies", 0),
-            )
-        except ImportError:
-            logger.warning(
-                "[PCAP] pcap_processor.py not yet implemented — task %s queued for future processing",
-                task_id,
-            )
+        processor = PcapProcessor()
+
+        # Create upload record in database
+        upload_id = await processor.create_upload_record(
+            filename=filename,
+            file_size=file_size,
+            file_path=tmp_path,
+            user_id=user_id,
+        )
+
+        # Process PCAP end-to-end
+        result = await processor.process(tmp_path, upload_id)
+
+        logger.info(
+            "[PCAP] Task %s complete: %d packets, %d flows, %d anomalies",
+            task_id,
+            result.get("packets_read", 0),
+            result.get("flows_extracted", 0),
+            result.get("anomalies_found", 0),
+        )
+    except ImportError:
+        logger.warning(
+            "[PCAP] PcapProcessor not available — task %s dropped", task_id
+        )
     except Exception as e:
         logger.error("[PCAP] Task %s failed: %s", task_id, e)
     finally:

@@ -15,6 +15,7 @@ from app.api.v1.ml import router as ml_router
 from app.api.v1.llm import router as llm_router
 from app.api.v1.intel import router as intel_router
 from app.api.v1.reports import router as reports_router
+from app.api.v1.admin import router as admin_router
 
 router = APIRouter()
 
@@ -29,3 +30,4 @@ router.include_router(ml_router, tags=["ML Models"])
 router.include_router(llm_router, tags=["LLM"])
 router.include_router(intel_router, tags=["Threat Intelligence"])
 router.include_router(reports_router, prefix="/reports", tags=["Reports"])
+router.include_router(admin_router, tags=["Administration"])

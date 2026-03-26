@@ -105,6 +105,14 @@ async def lifespan(app: FastAPI):
         print(f"[TM] Threat Intel init failed: {e}")
         app.state.intel_service = None
 
+    # Populate ML Models registry (ml_models table)
+    try:
+        from scripts.populate_ml_models import populate_ml_models
+        count = await populate_ml_models()
+        print(f"[TM] ML Models registry populated — {count} entries")
+    except Exception as e:
+        print(f"[TM] ML Models registry population skipped: {e}")
+
     yield
     
     # ── Shutdown ─────────────────────────────────────────────

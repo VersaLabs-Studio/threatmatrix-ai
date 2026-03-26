@@ -71,7 +71,7 @@ async function apiFetch<T>(
         return apiFetch<T>(path, options, false);
       }
       // Redirect to login if refresh failed
-      if (typeof window !== 'undefined') window.location.href = '/login';
+      // if (typeof window !== 'undefined') window.location.href = '/login';
       return { data: null, error: 'Session expired' };
     }
 
