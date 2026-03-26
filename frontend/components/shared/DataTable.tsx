@@ -24,12 +24,13 @@ interface DataTableProps<T extends any> {
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
   maxHeight?: number | string;
+  rowClassName?: (row: T) => string;
 }
 
 type SortDir = 'asc' | 'desc' | null;
 
 export function DataTable<T extends any>({
-  columns, data, loading, rowKey, onRowClick, emptyMessage = 'No data', maxHeight = 400,
+  columns, data, loading, rowKey, onRowClick, emptyMessage = 'No data', maxHeight = 400, rowClassName,
 }: DataTableProps<T>) {
   const [sortKey,  setSortKey]  = useState<string | null>(null);
   const [sortDir,  setSortDir]  = useState<SortDir>(null);
@@ -120,7 +121,7 @@ export function DataTable<T extends any>({
                   <tr
                     key={rowKey(row)}
                     onClick={() => onRowClick?.(row)}
-                    className="table-row"
+                    className={`table-row ${rowClassName ? rowClassName(row) : ''}`}
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                     style={{ cursor: onRowClick ? 'pointer' : 'default', transition: 'background-color var(--transition-fast)' }}

@@ -36,12 +36,16 @@ const FLOW_COLS = [
     render: (r: NetworkFlow) => formatBytes((r.src_bytes ?? 0) + (r.dst_bytes ?? 0)),
   },
   {
-    key: 'anomaly_score', header: 'Score', width: 70,
-    render: (r: NetworkFlow) => (
-      <span style={{ color: (r.anomaly_score ?? 0) > 0.7 ? '#ef4444' : (r.anomaly_score ?? 0) > 0.4 ? '#f59e0b' : '#22c55e' }}>
-        {((r.anomaly_score ?? 0) * 100).toFixed(0)}%
-      </span>
-    ),
+    key: 'anomaly_score', header: 'ML Score', width: 80,
+    render: (r: NetworkFlow) => {
+      const score = r.anomaly_score ?? 0;
+      const color = score >= 0.75 ? '#ef4444' : score >= 0.50 ? '#f59e0b' : score >= 0.30 ? '#f59e0b' : '#22c55e';
+      return (
+        <span style={{ color, fontFamily: 'var(--font-data)', fontWeight: 700 }}>
+          {score ? `${(score * 100).toFixed(0)}%` : '—'}
+        </span>
+      );
+    },
   },
   {
     key: 'is_anomaly', header: 'Status', width: 90,
@@ -201,6 +205,7 @@ export default function NetworkFlowPage() {
           onRowClick={(r) => setSelectedFlow(r)}
           maxHeight={320}
           emptyMessage="No flows match the current filters"
+          rowClassName={(r) => r.is_anomaly ? 'flow-row-anomaly' : ''}
         />
       </GlassPanel>
 
