@@ -44,7 +44,7 @@ const ThreatMap = dynamic(
 );
 
 export default function WarRoomPage() {
-  const { lastAlertEvent, systemStatus } = useWebSocket();
+  const { lastAlertEvent, lastAnomalyEvent, systemStatus } = useWebSocket();
   const { stats, protocols, topTalkers, loading: flowsLoading } = useFlows({ time_range: '1h' });
   const { alerts, total: alertTotal, loading: alertsLoading } = useAlerts({ limit: 100 });
   const { trainedCount, loading: mlLoading } = useMLModels();
@@ -151,7 +151,7 @@ export default function WarRoomPage() {
 
         {/* ── Row 4: Alert Feed + Top Talkers + Geo ────── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-4)' }}>
-          <LiveAlertFeed   lastAlertEvent={lastAlertEvent} />
+          <LiveAlertFeed   lastAlertEvent={lastAlertEvent} lastAnomalyEvent={lastAnomalyEvent} />
           <TopTalkers      data={topTalkers} loading={flowsLoading} />
           <GeoDistribution />
         </div>

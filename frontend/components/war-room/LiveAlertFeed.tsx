@@ -24,8 +24,11 @@ interface AlertFeedItem {
   isNew?: boolean;
 }
 
+import type { AnomalyDetectedEvent } from '@/hooks/useWebSocket';
+
 interface LiveAlertFeedProps {
   lastAlertEvent: AlertEvent | null;
+  lastAnomalyEvent?: AnomalyDetectedEvent | null;
 }
 
 const SEVERITY_ICONS: Record<Severity, string> = {
@@ -48,7 +51,7 @@ const SEED_ALERTS: AlertFeedItem[] = [
 
 const MAX_FEED_SIZE = 50;
 
-export function LiveAlertFeed({ lastAlertEvent }: LiveAlertFeedProps) {
+export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFeedProps) {
   const [alerts, setAlerts] = useState<AlertFeedItem[]>(SEED_ALERTS);
   const listRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -72,6 +75,28 @@ export function LiveAlertFeed({ lastAlertEvent }: LiveAlertFeedProps) {
       setAlerts((prev) => prev.map((a) => a.id === newItem.id ? { ...a, isNew: false } : a));
     }, 1000);
   }, [lastAlertEvent]);
+
+  // Ingest new WebSocket anomaly events
+  useEffect(() => {
+    if (!lastAnomalyEvent) return;
+    const score = lastAnomalyEvent.composite_score ?? lastAnomalyEvent.anomaly_score ?? 0;
+    const severity: Severity = score >= 0.90 ? 'critical' : score >= 0.75 ? 'high' : score >= 0.50 ? 'medium' : 'low';
+    const newItem: AlertFeedItem = {
+      id:        `anomaly-${lastAnomalyEvent.flow_id}-${Date.now()}`,
+      severity,
+      category:  `ML: ${lastAnomalyEvent.label || 'Anomaly'}`,
+      src_ip:    lastAnomalyEvent.src_ip,
+      timestamp: lastAnomalyEvent.timestamp,
+      composite_score: score,
+      isNew:     true,
+    };
+    setAlerts((prev) => [newItem, ...prev].slice(0, MAX_FEED_SIZE));
+
+    // Remove isNew flag after animation
+    setTimeout(() => {
+      setAlerts((prev) => prev.map((a) => a.id === newItem.id ? { ...a, isNew: false } : a));
+    }, 1000);
+  }, [lastAnomalyEvent]);
 
   // Auto-scroll to top when new alert arrives
   useEffect(() => {
