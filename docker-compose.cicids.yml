@@ -1,0 +1,28 @@
+# CICIDS2017 Validation — One-Shot Docker Compose Service
+#
+# Does NOT start with `docker compose up -d`. Runs only when explicitly invoked:
+#
+#   # 1. Download dataset (one-time, on VPS host)
+#   bash scripts/download_cicids2017.sh
+#
+#   # 2. Run validation (dedicated container, no impact on live API)
+#   docker compose -f docker-compose.yml -f docker-compose.cicids.yml \
+#       run --rm cicids-validate
+#
+#   # 3. Check results
+#   cat backend/ml/saved_models/eval_results/cicids2017_validation.json | python3 -m json.tool
+
+services:
+  cicids-validate:
+    build: ./backend
+    container_name: tm-cicids-validate
+    profiles: ["validate"]
+    volumes:
+      - ./backend/ml/saved_models:/app/ml/saved_models
+    environment:
+      TF_CPP_MIN_LOG_LEVEL: "3"
+    command: python /app/scripts/run_cicids_validation.py
+    deploy:
+      resources:
+        limits:
+          memory: 8g

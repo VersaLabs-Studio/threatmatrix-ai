@@ -334,7 +334,7 @@ def validate_ensemble_on_cicids2017(
     Validate the ThreatMatrix ensemble against CICIDS2017.
 
     Loads CICIDS2017 data, preprocesses it, runs through the trained
-    ensemble, and reports accuracy/F1/AUC-ROC.
+    ensemble in batches, and reports accuracy/F1/AUC-ROC.
 
     Args:
         csv_dir: Path to CICIDS2017 CSV directory.
@@ -343,6 +343,7 @@ def validate_ensemble_on_cicids2017(
     Returns:
         Evaluation results dict.
     """
+    import time
     from ml.training.evaluate import ModelEvaluator
     from ml.inference.model_manager import ModelManager
 
@@ -351,13 +352,15 @@ def validate_ensemble_on_cicids2017(
     logger.info("=" * 60)
 
     # Load and preprocess
+    t0 = time.time()
     loader = CICIDS2017Loader()
     df = loader.load_csvs(csv_dir)
     X, y, feature_names = loader.preprocess(df, fit=True)
     class_names = loader.get_class_names()
-
-    logger.info("CICIDS2017 loaded: %d samples, %d features, classes=%s",
-                X.shape[0], X.shape[1], class_names)
+    logger.info(
+        "CICIDS2017 loaded: %d samples, %d features, classes=%s (%.1fs)",
+        X.shape[0], X.shape[1], class_names, time.time() - t0,
+    )
 
     # Load trained models
     manager = ModelManager()
@@ -376,10 +379,28 @@ def validate_ensemble_on_cicids2017(
     normal_idx = class_names.index("normal") if "normal" in class_names else 0
     y_binary = (y != normal_idx).astype(int)
 
-    # Score with ensemble
+    # Score with ensemble in batches to limit peak RAM
     try:
-        ensemble_scores = manager.score_flows(X)
-        composite = np.array([r.get("composite_score", 0) for r in ensemble_scores])
+        batch_size = 50_000
+        n_samples = X.shape[0]
+        all_composite: list[float] = []
+        t_score = time.time()
+
+        for start in range(0, n_samples, batch_size):
+            end = min(start + batch_size, n_samples)
+            batch = X[start:end]
+
+            scores = manager.score_flows(batch)
+            all_composite.extend(r.get("composite_score", 0) for r in scores)
+
+            pct = end * 100 // n_samples
+            elapsed = time.time() - t_score
+            logger.info(
+                "[CICIDS2017] Scored %d / %d (%d%%) — %.1fs elapsed",
+                end, n_samples, pct, elapsed,
+            )
+
+        composite = np.array(all_composite)
         ensemble_preds = (composite >= 0.30).astype(int)
 
         ensemble_eval = evaluator.evaluate_binary(
@@ -390,12 +411,16 @@ def validate_ensemble_on_cicids2017(
         )
         results["ensemble"] = ensemble_eval
         logger.info(
-            "[CICIDS2017] Ensemble — Acc: %.4f | F1: %.4f",
-            ensemble_eval["accuracy"], ensemble_eval["f1_score"],
+            "[CICIDS2017] Ensemble — Acc: %.4f | F1: %.4f | AUC: %.4f",
+            ensemble_eval.get("accuracy", 0),
+            ensemble_eval.get("f1_score", 0),
+            ensemble_eval.get("auc_roc", 0),
         )
     except Exception as e:
         logger.error("[CICIDS2017] Ensemble evaluation failed: %s", e)
         results["ensemble"] = {"error": str(e)}
+
+    results["evaluation_time_seconds"] = round(time.time() - t0, 1)
 
     # Save results
     save_dir = output_path or Path(__file__).parent.parent / "saved_models" / "eval_results"
