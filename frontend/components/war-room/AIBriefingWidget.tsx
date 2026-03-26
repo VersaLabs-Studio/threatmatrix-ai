@@ -10,7 +10,7 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { GlassPanel } from '@/components/shared/GlassPanel';
-import { REFRESH_INTERVALS } from '@/lib/constants';
+import { REFRESH_INTERVALS, API_BASE_URL } from '@/lib/constants';
 
 interface BriefingResponse {
   text: string;
@@ -59,12 +59,42 @@ export function AIBriefingWidget() {
   const [briefingText, setBriefingText] = useState('');
 
   const fetchBriefing = async () => {
-    const { data } = await api.get<BriefingResponse>('/api/v1/llm/briefing');
-    if (data) {
-      setBriefing(data);
-      setBriefingText(data.text);
-    } else {
-      // Use mock when backend isn't ready
+    try {
+      const { data } = await api.get<BriefingResponse>('/api/v1/llm/briefing');
+      if (data) {
+        setBriefing(data);
+        setBriefingText(data.text);
+      } else {
+        // Generate briefing via LLM chat
+        generateBriefing();
+      }
+    } catch {
+      generateBriefing();
+    }
+  };
+
+  const generateBriefing = async () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/llm/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Generate a brief threat briefing summarizing the current security posture, active threats, and recommended actions. Be concise and actionable.' }],
+          task_type: 'daily_briefing',
+          max_tokens: 512,
+        }),
+      });
+      const data = await res.json();
+      if (data.content) {
+        setBriefingText(data.content);
+      } else {
+        setBriefingText(MOCK_BRIEFING);
+      }
+    } catch {
       setBriefingText(MOCK_BRIEFING);
     }
   };
