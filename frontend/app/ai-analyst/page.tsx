@@ -1,55 +1,66 @@
 'use client';
 
 // ═══════════════════════════════════════════════════════
-// ThreatMatrix AI — AI Analyst Page (Scaffold)
+// ThreatMatrix AI — AI Analyst Page (Live LLM)
 // LLM-powered threat analysis interface
 // ═══════════════════════════════════════════════════════
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Bot, Send, AlertTriangle, Shield, Activity, Clock } from 'lucide-react';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 import { AuthGuard } from '@/components/auth/AuthGuard';
+import { useLLM, type ChatMessage } from '@/hooks/useLLM';
+import { API_BASE_URL } from '@/lib/constants';
+import { api } from '@/lib/api';
 
 export default function AIAnalystPage() {
   const searchParams = useSearchParams();
-  const alertId = searchParams.get('alert');
-  
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([
-    {
-      role: 'assistant',
-      content: alertId 
-        ? `I'm analyzing alert #${alertId.slice(-8).toUpperCase()}. The ML ensemble has detected potential threats. I can provide detailed analysis of the attack patterns, recommend mitigation strategies, and correlate with historical data. What would you like to know?`
-        : 'Welcome to the AI Analyst. I can help you analyze network anomalies, investigate alerts, and provide threat intelligence context. I have access to ML model outputs, flow data, and alert history. What would you like to investigate?'
-    }
-  ]);
+  const alertId = searchParams.get('alert_id') || searchParams.get('alert');
+  const { messages, isStreaming, error, tokenBudget, sendMessage, clearMessages } = useLLM();
   const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const [alertContext, setAlertContext] = useState<any>(null);
+  const [initialMessageSent, setInitialMessageSent] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Fetch alert context if alert_id is present
+  useEffect(() => {
+    if (alertId && !alertContext) {
+      api.get<any>(`/api/v1/alerts/${alertId}`).then(({ data }) => {
+        if (data) {
+          setAlertContext(data);
+          // Auto-send analysis request if alert has ai_narrative
+          if (data.ai_narrative && !initialMessageSent) {
+            setInitialMessageSent(true);
+            sendMessage(
+              `Analyze alert #${alertId.slice(-8).toUpperCase()}. Category: ${data.category || 'Unknown'}. Severity: ${data.severity}. Source IP: ${data.source_ip || 'N/A'}. ML Score: ${((data.composite_score || 0) * 100).toFixed(0)}%. Provide a detailed threat analysis.`,
+              { alert_id: alertId }
+            );
+          }
+        }
+      });
+    }
+  }, [alertId, alertContext, initialMessageSent, sendMessage]);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
-    
+    if (!input.trim() || isStreaming) return;
     const userMessage = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-    setIsTyping(true);
-
-    // Simulate AI response (placeholder for LLM integration)
-    setTimeout(() => {
-      const responses = [
-        'Based on the ML ensemble analysis, this flow exhibits characteristics of a port scan attack. The Isolation Forest model flagged it with 0.87 confidence, and the Random Forest classified it as "probe" with 92% certainty. I recommend blocking the source IP and monitoring for similar patterns.',
-        'The anomaly score of 0.94 indicates high confidence in threat detection. Cross-referencing with the threat intelligence database, this IP has been associated with known C2 infrastructure. The Autoencoder reconstruction error confirms unusual traffic patterns.',
-        'Analyzing the flow metadata: 248KB transferred over 12.4 seconds on port 443. While HTTPS traffic is normal, the destination IP resolves to a recently registered domain with no established reputation. The ensemble models agree this warrants investigation.',
-        'The alert was triggered by the ML Worker after scoring the flow at 0.78 composite. Model agreement is "majority" — both Random Forest and Isolation Forest flagged this as anomalous. The Autoencoder reconstruction error is 0.45, supporting the anomaly classification.',
-      ];
-      
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: responses[Math.floor(Math.random() * responses.length)]
-      }]);
-      setIsTyping(false);
-    }, 1500);
+    await sendMessage(userMessage, alertContext ? { alert_id: alertId } : undefined);
   };
+
+  // Fetch LLM budget info
+  const [budget, setBudget] = useState<any>(null);
+  useEffect(() => {
+    api.get<any>('/api/v1/llm/budget').then(({ data }) => {
+      if (data) setBudget(data);
+    });
+  }, []);
 
   return (
     <AuthGuard>
@@ -60,38 +71,52 @@ export default function AIAnalystPage() {
         gap: 'var(--space-4)'
       }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 40,
-            height: 40,
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, var(--cyan), var(--safe))',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <Bot size={20} style={{ color: 'var(--bg-dark)' }} />
-          </div>
-          <div>
-            <h1 style={{
-              fontFamily: 'var(--font-data)',
-              fontSize: 'var(--text-sm)',
-              fontWeight: 700,
-              color: 'var(--cyan)',
-              letterSpacing: '0.12em',
-              margin: 0,
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, var(--cyan), var(--safe))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}>
-              AI ANALYST
-            </h1>
-            <p style={{
+              <Bot size={20} style={{ color: 'var(--bg-dark)' }} />
+            </div>
+            <div>
+              <h1 style={{
+                fontFamily: 'var(--font-data)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 700,
+                color: 'var(--cyan)',
+                letterSpacing: '0.12em',
+                margin: 0,
+              }}>
+                AI ANALYST
+              </h1>
+              <p style={{
+                fontFamily: 'var(--font-data)',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-muted)',
+                margin: 0,
+              }}>
+                LLM-powered threat investigation • {alertContext ? `Analyzing alert #${alertId?.slice(-8).toUpperCase()}` : 'ML context enabled'}
+              </p>
+            </div>
+          </div>
+          {/* Budget Widget */}
+          {budget && (
+            <div style={{
               fontFamily: 'var(--font-data)',
-              fontSize: 'var(--text-xs)',
+              fontSize: '0.65rem',
               color: 'var(--text-muted)',
-              margin: 0,
+              textAlign: 'right',
             }}>
-              LLM-powered threat investigation • ML context enabled
-            </p>
-          </div>
+              <div>AI Requests: {budget.stats?.requests ?? 0}</div>
+              <div>Tokens: {budget.stats?.tokens_in ?? 0} in / {budget.stats?.tokens_out ?? 0} out</div>
+            </div>
+          )}
         </div>
 
         {/* Chat Area */}
@@ -106,7 +131,7 @@ export default function AIAnalystPage() {
           }}>
             {messages.map((msg, idx) => (
               <div
-                key={idx}
+                key={msg.id || idx}
                 style={{
                   display: 'flex',
                   justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
@@ -139,30 +164,40 @@ export default function AIAnalystPage() {
                     </div>
                   )}
                   {msg.content}
+                  {msg.isStreaming && (
+                    <span style={{
+                      display: 'inline-block',
+                      width: 2,
+                      height: '1em',
+                      background: 'var(--cyan)',
+                      marginLeft: 2,
+                      verticalAlign: 'text-bottom',
+                      animation: 'blink 1s step-end infinite',
+                    }} />
+                  )}
                 </div>
               </div>
             ))}
             
-            {isTyping && (
+            {error && (
               <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                 <div style={{
                   padding: 'var(--space-3) var(--space-4)',
                   borderRadius: 'var(--radius-md)',
-                  background: 'var(--bg-tertiary)',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
                   fontFamily: 'var(--font-data)',
                   fontSize: '0.8rem',
-                  color: 'var(--text-muted)',
+                  color: 'var(--critical)',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Bot size={12} />
-                    <span>Analyzing...</span>
-                    <span className="typing-indicator">●</span>
-                    <span className="typing-indicator" style={{ animationDelay: '0.2s' }}>●</span>
-                    <span className="typing-indicator" style={{ animationDelay: '0.4s' }}>●</span>
+                    <span>Connection error — check API status</span>
                   </div>
                 </div>
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Input Area */}
@@ -192,14 +227,14 @@ export default function AIAnalystPage() {
             />
             <button
               onClick={handleSend}
-              disabled={!input.trim() || isTyping}
+              disabled={!input.trim() || isStreaming}
               style={{
                 padding: '10px 16px',
                 borderRadius: 'var(--radius-sm)',
-                background: input.trim() ? 'var(--cyan)' : 'var(--bg-tertiary)',
-                color: input.trim() ? 'var(--bg-dark)' : 'var(--text-muted)',
+                background: input.trim() && !isStreaming ? 'var(--cyan)' : 'var(--bg-tertiary)',
+                color: input.trim() && !isStreaming ? 'var(--bg-dark)' : 'var(--text-muted)',
                 border: 'none',
-                cursor: input.trim() ? 'pointer' : 'not-allowed',
+                cursor: input.trim() && !isStreaming ? 'pointer' : 'not-allowed',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
