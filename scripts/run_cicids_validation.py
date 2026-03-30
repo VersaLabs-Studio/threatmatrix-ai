@@ -24,7 +24,13 @@ logging.basicConfig(
 logger = logging.getLogger("cicids2017_validation")
 
 # Ensure backend/ and ml/ are on sys.path
-_backend_dir = Path(__file__).resolve().parent.parent / "backend"
+# In Docker container: /app contains backend code directly
+# On host: parent.parent/backend contains backend code
+_script_path = Path(__file__).resolve()
+_backend_dir = _script_path.parent.parent / "backend"
+if not _backend_dir.exists():
+    # Running inside Docker container - code is at /app
+    _backend_dir = Path("/app")
 if str(_backend_dir) not in sys.path:
     sys.path.insert(0, str(_backend_dir))
 
