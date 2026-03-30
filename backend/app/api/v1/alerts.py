@@ -7,7 +7,7 @@ import logging
 from typing import Any, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Path
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Path
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +15,7 @@ from app.database import get_db
 from app.dependencies import get_current_active_user, require_role
 from app.models.user import User
 from app.services import alert_service
-from app.services.audit_service import log_audit_event_sync
+from app.services.audit_service import _do_audit_insert
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -115,6 +115,7 @@ async def get_alert(
 async def update_alert_status(
     alert_id: str = Path(...),
     body: StatusUpdateRequest = ...,
+    background_tasks: BackgroundTasks = ...,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role(["admin", "soc_manager", "analyst"])),
 ) -> dict[str, Any]:
@@ -134,13 +135,15 @@ async def update_alert_status(
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
 
-    # Audit log (fire-and-forget)
-    log_audit_event_sync(
+    # Audit log (background task)
+    background_tasks.add_task(
+        _do_audit_insert,
         action="alert_status_change",
         entity_type="alert",
         entity_id=alert_id,
         user_id=str(user.id),
         details={"new_status": body.new_status, "resolution_note": body.resolution_note},
+        ip_address=None,
     )
 
     return result

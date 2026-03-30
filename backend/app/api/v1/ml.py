@@ -13,12 +13,12 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.dependencies import require_role
 from app.models.user import User
-from app.services.audit_service import log_audit_event_sync
+from app.services.audit_service import _do_audit_insert
 
 router = APIRouter(prefix="/ml", tags=["ML Models"])
 logger = logging.getLogger(__name__)
@@ -158,6 +158,7 @@ _retrain_tasks: Dict[str, Dict[str, Any]] = {}
 @router.post("/retrain", response_model=RetrainResponse)
 async def retrain_models(
     request: RetrainRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_role(["admin"])),
 ) -> RetrainResponse:
     """
@@ -192,13 +193,15 @@ async def retrain_models(
     }
     asyncio.create_task(_run_retraining(task_id, request.dataset))
 
-    # Audit log (fire-and-forget)
-    log_audit_event_sync(
+    # Audit log (background task)
+    background_tasks.add_task(
+        _do_audit_insert,
         action="model_retrain",
         entity_type="model",
         entity_id=task_id,
         user_id=str(current_user.id),
         details={"dataset": request.dataset, "models": request.models},
+        ip_address=None,
     )
 
     logger.info(

@@ -14,7 +14,6 @@ Events to track:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -23,41 +22,28 @@ from uuid import uuid4
 
 from sqlalchemy import text
 
-from app.database import async_session
-
 logger = logging.getLogger(__name__)
 
 # Dev mode user UUID — doesn't exist in users table, so FK would fail
 _DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
-async def log_audit_event(
+async def _do_audit_insert(
     action: str,
     entity_type: str,
-    entity_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    details: Optional[Dict[str, Any]] = None,
-    ip_address: Optional[str] = None,
+    entity_id: Optional[str],
+    user_id: Optional[str],
+    details: Optional[Dict[str, Any]],
+    ip_address: Optional[str],
 ) -> None:
-    """
-    Record an audit log entry.
-
-    Fire-and-forget — audit failures are logged but never raise exceptions,
-    so they cannot break the primary action.
-
-    Args:
-        action: Action performed (e.g., "login", "retrain", "alert_status_change").
-        entity_type: Type of entity affected (e.g., "user", "model", "alert").
-        entity_id: ID of the affected entity.
-        user_id: ID of the user who performed the action.
-        details: Additional context stored as JSONB.
-        ip_address: Client IP address.
-    """
+    """Perform the actual audit INSERT. Called as a BackgroundTask."""
     # Skip FK-violating dev user UUID — pass NULL instead
     if user_id == _DEV_USER_ID:
         user_id = None
 
     try:
+        from app.database import async_session
+
         async with async_session() as session:
             await session.execute(
                 text("""
@@ -82,36 +68,3 @@ async def log_audit_event(
             await session.commit()
     except Exception as e:
         logger.error("[AUDIT] Failed to log event: %s — %s", action, e)
-
-
-def log_audit_event_sync(
-    action: str,
-    entity_type: str,
-    entity_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    details: Optional[Dict[str, Any]] = None,
-    ip_address: Optional[str] = None,
-) -> None:
-    """
-    Schedule an audit log entry asynchronously (fire-and-forget).
-
-    Use this from synchronous endpoint code to avoid blocking the response.
-
-    Args:
-        action: Action performed.
-        entity_type: Type of entity affected.
-        entity_id: ID of the affected entity.
-        user_id: ID of the user who performed the action.
-        details: Additional context as dict.
-        ip_address: Client IP address.
-    """
-    asyncio.create_task(
-        log_audit_event(
-            action=action,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            user_id=user_id,
-            details=details,
-            ip_address=ip_address,
-        )
-    )
