@@ -312,6 +312,10 @@ class CICIDS2017Loader:
                 X_df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
             else:
                 X_df[col] = 0
+        
+        # Debug: log feature count
+        logger.info("CICIDS_NUMERIC_COLUMNS has %d features", len(CICIDS_NUMERIC_COLUMNS))
+        logger.info("X_df has %d columns: %s", len(X_df.columns), list(X_df.columns))
 
         # 5. Encode target labels
         y_raw = df["attack_category"]
