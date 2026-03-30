@@ -1,8 +1,8 @@
 #!/bin/bash
 # ThreatMatrix AI — CICIDS2017 Dataset Downloader
 #
-# Downloads the MachineLearningCSV.zip (pre-extracted features) from Kaggle.
-# Requires: kaggle CLI (pip install kaggle) + ~/.kaggle/kaggle.json
+# Downloads the CICIDS2017 dataset from Zenodo mirror (Option B fallback).
+# Direct UNB URLs redirect to HTML, Kaggle may be unavailable.
 #
 # Usage:
 #   bash scripts/download_cicids2017.sh [target_dir]
@@ -12,7 +12,8 @@
 set -euo pipefail
 
 TARGET_DIR="${1:-backend/ml/saved_models/datasets/cicids2017}"
-ZIP_NAME="MachineLearningCSV.zip"
+ZIP_NAME="CIC-IDS-2017-V2.zip"
+ZENODO_URL="https://zenodo.org/records/10141593/files/CIC-IDS-2017-V2.zip"
 
 echo "============================================"
 echo "  CICIDS2017 Dataset Downloader"
@@ -31,48 +32,40 @@ if [ "$CSV_COUNT" -ge 8 ]; then
     exit 0
 fi
 
-# Check for kaggle CLI
-if command -v kaggle &> /dev/null; then
-    echo "[1/3] Downloading via Kaggle API..."
-    kaggle datasets download -d cicdataset/cicids2017 \
-        -f "$ZIP_NAME" \
-        -p "$TARGET_DIR" \
-        --force
-else
-    echo "[1/3] Kaggle CLI not found. Installing..."
-    pip install kaggle -q
+echo "[1/3] Downloading from Zenodo mirror (~368 MB)..."
+echo "   URL: $ZENODO_URL"
+echo "   Target: $TARGET_DIR/$ZIP_NAME"
+echo ""
 
-    if [ ! -f "$HOME/.kaggle/kaggle.json" ]; then
-        echo ""
-        echo "⚠️  Kaggle API credentials not found."
-        echo ""
-        echo "Option 1: Set up Kaggle credentials:"
-        echo "  1. Go to https://www.kaggle.com/settings -> API -> Create New Token"
-        echo "  2. Download kaggle.json"
-        echo "  3. mkdir -p ~/.kaggle && mv kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json"
-        echo ""
-        echo "Option 2: Manual download:"
-        echo "  1. Go to https://www.kaggle.com/datasets/cicdataset/cicids2017"
-        echo "  2. Download MachineLearningCSV.zip"
-        echo "  3. Place it in: $TARGET_DIR/"
-        echo "  4. Re-run this script to extract"
-        echo ""
-        exit 1
-    fi
-
-    echo "[1/3] Downloading via Kaggle API..."
-    kaggle datasets download -d cicdataset/cicids2017 \
-        -f "$ZIP_NAME" \
-        -p "$TARGET_DIR" \
-        --force
-fi
-
-echo "[2/3] Extracting CSV files..."
 cd "$TARGET_DIR"
+wget -O "$ZIP_NAME" "$ZENODO_URL" || {
+    echo ""
+    echo "❌ Download failed!"
+    echo ""
+    echo "Alternative options:"
+    echo "  1. Manually download from: https://zenodo.org/records/10141593"
+    echo "  2. Or from Kaggle: https://www.kaggle.com/datasets/cicdataset/cicids2017"
+    echo "  3. Place the ZIP file in: $TARGET_DIR/"
+    echo "  4. Re-run this script to extract"
+    exit 1
+}
+
+echo ""
+echo "[2/3] Extracting CSV files..."
 if [ -f "$ZIP_NAME" ]; then
     unzip -o "$ZIP_NAME"
+    
+    # Zenodo V2 may have files in subdirectories, find and move CSVs
+    find . -name "*.csv" -type f -exec mv {} . \; 2>/dev/null || true
+    
+    # Clean up any subdirectories created during extraction
+    find . -mindepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
+    
+    # Remove the ZIP file
     rm -f "$ZIP_NAME"
-    echo "   Extracted $(ls *.csv 2>/dev/null | wc -l) CSV files"
+    
+    CSV_COUNT=$(ls *.csv 2>/dev/null | wc -l)
+    echo "   Extracted $CSV_COUNT CSV files"
 else
     echo "   ERROR: $ZIP_NAME not found in $TARGET_DIR"
     exit 1
@@ -87,4 +80,8 @@ echo "   Location: $TARGET_DIR"
 echo "   CSV files: $CSV_COUNT"
 echo "   Total size: $TOTAL_SIZE"
 echo ""
-ls -lh *.csv
+echo "Expected files:"
+ls -lh *.csv 2>/dev/null || echo "   No CSV files found"
+echo ""
+echo "NOTE: Zenodo V2 may have slightly different column names."
+echo "The CICIDS2017Loader handles missing columns gracefully."
