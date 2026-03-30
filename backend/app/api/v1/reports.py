@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -31,7 +31,7 @@ from sqlalchemy import text
 from app.database import async_session
 from app.dependencies import require_role
 from app.models.user import User
-from app.services.audit_service import _do_audit_insert
+from app.services.audit_service import log_audit_event
 
 logger = logging.getLogger(__name__)
 
@@ -229,7 +229,6 @@ async def _gather_compliance(session) -> dict:
 @router.post("/generate")
 async def generate_report(
     request: ReportRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_role(["admin", "analyst"])),
 ) -> dict:
     """
@@ -329,15 +328,13 @@ async def generate_report(
         )
         await session.commit()
 
-    # Audit log (background task)
-    background_tasks.add_task(
-        _do_audit_insert,
+    # Audit log (sync, fast — single INSERT)
+    log_audit_event(
         action="report_generated",
         entity_type="report",
         entity_id=report_id,
         user_id=str(current_user.id),
         details={"report_type": request.report_type, "format": request.format},
-        ip_address=None,
     )
 
     logger.info(

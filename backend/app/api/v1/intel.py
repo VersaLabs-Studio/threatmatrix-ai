@@ -13,13 +13,13 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 
 from app.database import async_session
 from app.dependencies import require_role
 from app.models.user import User
-from app.services.audit_service import _do_audit_insert
+from app.services.audit_service import log_audit_event
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,6 @@ async def feeds_status():
 
 @router.post("/sync")
 async def sync_feeds(
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_role(["admin"])),
 ):
     """
@@ -119,15 +118,13 @@ async def sync_feeds(
 
         await session.commit()
 
-    # Audit log (background task)
-    background_tasks.add_task(
-        _do_audit_insert,
+    # Audit log (sync, fast — single INSERT)
+    log_audit_event(
         action="ioc_sync",
         entity_type="threat_intel",
         entity_id=None,
         user_id=str(current_user.id),
         details={"synced_pulses": len(pulses), "iocs_inserted": iocs_inserted},
-        ip_address=None,
     )
 
     logger.info(

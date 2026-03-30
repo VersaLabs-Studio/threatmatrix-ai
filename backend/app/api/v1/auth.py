@@ -10,7 +10,7 @@ Endpoints:
 - POST /auth/logout - Logout user
 """
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -18,7 +18,7 @@ from app.dependencies import get_current_user, require_role
 from app.models.user import User
 from app.schemas.auth import TokenRefresh, TokenResponse, UserCreate, UserLogin, UserResponse
 from app.services.auth_service import AuthService
-from app.services.audit_service import _do_audit_insert
+from app.services.audit_service import log_audit_event
 
 router = APIRouter()
 
@@ -67,7 +67,6 @@ async def register(
 )
 async def login(
     login_data: UserLogin,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
     """
@@ -83,15 +82,13 @@ async def login(
 
     try:
         token_response = await auth_service.login(login_data)
-        # Audit log (background task)
-        background_tasks.add_task(
-            _do_audit_insert,
+        # Audit log (sync, fast — single INSERT)
+        log_audit_event(
             action="login",
             entity_type="user",
             entity_id=None,
             user_id=str(token_response.user_id) if hasattr(token_response, 'user_id') else None,
             details={"email": login_data.email},
-            ip_address=None,
         )
         return token_response
     except ValueError as e:
