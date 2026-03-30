@@ -27,6 +27,9 @@ from app.database import async_session
 
 logger = logging.getLogger(__name__)
 
+# Dev mode user UUID — doesn't exist in users table, so FK would fail
+_DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
+
 
 async def log_audit_event(
     action: str,
@@ -50,6 +53,10 @@ async def log_audit_event(
         details: Additional context stored as JSONB.
         ip_address: Client IP address.
     """
+    # Skip FK-violating dev user UUID — pass NULL instead
+    if user_id == _DEV_USER_ID:
+        user_id = None
+
     try:
         async with async_session() as session:
             await session.execute(
