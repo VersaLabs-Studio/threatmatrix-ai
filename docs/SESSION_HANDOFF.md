@@ -1,11 +1,11 @@
 # ThreatMatrix AI — Session Handoff Document
 
-> **Last Updated:** 2026-03-26 01:45 UTC+3
+> **Last Updated:** 2026-03-30 18:35 UTC+3
 > **Purpose:** Complete context transfer for new chat session
 > **Project:** ThreatMatrix AI — AI-Powered Network Anomaly Detection System
-> **Current Phase:** Week 5 Day 1 (Day 16) — PCAP Processor + CICIDS2017 Validation + ML Ops Endpoints + Admin Scaffold
-> **Paused At:** Day 15 all 6 tasks verified on VPS (100% pass rate) — 42/42 API Coverage ACHIEVED ✅
-> **Next Session Resumes:** Day 16 — PCAP Processor, CICIDS2017 validation, ml_models population, confusion matrix/feature importance endpoints, admin audit log
+> **Current Phase:** Week 5 Day 2 (Day 17) — CICIDS2017 Validation + Week 6 Enterprise Kickoff
+> **Paused At:** Day 16 all 4/5 tasks verified on VPS (14/14 checks PASS) — 46/46 API Coverage ✅
+> **Next Session Resumes:** Day 17 — CICIDS2017 validation, PDF reports, audit wiring, RBAC, LLM budget
 
 ---
 
@@ -17,12 +17,12 @@ ThreatMatrix AI is an enterprise-grade, AI-powered cybersecurity platform. It's 
 
 ML Worker scores every flow → publishes alerts → AlertEngine persists → IOC Correlator checks IPs + domains + hashes → LLM Gateway generates AI narrative → WebSocket broadcasts to browser. All 5 Docker containers stable. §11.3 Correlation Engine FULLY COMPLIANT.
 
-### System Status (Verified March 26, 2026 — Day 14 Final)
+### System Status (Verified March 30, 2026 — Day 16 Final)
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| Capture Engine | ✅ Live (4+ days) | 63 features per flow |
-| ML Worker | ✅ Live (redeployed Day 14) | **3,200+ flows scored** (post-rebuild), 3 anomalies, 139.8ms avg |
+| Capture Engine | ✅ Live (7+ days) | 63 features per flow |
+| ML Worker | ✅ Live | **105,000+ flows scored**, tuned IF (c=0.10, ms=1024) |
 | Alert Engine | ✅ Enhanced | UUID alerts + IOC correlation (IP+domain+hash) + LLM auto-narrative |
 | Flow Scorer | ✅ Deployed | ml:scored → network_flows.anomaly_score |
 | LLM Gateway | ✅ Live | 3 OpenRouter models, streaming SSE, fallback routing |
@@ -31,20 +31,21 @@ ML Worker scores every flow → publishes alerts → AlertEngine persists → IO
 | **Threat Intel** | ✅ **3 providers LIVE** | OTX (1,367 IOCs), AbuseIPDB, VirusTotal all enabled |
 | LLM API | ✅ 5 endpoints live | chat, analyze-alert, briefing, translate, budget |
 | Intel API | ✅ 4 endpoints live | lookup, feeds/status, sync (1,367 IOCs), iocs |
-| **ML API** | ✅ 5 endpoints live | models, comparison, predict, retrain, retrain status |
-| **Capture API** | ✅ **5 endpoints live** | status, start, stop, interfaces, **upload-pcap** |
+| **ML API** | ✅ **8 endpoints live** | models, comparison, predict, retrain, retrain/{id}, confusion-matrix, feature-importance, training-history |
+| **Capture API** | ✅ **5 endpoints live** | status, start, stop, interfaces, upload-pcap |
+| **PCAP Processor** | ✅ **NEW Day 16** | 556 lines, integrated with upload endpoint |
+| **ml_models Table** | ✅ **NEW Day 16** | 3 entries (IF v1.1, RF v1.0, AE v1.0), auto-populated on startup |
+| **Admin API** | ✅ **NEW Day 16** | audit-log endpoint operational |
 | **IF Model** | ✅ **Tuned params applied** | n=100, c=0.10, ms=1024 (was c=0.05, ms=256) |
 
 ### Model Performance
 
 | Model | Accuracy | F1 | AUC-ROC | Notes |
 |-------|----------|-------|---------|-------|
-| Isolation Forest | 79.68% | 78.75% | 0.9378 | Production (locked) |
+| Isolation Forest | 82.54% | 83.03% | 0.9436 | Production (v1.1 tuned, LOCKED) |
 | Random Forest | 74.16% | 69.45% (w) | 0.9576 | Production (locked) |
-| Autoencoder | 61.25% | 52.24% | 0.8513 | Production (locked) |
+| Autoencoder | 62.17% | 53.89% | 0.8460 | Production (locked) |
 | **🏆 Ensemble** | **80.73%** | **80.96%** | **0.9312** | **Production (LOCKED)** |
-| IF (tuned) | **82.54%** | **83.03%** | — | Day 13 tuning result — **APPLIED Day 14** (c=0.10, ms=1024) |
-| RF (tuned) | 74.70% | 70.08% (w) | — | Day 13 tuning result (available, not applied) |
 
 ### LLM Gateway (Verified Working)
 
@@ -56,6 +57,61 @@ ML Worker scores every flow → publishes alerts → AlertEngine persists → IO
 | Chat / General | `openai/gpt-oss-120b:free` | `nvidia/nemotron-3-super-120b-a12b:free` |
 | Translation | `stepfun/step-3.5-flash:free` | `openai/gpt-oss-120b:free` |
 | Quick Summary | `stepfun/step-3.5-flash:free` | `openai/gpt-oss-120b:free` |
+
+---
+
+## 🔄 WHAT CHANGED IN DAY 16
+
+### New Components / Enhancements
+
+| Component | File | Change | Verified |
+|-----------|------|--------|----------|
+| **PcapProcessor** | `app/services/pcap_processor.py` | +556 lines, PCAP → flow extraction → ML scoring → DB persist | ✅ 5/5 checks |
+| **ml_models population** | `scripts/populate_ml_models.py` | +221 lines, 3 model entries with real eval metrics | ✅ 6/6 checks |
+| **Confusion Matrix API** | `app/api/v1/ml.py` | +60 lines, GET /ml/models/{type}/confusion-matrix | ✅ PASS |
+| **Feature Importance API** | `app/api/v1/ml.py` | +80 lines, GET /ml/models/{type}/feature-importance | ✅ PASS |
+| **Training History API** | `app/api/v1/ml.py` | +56 lines, GET /ml/training-history (from ml_models table) | ✅ PASS |
+| **Admin Audit Log** | `app/api/v1/admin.py` | +87 lines, GET /admin/audit-log with filtering | ✅ 4/4 checks |
+| **Startup population** | `app/main.py` | +7 lines, auto-populate ml_models on startup | ✅ PASS |
+| **PCAP integration** | `app/api/v1/capture.py` | +42 lines, _process_pcap background task | ✅ PASS |
+
+### Bug Fixes Applied (Day 16)
+
+| Bug | File | Fix |
+|-----|------|-----|
+| `DuplicateTableError` on re-run | `populate_ml_models.py:129` | asyncpg driver-level exception not caught by PL/pgSQL handler; wrapped in Python try/except with rollback |
+
+### Confusion Matrix Data (Verified)
+
+```
+Ensemble (binary):   TN=8,987 | FP=724 | FN=3,689 | TP=9,144 (22,544 samples)
+Random Forest (5-class): Full 5×5 matrix (dos/normal/probe/r2l/u2r)
+```
+
+### ml_models Table Content
+
+| Model | Accuracy | F1 | Precision | Recall | AUC-ROC | Status |
+|-------|----------|-----|-----------|--------|---------|--------|
+| isolation_forest_v1 | 82.54% | 83.03% | 92.95% | 75.02% | 0.9436 | active |
+| random_forest_v1 | 74.16% | 69.45% | — | — | — | active |
+| autoencoder_v1 | 62.17% | 53.89% | 88.01% | 38.84% | 0.8460 | active |
+
+---
+
+## 🔄 WHAT CHANGED IN DAY 15
+
+### New Components Deployed
+
+| Component | File | Lines | Verified |
+|-----------|------|:-----:|:--------:|
+| **Reports Module** | `app/api/v1/reports.py` | 320 | ✅ 3 endpoints (generate, list, download) |
+| **System Config** | `app/api/v1/system.py` | +45 | ✅ GET /system/config |
+| **Alert IOC Enrichment** | `app/api/v1/alerts.py` | +30 | ✅ ioc_enrichment in detail response |
+| **IF Retrain** | Via POST /ml/retrain | — | ✅ Model artifact 1.47→1.57 MB |
+| **CICIDS2017 Loader** | `ml/datasets/cicids2017.py` | 437 | ✅ Class verified on VPS |
+
+v0.5.0 Feature Depth: ACHIEVED (API) ✅
+  API Coverage: 42/42 → 46/46 (100%) 🎯
 
 ---
 
@@ -74,14 +130,6 @@ ML Worker scores every flow → publishes alerts → AlertEngine persists → IO
 | **PCAP upload** | `app/api/v1/capture.py` | +82 lines, upload-pcap endpoint | ✅ 200 + 400 validation |
 | **Tuned IF params** | `ml/training/hyperparams.py` | c: 0.05→0.10, ms: "auto"→1024 | ✅ Weights/thresholds LOCKED |
 | **IOC test suite** | `scripts/test_ioc_correlation.py` | 255 lines, 6 test cases | ✅ 6/6 pass |
-| **docker-compose.yml** | Root | Added scripts volume mount | ✅ Test script accessible |
-
-### Bug Fixes Applied
-
-| Bug | File | Fix |
-|-----|------|-----|
-| ON CONFLICT mismatch | `intel.py:100` | 2-col constraint → 3-col (ioc_type, ioc_value, source) |
-| Tags type mismatch | `intel.py:109` | Comma string → Python list for PG text[] |
 
 ### IOC Database Population
 
@@ -92,67 +140,6 @@ threat_intel_iocs table:
   url:    114 IOCs
   ip:      53 IOCs
   Total: 1,367 IOCs from OTX (50 pulses)
-```
-
----
-
-## 🔄 WHAT CHANGED IN DAY 13
-
-### New Components Deployed
-
-| Component | File | Lines | Verified |
-|-----------|------|:-----:|:--------:|
-| **IOC Correlator** | `app/services/ioc_correlator.py` | 136 | ✅ Graceful degradation, IP matching |
-| **LLM Auto-Narrative** | `app/services/alert_engine.py` | +120 | ✅ Fire-and-forget, ai_narrative populated |
-| **POST /ml/retrain** | `app/api/v1/ml.py` | +134 | ✅ Background subprocess, task tracking |
-| **ml:live channel** | `app/redis.py`, `app/api/v1/websocket.py` | +10 | ✅ Channel registered, WebSocket ready |
-| **anomaly_detected** | `ml/inference/worker.py` | +43 | ✅ Publishing to ml:live on anomaly |
-| **Hyperparameter Tuning** | `ml/training/tune_models.py` | 244 rewrite | ✅ Grid search, best_params.json output |
-
-### Database Migration Applied
-
-```sql
-ALTER TABLE alerts ALTER COLUMN alert_id TYPE VARCHAR(50);
-ALTER TABLE alerts ADD COLUMN composite_score FLOAT;
-ALTER TABLE alerts ADD COLUMN if_score FLOAT;
-ALTER TABLE alerts ADD COLUMN rf_score FLOAT;
-ALTER TABLE alerts ADD COLUMN ae_score FLOAT;
-ALTER TABLE alerts ADD COLUMN ai_narrative TEXT;
-```
-
-### Container Status (Day 13 Final)
-
-```
-tm-backend    ✅ Up (rebuilt Day 13)
-tm-capture    ✅ Up 3+ days
-tm-ml-worker  ✅ Up (rebuilt Day 13)
-tm-postgres   ✅ Healthy 4 days
-tm-redis      ✅ Healthy 4 days
-```
-
-### Live Detection (Day 13 — post nmap/hping3)
-
-```
-18:33:50 [Worker] ALERT: MEDIUM — probe (score=0.52, agreement=majority)
-18:46:02 [Worker] ALERT: MEDIUM — probe (score=0.50, agreement=majority)
-```
-
-### LLM Auto-Narrative Verified
-
-All alerts now contain AI-generated analyst reports with:
-- Markdown-formatted threat analysis
-- Source/destination IP context
-- Severity and category classification
-- ML score breakdown (IF/RF/AE/composite)
-- Recommended actions
-
-### Hyperparameter Tuning Results
-
-```
-Tuning completed in 370 seconds (6.2 min)
-IF Best: n=100, c=0.10, ms=1024 → Acc=82.54%, F1=83.03% (+4.28% vs production)
-RF Best: n=200, d=30, s=10  → Acc=74.70%, F1w=70.08% (+0.63% vs production)
-Saved to: ml/saved_models/best_params.json
 ```
 
 ---
@@ -207,13 +194,13 @@ Capture Engine → flows:live (Redis) → ML Worker → IF/RF/AE + Ensemble
 
 ```
 /app/ml/saved_models/
-├── isolation_forest.pkl         (1.47 MB)  ✅
+├── isolation_forest.pkl         (1.57 MB)  ✅ (retrained Day 15)
 ├── random_forest.pkl            (31.3 MB)  ✅
 ├── autoencoder/                            ✅ (threshold=0.631359)
 ├── preprocessor_encoders.pkl    (2.4 KB)   ✅
 ├── preprocessor_scaler.pkl      (1.6 KB)   ✅
 ├── eval_results/ (4 JSON files)            ✅
-└── best_params.json                        ✅ NEW Day 13
+└── best_params.json                        ✅ (Day 13)
 ```
 
 ---
@@ -224,14 +211,14 @@ Capture Engine → flows:live (Redis) → ML Worker → IF/RF/AE + Ensemble
 - **Name:** ThreatMatrix AI
 - **Type:** AI-powered SIEM-Lite — network anomaly detection + cyber threat intelligence
 - **Context:** Bachelor's CS Senior Project
-- **Timeline:** Feb 24 → Apr 20, 2026 (8 weeks, Day 14 complete = ~25%)
+- **Timeline:** Feb 24 → Apr 20, 2026 (8 weeks, Day 16 complete = ~28.6%)
 - **Team:** 4 (Lead Architect 60%, Full-Stack Dev 30%, Business Mgr, QA 10%)
 - **VPS:** `187.124.45.161` (Hostinger KVM 4, 4 vCPU, 16GB RAM, Ubuntu 22.04)
 
 ### Technology Stack (LOCKED)
 
 | Layer | Technology | Version |
-|-------|-----------|---------|
+|-------|-----------|---------| 
 | Frontend | Next.js (App Router) | 16.x |
 | Backend | FastAPI | 0.115+ |
 | Database | PostgreSQL | 16 |
@@ -243,23 +230,47 @@ Capture Engine → flows:live (Redis) → ML Worker → IF/RF/AE + Ensemble
 
 ---
 
-## 📊 API ENDPOINT COVERAGE
+## 📊 API ENDPOINT COVERAGE (Day 16 Final)
 
 | Service | Implemented | Total | Coverage |
 |---------|:-----------:|:-----:|:--------:|
 | Auth | 5 | 5 | **100%** |
 | Flows | 6 | 6 | **100%** |
 | Alerts | 5 | 5 | **100%** |
-| Capture | **5** | 5 | **100%** ✅ (+upload-pcap) |
-| System | **3** | 3 | **100%** ✅ (+config) |
+| Capture | 5 | 5 | **100%** |
+| System | 3 | 3 | **100%** |
 | WebSocket | 1 | 1 | **100%** |
-| ML | 5 | 5 | **100%** |
+| ML | **8** | 8 | **100%** ✅ (+3 Day 16) |
 | LLM | 5 | 5 | **100%** |
 | Intel | 4 | 4 | **100%** |
-| Reports | **3** | 3 | **100%** ✅ (+generate, list, download) |
-| **TOTAL** | **42** | **42** | **100%** 🎯 |
+| Reports | 3 | 3 | **100%** |
+| Admin | **1** | 1 | **100%** ✅ (NEW Day 16) |
+| **TOTAL** | **46** | **46** | **100%** 🎯 |
 
 ---
+
+## 📋 DAY 16 RESULTS ✅
+
+| # | Task | Priority | Status |
+|---|------|----------|--------|
+| 1 | **PCAP Processor** | 🔴 | ✅ PASS (5/5 checks) — 556 lines, ML scoring pipeline |
+| 2 | **CICIDS2017 Validation** | 🔴 | ⏳ Deferred to Day 17 (dataset download required on VPS) |
+| 3 | **ml_models Population** | 🔴 | ✅ PASS (6/6 checks) — 3 entries with real eval metrics |
+| 4 | **ML Ops Endpoints** | 🟡 | ✅ PASS (6/6 checks) — confusion-matrix, feature-importance, training-history |
+| 5 | **Admin Audit Log** | 🟢 | ✅ PASS (4/4 checks) — GET /admin/audit-log operational |
+
+Day 16 Grade: **A-** | Verification: **14/14 checks PASS (100%)**
+
+## 📋 DAY 15 RESULTS ✅
+
+| # | Task | Priority | Status |
+|---|------|----------|--------|
+| 1 | **Reports Module (3 endpoints)** | 🔴 | ✅ POST /reports/generate, GET /reports/, GET /reports/{id}/download |
+| 2 | **System Config endpoint** | 🔴 | ✅ GET /system/config — 42/42 = 100% API coverage |
+| 3 | **Alert IOC Enrichment** | 🔴 | ✅ ioc_enrichment field in GET /alerts/{id} |
+| 4 | **IF Retrain Execution** | 🟡 | ✅ New model artifact produced (1.47→1.57 MB) |
+| 5 | **Alert Cleanup** | 🟢 | ✅ 24 old TM-ALERT-* test alerts removed |
+| 6 | **CICIDS2017 Loader** | 🟢 | ✅ CICIDS2017Loader class verified on VPS |
 
 ## 📋 DAY 14 RESULTS ✅
 
@@ -273,35 +284,17 @@ Capture Engine → flows:live (Redis) → ML Worker → IF/RF/AE + Ensemble
 | 6 | **Tuned IF params applied** | 🟡 | ✅ c=0.10, ms=1024, weights LOCKED |
 | 7 | **PCAP upload pipeline** | 🟡 | ✅ POST /capture/upload-pcap operational |
 
-## 📋 DAY 15 RESULTS ✅
+---
 
-| # | Task | Priority | Status |
-|---|------|----------|--------|
-| 1 | **Reports Module (3 endpoints)** | 🔴 | ✅ POST /reports/generate, GET /reports/, GET /reports/{id}/download |
-| 2 | **System Config endpoint** | 🔴 | ✅ GET /system/config — 42/42 = 100% API coverage |
-| 3 | **Alert IOC Enrichment** | 🔴 | ✅ ioc_enrichment field in GET /alerts/{id} |
-| 4 | **IF Retrain Execution** | 🟡 | ✅ New model artifact produced (1.47→1.57 MB) |
-| 5 | **Alert Cleanup** | 🟢 | ✅ 24 old TM-ALERT-* test alerts removed |
-| 6 | **CICIDS2017 Loader** | 🟢 | ✅ CICIDS2017Loader class verified on VPS |
-
-v0.5.0 Feature Depth: ACHIEVED ✅
-  API Coverage: 42/42 (100%) 🎯
-  Reports Module: 3/3 endpoints (generate, list, download)
-  System Config: GET /system/config operational
-  Alert Enrichment: IOC correlation data in alert detail responses
-  IF Model: Retrained with tuned params (c=0.10, ms=1024)
-  CICIDS2017: Loader deployed and verified on VPS
-
-## 📋 DAY 15 PLAN (Target: 42/42 = 100% API Coverage)
+## 📋 DAY 17 PLAN (Week 5 Day 2 — v0.5.0 Finalization + Week 6 Kickoff)
 
 | # | Task | Priority | What |
 |---|------|----------|------|
-| 1 | **Reports Module (3 endpoints)** | 🔴 | POST /reports/generate, GET /reports/, GET /reports/{id}/download |
-| 2 | **System Config endpoint** | 🔴 | GET /system/config → 42/42 = 100% API coverage |
-| 3 | **Alert IOC Enrichment** | 🔴 | Add ioc_enrichment field to GET /alerts/{id} response |
-| 4 | **IF Retrain Execution** | 🟡 | Execute POST /ml/retrain to produce tuned model artifact |
-| 5 | **Alert Cleanup** | 🟢 | Remove old seeded alerts (TM-ALERT-00002..00006) |
-| 6 | **CICIDS2017 validation** | 🟢 | Secondary dataset for academic credibility (optional) |
+| 1 | **CICIDS2017 Validation** | 🔴 | Execute `validate_ensemble_on_cicids2017()`, save results (Day 16 carryover) |
+| 2 | **PDF Report Generation** | 🔴 | ReportLab integration for branded PDF threat summaries |
+| 3 | **Audit Log Event Wiring** | 🟡 | Wire login, retrain, alert status changes into audit_log table |
+| 4 | **RBAC Middleware** | 🟡 | Role-based access control scaffold (admin/analyst/viewer) |
+| 5 | **LLM Budget Enhancement** | 🟢 | Actual token tracking in Redis, cost estimates |
 
 ---
 
@@ -313,13 +306,13 @@ threatmatrix-ai/
 │   ├── capture/                         ✅ Hardened engine (63 features)
 │   ├── ml/
 │   │   ├── datasets/nsl_kdd.py          ✅
-│   │   ├── datasets/cicids2017.py       ✅ NEW Day 15 (CICIDS2017Loader class)
+│   │   ├── datasets/cicids2017.py       ✅ (437 lines, CICIDS2017Loader class)
 │   │   ├── models/ (IF, RF, AE)         ✅
 │   │   ├── training/
 │   │   │   ├── train_all.py             ✅
 │   │   │   ├── evaluate.py              ✅
 │   │   │   ├── hyperparams.py           ✅
-│   │   │   └── tune_models.py           ✅ NEW Day 13 (grid search + best_params.json)
+│   │   │   └── tune_models.py           ✅ (grid search + best_params.json)
 │   │   ├── inference/
 │   │   │   ├── ensemble_scorer.py       ✅
 │   │   │   ├── model_manager.py         ✅
@@ -327,31 +320,37 @@ threatmatrix-ai/
 │   │   │   └── worker.py               ✅ Running live + ml:live publish
 │   │   └── saved_models/               ✅ IF, RF, AE, preprocessor, best_params.json
 │   ├── app/
-│   │   ├── main.py                      ✅ All services initialized
+│   │   ├── main.py                      ✅ All services initialized + ml_models startup population
 │   │   ├── api/v1/
 │   │   │   ├── auth, capture, flows, alerts, system, websocket ✅
-│   │   │   ├── ml.py                    ✅ models, comparison, predict, retrain, retrain/{id}
+│   │   │   ├── ml.py                    ✅ 8 endpoints (models, comparison, predict, retrain, retrain/{id}, confusion-matrix, feature-importance, training-history)
 │   │   │   ├── llm.py                   ✅ 5 endpoints
 │   │   │   ├── intel.py                 ✅ 4 endpoints (sync populates 1,367 IOCs)
-│   │   │   └── reports.py               ✅ NEW Day 15 (generate, list, download)
+│   │   │   ├── reports.py               ✅ (generate, list, download — JSON format)
+│   │   │   └── admin.py                 ✅ NEW Day 16 (audit-log endpoint)
 │   │   ├── services/
 │   │   │   ├── alert_engine.py          ✅ LLM auto-narrative + IOC correlation
 │   │   │   ├── flow_scorer.py           ✅
 │   │   │   ├── ioc_correlator.py        ✅ §11.3 FULL (IP + domain + hash)
 │   │   │   ├── llm_gateway.py           ✅ 3 verified models
+│   │   │   ├── pcap_processor.py        ✅ NEW Day 16 (556 lines, PCAP → ML scoring)
 │   │   │   └── threat_intel.py          ✅ OTX + AbuseIPDB + VirusTotal
-│   │   ├── models/ (10 SQLAlchemy)      ✅ alert.py with ML scores + ai_narrative
+│   │   ├── models/ (12 SQLAlchemy)      ✅ Including ml_model.py, audit.py, pcap.py
 │   │   └── schemas/ (8 Pydantic)        ✅
 │   ├── requirements.txt                 ✅
 │   └── docker-compose.yml               ✅ 5 services (+scripts volume)
 ├── frontend/                            → Full-Stack Dev (parallel)
 ├── scripts/
-│   └── test_ioc_correlation.py          ✅ NEW Day 14 (6 test cases, §11.3 verification)
+│   ├── populate_ml_models.py            ✅ NEW Day 16 (221 lines, auto-run on startup)
+│   ├── run_cicids_validation.py         ✅ (ready for Day 17)
+│   ├── download_cicids2017.sh           ✅ (download helper)
+│   └── test_ioc_correlation.py          ✅ (6 test cases, §11.3 verification)
 └── docs/
     ├── master-documentation/ (5 parts)
-    ├── worklog/ (DAY_10 through DAY_15)
-    ├── DAY_15_VPS_VERIFICATION_REPORT.md ✅ NEW Day 15 (42/42 API, 100% pass rate)
-    ├── DAY_14_VPS_VERIFICATION_REPORT.md ✅ NEW Day 14 (100% pass rate)
+    ├── worklog/ (DAY_01 through DAY_17)
+    ├── DAY_16_VPS_VERIFICATION_REPORT.md ✅ NEW Day 16 (14/14, 100% pass)
+    ├── DAY_15_VPS_VERIFICATION_REPORT.md ✅
+    ├── DAY_14_VPS_VERIFICATION_REPORT.md ✅
     ├── DAY_13_VPS_VERIFICATION_REPORT.md ✅
     ├── SESSION_HANDOFF.md (this file)
     └── ...
@@ -363,11 +362,13 @@ threatmatrix-ai/
 
 | Issue | Severity | Notes |
 |-------|----------|-------|
-| Next.js 16 build error | 🟡 | npm run dev works |
-| DEV_MODE enabled | 🟡 | Required for dev |
-| pcap_processor.py missing | 🟢 | Upload endpoint graceful fallback (ImportError) |
-| ml_models table empty | 🟢 | File-based models used; populate table in Week 5 |
-| PDF reports (JSON only) | 🟢 | ReportLab scheduled Week 6 |
+| Next.js 16 build error | 🟡 | npm run dev works; production build fails |
+| DEV_MODE enabled | 🟡 | Required for dev (bypasses auth) |
+| CICIDS2017 validation not run | 🟡 | Loader ready, needs dataset download on VPS → Day 17 |
+| RF lacks feature_importances_ | 🟢 | Graceful empty array response; IF model works |
+| PDF reports not implemented | 🟢 | JSON only; ReportLab scheduled Day 17 |
+| Audit log empty | 🟢 | Scaffold live; event wiring scheduled Day 17 |
+| RBAC not enforced | 🟡 | All endpoints open; RBAC scheduled Day 17 |
 
 ---
 
@@ -393,10 +394,12 @@ threatmatrix-ai/
 |----------|------|-------------|
 | **Master Doc Part 4** | `docs/master-documentation/MASTER_DOC_PART4_ML_LLM.md` | LLM Gateway §9, Threat Intel §11, Tuning §4.4/§5.3 |
 | Master Doc Part 2 | `docs/master-documentation/MASTER_DOC_PART2_ARCHITECTURE.md` | API endpoints §5.1, WebSocket §5.2, DB schema §4.2 |
+| Master Doc Part 3 | `docs/master-documentation/MASTER_DOC_PART3_MODULES.md` | ML Ops §9.1, Admin §11, Reports §10, Forensics §8 |
 | Master Doc Part 5 | `docs/master-documentation/MASTER_DOC_PART5_TIMELINE.md` | Week-by-week plan, task assignments |
-| **Day 14 Verification** | `docs/DAY_14_VPS_VERIFICATION_REPORT.md` | §11.3 compliance, 1,367 IOCs, VT EICAR test |
-| Day 14 Worklog | `docs/worklog/DAY_14_MAR26.md` | Task breakdown, implementation details |
-| Day 13 Verification | `docs/DAY_13_VPS_VERIFICATION_REPORT.md` | Full VPS verification, tuning results |
+| **Day 16 Verification** | `docs/DAY_16_VPS_VERIFICATION_REPORT.md` | 14/14 checks, 46/46 API, ml_models, confusion matrix data |
+| Day 16 Worklog | `docs/worklog/DAY_16_MAR26.md` | Task breakdown, implementation details |
+| **Day 17 Worklog** | `docs/worklog/DAY_17_MAR30.md` | **Current day plan** — CICIDS2017 + enterprise scaffolding |
+| Day 15 Verification | `docs/DAY_15_VPS_VERIFICATION_REPORT.md` | 42/42 API, reports module, CICIDS2017 loader |
 | Session Handoff | `docs/SESSION_HANDOFF.md` | This file |
 
 ---
@@ -413,28 +416,29 @@ threatmatrix-ai/
 | Day 11 | ML Worker, FlowPreprocessor, Alert Engine, Flow Scorer | ✅ |
 | Day 12 | LLM Gateway (OpenRouter), Threat Intel, 9 new endpoints, bug fixes | ✅ |
 | Day 13 | LLM Auto-Narrative, IOC Correlation, /ml/retrain, ml:live, hyperparameter tuning | ✅ |
-| **Day 14** | **3 Threat Intel Providers LIVE, §11.3 Full Compliance, Tuned IF, PCAP Upload** | ✅ |
-| **Day 15** | **Reports Module (3), System Config, Alert IOC Enrichment, IF Retrain, CICIDS2017, 42/42 API** | ✅ |
+| Day 14 | 3 Threat Intel Providers LIVE, §11.3 Full Compliance, Tuned IF, PCAP Upload | ✅ |
+| Day 15 | Reports Module (3), System Config, Alert IOC Enrichment, IF Retrain, CICIDS2017 Loader, 42/42 API | ✅ |
+| **Day 16** | **PCAP Processor (556 lines), ml_models (3 entries), 3 ML Ops Endpoints, Admin Audit Log, 46/46 API** | ✅ |
 
 ---
 
-## Day 16 Plan (Week 5 Day 1 — Feature Depth)
+## Day 17 Plan (Week 5 Day 2 — v0.5.0 Finalization + Week 6 Kickoff)
 
 | # | Task | Priority | What |
 |---|------|----------|------|
-| 1 | **PCAP Processor** | 🔴 | CREATE `pcap_processor.py` — PCAP → flow extraction → ML scoring pipeline |
-| 2 | **CICIDS2017 Validation Run** | 🔴 | Execute `validate_ensemble_on_cicids2017()`, save results to eval JSON |
-| 3 | **Populate ml_models Table** | 🔴 | Insert 3 model entries (IF, RF, AE) with metrics + hyperparams |
-| 4 | **ML Ops Data Endpoints** | 🟡 | Confusion matrix, feature importance, training history (3 new GET endpoints) |
-| 5 | **Admin Audit Log** | 🟢 | CREATE `admin.py` — GET /admin/audit-log scaffold |
+| 1 | **CICIDS2017 Validation** | 🔴 | Execute validation on secondary dataset, save eval results |
+| 2 | **PDF Report Generation** | 🔴 | ReportLab → branded PDF threat summary reports |
+| 3 | **Audit Log Wiring** | 🟡 | Wire login, retrain, alert status → audit_log entries |
+| 4 | **RBAC Middleware** | 🟡 | admin/analyst/viewer role enforcement scaffold |
+| 5 | **LLM Budget Enhancement** | 🟢 | Token tracking in Redis, cost estimation |
 
 ---
 
-_End of Session Handoff — Updated for Day 16 (Week 5 Day 1) plan_
-_v0.4.0 Critical MVP: ACHIEVED ✅ | v0.5.0 Feature Depth: IN PROGRESS_
+_End of Session Handoff — Updated for Day 17 (Week 5 Day 2) plan_
+_v0.4.0 Critical MVP: ACHIEVED ✅ | v0.5.0 Feature Depth: ~90% complete (CICIDS2017 remaining)_
 _E2E Pipeline: capture → ML (105,000+ flows) → alerts → IOC (IP+domain+hash) → LLM narrative → WebSocket_
 _§11.3 Correlation Engine: FULLY COMPLIANT — IP, domain, hash checks all verified_
 _IOC Database: 1,367 indicators from OTX (Silver Fox APT detected)_
 _Ensemble: 80.73% acc | 80.96% F1 | 0.9312 AUC-ROC (LOCKED)_
-_API Coverage: 42/42 (100%) 🎯 — All services at 100%_
-_Day 15 Grade: A | Status: COMPLETE ✅ | Current: Day 16 — PCAP Processor + CICIDS2017 + ML Ops + Admin_
+_API Coverage: 46/46 (100%) 🎯 — All services at 100%_
+_Day 16 Grade: A- | Status: COMPLETE ✅ | Current: Day 17 — CICIDS2017 + PDF Reports + RBAC + Audit Wiring_
