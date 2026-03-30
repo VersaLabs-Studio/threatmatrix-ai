@@ -174,6 +174,8 @@ class CICIDS2017Loader:
           - Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv
           - Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv
 
+        Also supports Zenodo V2 single combined CSV file.
+
         Args:
             csv_dir: Directory containing CICIDS2017 CSV files.
 
@@ -197,7 +199,24 @@ class CICIDS2017Loader:
         frames: List[pd.DataFrame] = []
         for csv_path in csv_files:
             try:
-                df = pd.read_csv(csv_path, low_memory=False)
+                # Check file size - use chunked reading for large files (>500MB)
+                file_size_mb = csv_path.stat().st_size / (1024 * 1024)
+                
+                if file_size_mb > 500:
+                    logger.info(
+                        "Loading large file %s (%.1f MB) with chunked reading...",
+                        csv_path.name, file_size_mb,
+                    )
+                    # Use chunked reading for large files
+                    chunk_size = 100_000  # Read 100k rows at a time
+                    chunks = []
+                    for chunk in pd.read_csv(csv_path, chunksize=chunk_size, low_memory=False):
+                        chunks.append(chunk)
+                    df = pd.concat(chunks, ignore_index=True)
+                else:
+                    # Use standard reading for smaller files
+                    df = pd.read_csv(csv_path, low_memory=False)
+                
                 logger.info(
                     "Loaded %s: %d records, %d columns",
                     csv_path.name, len(df), len(df.columns),
@@ -205,6 +224,17 @@ class CICIDS2017Loader:
                 frames.append(df)
             except Exception as e:
                 logger.warning("Failed to load %s: %s", csv_path.name, e)
+                # Try with Python engine as fallback
+                try:
+                    logger.info("Retrying %s with Python engine...", csv_path.name)
+                    df = pd.read_csv(csv_path, engine='python', low_memory=False)
+                    logger.info(
+                        "Loaded %s with Python engine: %d records, %d columns",
+                        csv_path.name, len(df), len(df.columns),
+                    )
+                    frames.append(df)
+                except Exception as e2:
+                    logger.error("Failed to load %s with Python engine: %s", csv_path.name, e2)
 
         if not frames:
             raise ValueError("No CICIDS2017 CSVs could be loaded")
