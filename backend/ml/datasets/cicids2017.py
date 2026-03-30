@@ -109,7 +109,6 @@ CICIDS_NUMERIC_COLUMNS: List[str] = [
     "Bwd IAT Max",
     "Bwd IAT Min",
     "Fwd Header Length",
-    "Bwd Header Length",
 ]
 
 # CICIDS2017 attack labels → ThreatMatrix attack categories
