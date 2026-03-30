@@ -12,8 +12,10 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_active_user
+from app.dependencies import get_current_active_user, require_role
+from app.models.user import User
 from app.services import alert_service
+from app.services.audit_service import log_audit_event_sync
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -114,9 +116,9 @@ async def update_alert_status(
     alert_id: str = Path(...),
     body: StatusUpdateRequest = ...,
     db: AsyncSession = Depends(get_db),
-    user: Any = Depends(get_current_active_user),
+    user: User = Depends(require_role(["admin", "soc_manager", "analyst"])),
 ) -> dict[str, Any]:
-    """Update alert lifecycle status."""
+    """Update alert lifecycle status. RBAC: admin, soc_manager, analyst."""
     result = await alert_service.update_alert_status(
         db=db,
         alert_id=alert_id,
@@ -125,13 +127,22 @@ async def update_alert_status(
         user_role=user.role,
         resolution_note=body.resolution_note,
     )
-    
+
     if result is None:
         raise HTTPException(status_code=404, detail="Alert not found")
-    
+
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
-    
+
+    # Audit log (fire-and-forget)
+    log_audit_event_sync(
+        action="alert_status_change",
+        entity_type="alert",
+        entity_id=alert_id,
+        user_id=str(user.id),
+        details={"new_status": body.new_status, "resolution_note": body.resolution_note},
+    )
+
     return result
 
 
@@ -140,8 +151,9 @@ async def assign_alert(
     alert_id: str = Path(...),
     body: AssignRequest = ...,
     db: AsyncSession = Depends(get_db),
-    user: Any = Depends(get_current_active_user),
+    user: User = Depends(require_role(["admin", "soc_manager"])),
 ) -> dict[str, Any]:
+    """Assign alert to an analyst. RBAC: admin, soc_manager."""
     """Assign alert to an analyst."""
     result = await alert_service.assign_alert(
         db=db,

@@ -13,10 +13,13 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 
 from app.database import async_session
+from app.dependencies import require_role
+from app.models.user import User
+from app.services.audit_service import log_audit_event_sync
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +59,9 @@ async def feeds_status():
 
 
 @router.post("/sync")
-async def sync_feeds():
+async def sync_feeds(
+    current_user: User = Depends(require_role(["admin"])),
+):
     """
     Trigger OTX feed sync and populate threat_intel_iocs table.
     Per MASTER_DOC_PART4 §11.1-11.2: Pull latest pulses, extract IOCs,
@@ -112,6 +117,14 @@ async def sync_feeds():
                 iocs_inserted += 1
 
         await session.commit()
+
+    # Audit log (fire-and-forget)
+    log_audit_event_sync(
+        action="ioc_sync",
+        entity_type="threat_intel",
+        user_id=str(current_user.id),
+        details={"synced_pulses": len(pulses), "iocs_inserted": iocs_inserted},
+    )
 
     logger.info(
         "[Intel API] OTX sync complete: %d pulses, %d IOCs inserted",

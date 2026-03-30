@@ -18,8 +18,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import time
-from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, AsyncIterator, Dict, List, Optional
 
@@ -162,11 +160,16 @@ class LLMGateway:
             "by_model": {},
         }
         self._client: Optional[httpx.AsyncClient] = None
+        self._redis: Any = None
 
         if self.enabled:
             logger.info("[LLM] OpenRouter gateway initialized (key present)")
         else:
             logger.warning("[LLM] OPENROUTER_API_KEY not set — LLM features disabled")
+
+    def set_redis(self, redis_manager: Any) -> None:
+        """Set Redis manager for persistent budget tracking."""
+        self._redis = redis_manager
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -195,6 +198,25 @@ class LLMGateway:
         except KeyError as e:
             logger.error("[LLM] Missing prompt variable: %s", e)
             return template
+
+    async def _persist_usage(
+        self,
+        model: str,
+        tokens_in: int,
+        tokens_out: int,
+    ) -> None:
+        """Persist token usage to Redis for cross-restart budget tracking."""
+        if self._redis is None:
+            return
+        try:
+            client = self._redis.client
+            await client.incrby("llm:tokens_in", tokens_in)
+            await client.incrby("llm:tokens_out", tokens_out)
+            await client.hincrby("llm:requests_by_model", model, 1)
+            # All models are free tier — cost tracked as 0 but structure ready
+            await client.incrbyfloat("llm:cost_usd", 0.0)
+        except Exception as e:
+            logger.warning("[LLM] Redis persist failed: %s", e)
 
     async def chat(
         self,
@@ -233,6 +255,13 @@ class LLMGateway:
             self.stats["tokens_in"] += usage.get("prompt_tokens", 0)
             self.stats["tokens_out"] += usage.get("completion_tokens", 0)
             self.stats["by_model"][model] = self.stats["by_model"].get(model, 0) + 1
+
+            # Persist to Redis (fire-and-forget)
+            await self._persist_usage(
+                model=model,
+                tokens_in=usage.get("prompt_tokens", 0),
+                tokens_out=usage.get("completion_tokens", 0),
+            )
 
             logger.info(
                 "[LLM] %s — %d in / %d out tokens",
@@ -370,7 +399,7 @@ class LLMGateway:
         )
 
     def get_budget_status(self) -> Dict[str, Any]:
-        """Return budget and usage stats."""
+        """Return budget and usage stats (Redis-persisted with in-memory fallback)."""
         return {
             "enabled": self.enabled,
             "provider": "openrouter",
@@ -379,7 +408,35 @@ class LLMGateway:
             "models_available": list(set(
                 m for models in TASK_MODEL_ROUTING.values() for m in models
             )),
+            "persistent": self._redis is not None,
         }
+
+    async def get_budget_status_async(self) -> Dict[str, Any]:
+        """Return budget and usage stats from Redis (persistent)."""
+        base = self.get_budget_status()
+
+        if self._redis is None:
+            return base
+
+        try:
+            client = self._redis.client
+            tokens_in = await client.get("llm:tokens_in")
+            tokens_out = await client.get("llm:tokens_out")
+            cost_usd = await client.get("llm:cost_usd")
+            by_model_raw = await client.hgetall("llm:requests_by_model")
+
+            base["stats"] = {
+                "requests": sum(int(v) for v in by_model_raw.values()) if by_model_raw else self.stats["requests"],
+                "tokens_in": int(tokens_in) if tokens_in else self.stats["tokens_in"],
+                "tokens_out": int(tokens_out) if tokens_out else self.stats["tokens_out"],
+                "errors": self.stats["errors"],
+                "cost_usd": float(cost_usd) if cost_usd else self.stats["cost_usd"],
+                "by_model": {k: int(v) for k, v in by_model_raw.items()} if by_model_raw else self.stats["by_model"],
+            }
+        except Exception as e:
+            logger.warning("[LLM] Redis budget read failed: %s", e)
+
+        return base
 
     async def close(self) -> None:
         """Close HTTP client."""

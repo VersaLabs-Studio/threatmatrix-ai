@@ -10,10 +10,12 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 
 from app.database import async_session
+from app.dependencies import require_role
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,9 @@ async def get_audit_log(
     limit: int = Query(50, ge=1, le=200, description="Max entries to return"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     action: Optional[str] = Query(None, description="Filter by action type"),
+    current_user: User = Depends(require_role(["admin"])),
 ) -> Dict[str, Any]:
+    """RBAC: admin only."""
     """
     Get system audit log entries.
 

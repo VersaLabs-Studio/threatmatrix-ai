@@ -13,8 +13,12 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
+from app.dependencies import require_role
+from app.models.user import User
+from app.services.audit_service import log_audit_event_sync
 
 router = APIRouter(prefix="/ml", tags=["ML Models"])
 logger = logging.getLogger(__name__)
@@ -95,7 +99,6 @@ class PredictResponse(BaseModel):
 @router.post("/predict", response_model=PredictResponse)
 async def predict_flow(request: PredictRequest) -> PredictResponse:
     """Score a flow with the ML ensemble."""
-    import numpy as np
     from ml.inference.preprocessor import FlowPreprocessor
     from ml.inference.model_manager import ModelManager
 
@@ -153,7 +156,10 @@ _retrain_tasks: Dict[str, Dict[str, Any]] = {}
 
 
 @router.post("/retrain", response_model=RetrainResponse)
-async def retrain_models(request: RetrainRequest) -> RetrainResponse:
+async def retrain_models(
+    request: RetrainRequest,
+    current_user: User = Depends(require_role(["admin"])),
+) -> RetrainResponse:
     """
     Trigger model retraining as a background subprocess.
 
@@ -185,6 +191,15 @@ async def retrain_models(request: RetrainRequest) -> RetrainResponse:
         "models": request.models,
     }
     asyncio.create_task(_run_retraining(task_id, request.dataset))
+
+    # Audit log (fire-and-forget)
+    log_audit_event_sync(
+        action="model_retrain",
+        entity_type="model",
+        entity_id=task_id,
+        user_id=str(current_user.id),
+        details={"dataset": request.dataset, "models": request.models},
+    )
 
     logger.info(
         "[ML] Retrain triggered: task=%s, dataset=%s, models=%s",

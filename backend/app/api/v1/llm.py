@@ -160,6 +160,6 @@ async def translate(request: TranslateRequest):
 
 @router.get("/budget")
 async def get_budget():
-    """Token usage and budget status."""
+    """Token usage and budget status (Redis-persisted)."""
     gateway = get_gateway()
-    return gateway.get_budget_status()
+    return await gateway.get_budget_status_async()

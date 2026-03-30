@@ -11,7 +11,7 @@ Per MASTER_DOC_PART3 §10.1 — 6 report types:
   network_health, compliance
 
 Reports stored as JSON in system_config table (key = report:{uuid}).
-PDF generation (ReportLab) deferred to Week 6 per timeline.
+PDF generation via ReportLab (Week 6).
 """
 
 from __future__ import annotations
@@ -20,13 +20,18 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import text
 
 from app.database import async_session
+from app.dependencies import require_role
+from app.models.user import User
+from app.services.audit_service import log_audit_event_sync
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +56,7 @@ class ReportRequest(BaseModel):
     date_range_start: Optional[str] = None  # ISO 8601
     date_range_end: Optional[str] = None
     alert_id: Optional[str] = None  # Required for incident reports
+    format: str = "json"  # "json" or "pdf"
 
 
 # ── Data Gathering Helpers ─────────────────────────────────────────
@@ -221,19 +227,27 @@ async def _gather_compliance(session) -> dict:
 
 
 @router.post("/generate")
-async def generate_report(request: ReportRequest) -> dict:
+async def generate_report(
+    request: ReportRequest,
+    current_user: User = Depends(require_role(["admin", "analyst"])),
+) -> dict:
     """
     Generate a report (async).
     Per MASTER_DOC_PART3 §10.1: 6 report types supported.
-
-    Reports are generated as JSON summaries. PDF generation
-    (ReportLab) is planned for Week 6 per project timeline.
+    Supports JSON and PDF output formats.
+    RBAC: admin, analyst.
     """
     if request.report_type not in VALID_REPORT_TYPES:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid report_type '{request.report_type}'. "
             f"Valid types: {sorted(VALID_REPORT_TYPES)}",
+        )
+
+    if request.format not in ("json", "pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid format. Supported: json, pdf",
         )
 
     report_id = str(uuid.uuid4())
@@ -263,6 +277,27 @@ async def generate_report(request: ReportRequest) -> dict:
         elif request.report_type == "compliance":
             report_data = await _gather_compliance(session)
 
+        # Generate PDF if requested
+        pdf_path: Optional[str] = None
+        if request.format == "pdf":
+            try:
+                from app.services.report_generator import generate_pdf_report
+
+                title = request.title or f"{request.report_type.replace('_', ' ').title()} Report"
+                pdf_file = generate_pdf_report(
+                    report_type=request.report_type,
+                    report_data=report_data,
+                    title=title,
+                    report_id=report_id,
+                )
+                pdf_path = str(pdf_file)
+            except Exception as e:
+                logger.error("[Reports] PDF generation failed: %s", e)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"PDF generation failed: {e}",
+                )
+
         # Persist report metadata in system_config table
         report_value = json.dumps(
             {
@@ -273,7 +308,8 @@ async def generate_report(request: ReportRequest) -> dict:
                 "status": "complete",
                 "data": report_data,
                 "generated_at": now.isoformat(),
-                "format": "json",
+                "format": request.format,
+                "pdf_path": pdf_path,
             }
         )
 
@@ -292,8 +328,18 @@ async def generate_report(request: ReportRequest) -> dict:
         )
         await session.commit()
 
+    # Audit log (fire-and-forget)
+    log_audit_event_sync(
+        action="report_generated",
+        entity_type="report",
+        entity_id=report_id,
+        user_id=str(current_user.id),
+        details={"report_type": request.report_type, "format": request.format},
+    )
+
     logger.info(
-        "[Reports] Generated %s report %s", request.report_type, report_id
+        "[Reports] Generated %s report %s (format=%s)",
+        request.report_type, report_id, request.format,
     )
 
     return {
@@ -302,7 +348,9 @@ async def generate_report(request: ReportRequest) -> dict:
         "title": request.title
         or f"{request.report_type.replace('_', ' ').title()} Report",
         "status": "complete",
-        "data": report_data,
+        "data": report_data if request.format == "json" else None,
+        "format": request.format,
+        "pdf_path": pdf_path,
         "generated_at": now.isoformat(),
     }
 
@@ -361,13 +409,12 @@ async def list_reports(
 
 
 @router.get("/{report_id}/download")
-async def download_report(report_id: str) -> dict:
+async def download_report(report_id: str):
     """
     Download a generated report.
     Per MASTER_DOC_PART2 §5.1.
 
-    Returns full report data as JSON. PDF generation (ReportLab)
-    is planned for Week 6.
+    Returns PDF file if report was generated as PDF, otherwise JSON data.
     """
     async with async_session() as session:
         result = await session.execute(
@@ -381,12 +428,22 @@ async def download_report(report_id: str) -> dict:
 
     data = row[0] if isinstance(row[0], dict) else json.loads(row[0])
 
+    # Serve PDF if available
+    if data.get("format") == "pdf" and data.get("pdf_path"):
+        pdf_path = Path(data["pdf_path"])
+        if pdf_path.exists():
+            return FileResponse(
+                path=str(pdf_path),
+                media_type="application/pdf",
+                filename=f"{data.get('report_type', 'report')}_{report_id}.pdf",
+            )
+
+    # Fallback to JSON
     return {
         "id": report_id,
         "report_type": data.get("report_type"),
         "title": data.get("title"),
         "data": data.get("data", {}),
         "generated_at": data.get("generated_at"),
-        "format": "json",
-        "note": "PDF generation available in Week 6 (ReportLab)",
+        "format": data.get("format", "json"),
     }

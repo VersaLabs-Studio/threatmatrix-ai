@@ -83,6 +83,8 @@ async def lifespan(app: FastAPI):
     from app.api.v1.llm import set_gateway
     try:
         llm_gw = LLMGateway()
+        if app.state.redis_manager:
+            llm_gw.set_redis(app.state.redis_manager)
         set_gateway(llm_gw)
         app.state.llm_gateway = llm_gw
         if llm_gw.enabled:

@@ -18,6 +18,7 @@ from app.dependencies import get_current_user, require_role
 from app.models.user import User
 from app.schemas.auth import TokenRefresh, TokenResponse, UserCreate, UserLogin, UserResponse
 from app.services.auth_service import AuthService
+from app.services.audit_service import log_audit_event_sync
 
 router = APIRouter()
 
@@ -78,9 +79,16 @@ async def login(
     No authentication required.
     """
     auth_service = AuthService(db)
-    
+
     try:
         token_response = await auth_service.login(login_data)
+        # Audit log (fire-and-forget)
+        log_audit_event_sync(
+            action="login",
+            entity_type="user",
+            user_id=str(token_response.user_id) if hasattr(token_response, 'user_id') else None,
+            details={"email": login_data.email},
+        )
         return token_response
     except ValueError as e:
         raise HTTPException(
