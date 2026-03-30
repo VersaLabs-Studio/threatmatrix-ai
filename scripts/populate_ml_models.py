@@ -126,19 +126,24 @@ async def populate_ml_models() -> int:
             )
         )
         # Ensure unique constraint on name (no-op if already exists)
-        await session.execute(
-            text(
-                """
-                DO $$ BEGIN
-                    ALTER TABLE ml_models ADD CONSTRAINT ml_models_name_unique
-                    UNIQUE (name);
-                EXCEPTION WHEN duplicate_object THEN
-                    NULL;
-                END $$
-                """
+        try:
+            await session.execute(
+                text(
+                    """
+                    DO $$ BEGIN
+                        ALTER TABLE ml_models ADD CONSTRAINT ml_models_name_unique
+                        UNIQUE (name);
+                    EXCEPTION WHEN duplicate_object THEN
+                        NULL;
+                    END $$
+                    """
+                )
             )
-        )
-        await session.commit()
+            await session.commit()
+        except Exception:
+            # asyncpg may raise DuplicateTableError at driver level
+            # before PL/pgSQL exception handler fires
+            await session.rollback()
 
     async with async_session() as session:
         for m in MODEL_DEFINITIONS:
