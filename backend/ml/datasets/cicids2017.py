@@ -31,85 +31,85 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 logger = logging.getLogger(__name__)
 
-# CICIDS2017 numeric columns to extract (in order)
+# CICIDS2017 numeric columns to extract (40 features matching NSL-KDD feature space)
+# Mapped to NSL-KDD features for cross-dataset validation
 CICIDS_NUMERIC_COLUMNS: List[str] = [
+    # Duration (Flow Duration)
     "Flow Duration",
-    "Total Fwd Packets",
-    "Total Backward Packets",
-    "Total Length of Fwd Packets",
-    "Total Length of Bwd Packets",
-    "Fwd Packet Length Max",
-    "Fwd Packet Length Min",
-    "Fwd Packet Length Mean",
-    "Fwd Packet Length Std",
-    "Bwd Packet Length Max",
-    "Bwd Packet Length Min",
-    "Bwd Packet Length Mean",
-    "Bwd Packet Length Std",
-    "Flow Bytes/s",
-    "Flow Packets/s",
-    "Flow IAT Mean",
-    "Flow IAT Std",
-    "Flow IAT Max",
-    "Flow IAT Min",
-    "Fwd IAT Total",
-    "Fwd IAT Mean",
-    "Fwd IAT Std",
-    "Fwd IAT Max",
-    "Fwd IAT Min",
-    "Bwd IAT Total",
-    "Bwd IAT Mean",
+    # Bytes (src_bytes, dst_bytes)
+    "Total Length of Fwd Packets",  # Maps to src_bytes
+    "Total Length of Bwd Packets",  # Maps to dst_bytes
+    # Packet counts (count, srv_count)
+    "Total Fwd Packets",  # Maps to count
+    "Fwd Packets/s",  # Maps to srv_count
+    # Fragment (wrong_fragment)
+    "Fwd PSH Flags",  # Proxy for fragmentation
+    # Urgent (urgent)
+    "Fwd URG Flags",  # Maps to urgent
+    # Hot indicators (hot)
+    "Bwd PSH Flags",  # Proxy for hot
+    # Failed logins (num_failed_logins)
+    "Bwd URG Flags",  # Proxy for failed logins
+    # Logged in (logged_in)
+    "SYN Flag Count",  # Proxy for login attempts
+    # Compromised (num_compromised)
+    "RST Flag Count",  # Proxy for compromised
+    # Root shell (root_shell)
+    "FIN Flag Count",  # Proxy for root shell
+    # Su attempted (su_attempted)
+    "PSH Flag Count",  # Proxy for su
+    # Num root (num_root)
+    "ACK Flag Count",  # Proxy for root access
+    # File creations (num_file_creations)
+    "URG Flag Count",  # Proxy for file ops
+    # Shells (num_shells)
+    "CWE Flag Count",  # Proxy for shells
+    # Access files (num_access_files)
+    "ECE Flag Count",  # Proxy for access
+    # Host login (is_host_login)
+    "Down/Up Ratio",  # Proxy for host login
+    # Guest login (is_guest_login)
+    "Average Packet Size",  # Proxy for guest login
+    # Serror rate
+    "Fwd Packet Length Mean",  # Proxy for serror
+    # Srv serror rate
+    "Fwd Packet Length Std",  # Proxy for srv_serror
+    # Rerror rate
+    "Bwd Packet Length Mean",  # Proxy for rerror
+    # Srv rerror rate
+    "Bwd Packet Length Std",  # Proxy for srv_rerror
+    # Same srv rate
+    "Flow Bytes/s",  # Proxy for same_srv
+    # Diff srv rate
+    "Flow Packets/s",  # Proxy for diff_srv
+    # Srv diff host rate
+    "Flow IAT Mean",  # Proxy for srv_diff_host
+    # Dst host count
+    "Flow IAT Std",  # Proxy for dst_host_count
+    # Dst host srv count
+    "Flow IAT Max",  # Proxy for dst_host_srv_count
+    # Dst host same srv rate
+    "Flow IAT Min",  # Proxy for dst_host_same_srv
+    # Dst host diff srv rate
+    "Fwd IAT Total",  # Proxy for dst_host_diff_srv
+    # Dst host same src port rate
+    "Fwd IAT Mean",  # Proxy for dst_host_same_src_port
+    # Dst host srv diff host rate
+    "Fwd IAT Std",  # Proxy for dst_host_srv_diff_host
+    # Dst host serror rate
+    "Fwd IAT Max",  # Proxy for dst_host_serror
+    # Dst host srv serror rate
+    "Fwd IAT Min",  # Proxy for dst_host_srv_serror
+    # Dst host rerror rate
+    "Bwd IAT Total",  # Proxy for dst_host_rerror
+    # Dst host srv rerror rate
+    "Bwd IAT Mean",  # Proxy for dst_host_srv_rerror
+    # Additional features
     "Bwd IAT Std",
     "Bwd IAT Max",
     "Bwd IAT Min",
-    "Fwd PSH Flags",
-    "Bwd PSH Flags",
-    "Fwd URG Flags",
-    "Bwd URG Flags",
     "Fwd Header Length",
     "Bwd Header Length",
-    "Fwd Packets/s",
-    "Bwd Packets/s",
-    "Min Packet Length",
-    "Max Packet Length",
-    "Packet Length Mean",
-    "Packet Length Std",
-    "Packet Length Variance",
-    "FIN Flag Count",
-    "SYN Flag Count",
-    "RST Flag Count",
-    "PSH Flag Count",
-    "ACK Flag Count",
-    "URG Flag Count",
-    "CWE Flag Count",
-    "ECE Flag Count",
-    "Down/Up Ratio",
-    "Average Packet Size",
-    "Avg Fwd Segment Size",
-    "Avg Bwd Segment Size",
-    "Fwd Header Length.1",
-    "Fwd Avg Bytes/Bulk",
-    "Fwd Avg Packets/Bulk",
-    "Fwd Avg Bulk Rate",
-    "Bwd Avg Bytes/Bulk",
-    "Bwd Avg Packets/Bulk",
-    "Bwd Avg Bulk Rate",
-    "Subflow Fwd Packets",
-    "Subflow Fwd Bytes",
-    "Subflow Bwd Packets",
-    "Subflow Bwd Bytes",
-    "Init_Win_bytes_forward",
-    "Init_Win_bytes_backward",
-    "act_data_pkt_fwd",
-    "min_seg_size_forward",
-    "Active Mean",
-    "Active Std",
-    "Active Max",
-    "Active Min",
-    "Idle Mean",
-    "Idle Std",
-    "Idle Max",
-    "Idle Min",
 ]
 
 # CICIDS2017 attack labels → ThreatMatrix attack categories
