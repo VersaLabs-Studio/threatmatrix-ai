@@ -13,8 +13,7 @@
 
 import { useMemo, useState } from 'react';
 import { DeckGL } from 'deck.gl';
-import { ScatterplotLayer } from '@deck.gl/layers';
-import { ArcLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, ArcLayer } from '@deck.gl/layers';
 import { HeatmapLayer } from '@deck.gl/aggregation-layers';
 import Map from 'react-map-gl/maplibre';
 import type { FlowEvent } from '@/hooks/useWebSocket';
@@ -53,9 +52,10 @@ const INITIAL_VIEW_STATE = {
 
 interface ThreatMapProps {
   recentFlows?: FlowEvent[];
+  loading?: boolean;
 }
 
-export function ThreatMap({ recentFlows = [] }: ThreatMapProps) {
+export function ThreatMap({ recentFlows = [], loading = false }: ThreatMapProps) {
   const [hovered, setHovered] = useState<GeoFlow | null>(null);
 
   // Merge live flows with seed flows; cap at 200 for performance
@@ -81,7 +81,6 @@ export function ThreatMap({ recentFlows = [] }: ThreatMapProps) {
   // ── Deck.gl Layers ────────────────────────────────────
 
   const layers = [
-    // 1. Heatmap of all traffic
     new HeatmapLayer({
       id:           'heatmap',
       data:         flows,
@@ -97,23 +96,21 @@ export function ThreatMap({ recentFlows = [] }: ThreatMapProps) {
       ],
     }),
 
-    // 2. All source/destination IP dots
     new ScatterplotLayer({
       id:              'scatter',
       data:            flows,
       getPosition:     (d: GeoFlow) => [d.srcLon, d.srcLat],
       getRadius:       (d: GeoFlow) => d.isAnomaly ? 80000 : 40000,
       getFillColor:    (d: GeoFlow) => d.isAnomaly
-        ? [239, 68, 68, 220]   // Red for anomalous
-        : [0, 240, 255, 140],  // Cyan for normal
+        ? [239, 68, 68, 220]
+        : [0, 240, 255, 140],
       radiusMinPixels: 3,
       radiusMaxPixels: 14,
       pickable:        true,
-      onHover:         (info: any) => setHovered(info.object as GeoFlow | null),
+      onHover:         (info: { object?: GeoFlow }) => setHovered(info.object ?? null),
       updateTriggers:  { getRadius: flows.length, getFillColor: flows.length },
     }),
 
-    // 3. Attack arcs for anomalous flows only
     new ArcLayer({
       id:             'arcs',
       data:           flows.filter((f) => f.isAnomaly),
@@ -126,44 +123,39 @@ export function ThreatMap({ recentFlows = [] }: ThreatMapProps) {
     }),
   ];
 
+  const anomalyCount = flows.filter(f => f.isAnomaly).length;
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-      <DeckGL
-        initialViewState={INITIAL_VIEW_STATE}
-        controller={true}
-        layers={layers}
-        style={{ width: '100%', height: '100%' }}
-      >
-        <Map
-          mapStyle={MAP_STYLE}
-          attributionControl={false}
-        />
-      </DeckGL>
+      {loading ? (
+        <div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: 'var(--radius-md)' }} />
+      ) : (
+        <DeckGL
+          initialViewState={INITIAL_VIEW_STATE}
+          controller={true}
+          layers={layers}
+          style={{ width: '100%', height: '100%' }}
+        >
+          <Map mapStyle={MAP_STYLE} attributionControl={false} />
+        </DeckGL>
+      )}
 
       {/* Layer controls */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 8, right: 8,
-          display: 'flex',
-          gap: 6,
-          zIndex: 10,
-        }}
-      >
+      <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 6, zIndex: 10 }}>
         {[
-          { label: 'Scatter', color: '#00f0ff' },
-          { label: 'Arcs',    color: '#ef4444' },
-          { label: 'Heat',    color: '#f59e0b' },
+          { label: 'Scatter', color: 'var(--cyan)' },
+          { label: 'Arcs',    color: 'var(--critical)' },
+          { label: 'Heat',    color: 'var(--warning)' },
         ].map((item) => (
           <div
             key={item.label}
             style={{
               display: 'flex', alignItems: 'center', gap: 4,
               background: 'rgba(10,10,15,0.75)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 4,
+              border: '1px solid var(--glass-border)',
+              borderRadius: 'var(--radius-sm)',
               padding: '3px 8px',
-              fontFamily: '"JetBrains Mono", monospace',
+              fontFamily: 'var(--font-data)',
               fontSize: '0.6rem',
               color: item.color,
             }}
@@ -180,22 +172,22 @@ export function ThreatMap({ recentFlows = [] }: ThreatMapProps) {
           style={{
             position: 'absolute',
             bottom: 12, left: 12,
-            background: 'rgba(17,17,24,0.92)',
-            border: '1px solid rgba(0,240,255,0.2)',
-            borderRadius: 8,
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-active)',
+            borderRadius: 'var(--radius-md)',
             padding: '8px 12px',
-            fontFamily: '"JetBrains Mono", monospace',
+            fontFamily: 'var(--font-data)',
             fontSize: '0.7rem',
-            color: '#e2e8f0',
+            color: 'var(--text-primary)',
             zIndex: 10,
           }}
         >
-          <div style={{ color: hovered.isAnomaly ? '#ef4444' : '#00f0ff', fontWeight: 700, marginBottom: 4 }}>
-            {hovered.isAnomaly ? '⚠ ANOMALOUS FLOW' : '● NORMAL FLOW'}
+          <div style={{ color: hovered.isAnomaly ? 'var(--critical)' : 'var(--cyan)', fontWeight: 700, marginBottom: 4 }}>
+            {hovered.isAnomaly ? 'ANOMALOUS FLOW' : 'NORMAL FLOW'}
           </div>
           <div>SRC: {hovered.srcIp}</div>
           <div>DST: {hovered.dstIp}</div>
-          <div style={{ color: hovered.isAnomaly ? '#ef4444' : '#94a3b8', marginTop: 2 }}>
+          <div style={{ color: hovered.isAnomaly ? 'var(--critical)' : 'var(--text-muted)', marginTop: 2 }}>
             Score: {(hovered.score * 100).toFixed(0)}%
           </div>
         </div>
@@ -208,22 +200,22 @@ export function ThreatMap({ recentFlows = [] }: ThreatMapProps) {
           top: 8, left: 8,
           display: 'flex', alignItems: 'center', gap: 6,
           background: 'rgba(10,10,15,0.75)',
-          border: '1px solid rgba(0,240,255,0.15)',
-          borderRadius: 20,
+          border: '1px solid var(--border-active)',
+          borderRadius: 'var(--radius-full)',
           padding: '4px 10px',
-          fontFamily: '"JetBrains Mono", monospace',
+          fontFamily: 'var(--font-data)',
           fontSize: '0.65rem',
-          color: '#00f0ff',
+          color: 'var(--cyan)',
           zIndex: 10,
         }}
       >
         <span style={{
           width: 6, height: 6, borderRadius: '50%',
-          background: '#00f0ff',
+          background: 'var(--cyan)',
           animation: 'pulse 2s ease-in-out infinite',
           flexShrink: 0,
         }} />
-        {flows.filter(f => f.isAnomaly).length} anomalous · {flows.length} total flows
+        {anomalyCount} anomalous · {flows.length} total flows
       </div>
     </div>
   );

@@ -38,7 +38,7 @@ export function GeoDistribution({ data = MOCK_GEO }: GeoDistributionProps) {
             <span style={{ fontSize: '1rem', flexShrink: 0 }}>{entry.flag}</span>
             <span
               style={{
-                fontFamily: '"JetBrains Mono", monospace',
+                fontFamily: 'var(--font-data)',
                 fontSize: '0.72rem',
                 color: entry.isAnomaly ? 'var(--critical)' : 'var(--text-muted)',
                 flex: 1,
@@ -69,7 +69,7 @@ export function GeoDistribution({ data = MOCK_GEO }: GeoDistributionProps) {
             </div>
             <span
               style={{
-                fontFamily: '"JetBrains Mono", monospace',
+                fontFamily: 'var(--font-data)',
                 fontSize: '0.7rem',
                 color: entry.isAnomaly ? 'var(--critical)' : 'var(--text-primary)',
                 width: '2.5rem',

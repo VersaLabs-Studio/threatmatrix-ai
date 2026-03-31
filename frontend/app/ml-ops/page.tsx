@@ -5,14 +5,31 @@
 // Model Performance and Training Dashboard
 // ═══════════════════════════════════════════════════════
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useMLModels } from '@/hooks/useMLModels';
 import { mlService } from '@/lib/services';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 import { AuthGuard } from '@/components/auth/AuthGuard';
+import { api } from '@/lib/api';
 import { Brain, Activity, Zap, Target, CheckCircle, Clock, RefreshCw } from 'lucide-react';
 import type { MLComparisonResponse } from '@/lib/types';
 import { API_BASE_URL } from '@/lib/constants';
+
+interface TrainingHistoryEntry {
+  id: string;
+  name: string;
+  model_type: string;
+  status: string;
+  metrics?: {
+    accuracy?: number;
+    f1_score?: number;
+    precision?: number;
+    recall?: number;
+    auc_roc?: number;
+  };
+  training_time?: number;
+  trained_at?: string;
+}
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   isolation_forest: 'Isolation Forest',
@@ -31,6 +48,7 @@ const MODEL_TYPES: Record<string, string> = {
 export default function MLOpsPage() {
   const { models, trainedCount, loading, error } = useMLModels();
   const [comparison, setComparison] = useState<MLComparisonResponse | null>(null);
+  const [trainingHistory, setTrainingHistory] = useState<TrainingHistoryEntry[]>([]);
   const [retraining, setRetraining] = useState(false);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [retrainStatus, setRetrainStatus] = useState<string | null>(null);
@@ -40,6 +58,15 @@ export default function MLOpsPage() {
       if (data) setComparison(data);
     });
   }, []);
+
+  const fetchTrainingHistory = useCallback(async () => {
+    const { data } = await api.get<TrainingHistoryEntry[]>('/api/v1/ml/training-history');
+    if (data && Array.isArray(data)) setTrainingHistory(data);
+  }, []);
+
+  useEffect(() => {
+    void fetchTrainingHistory();
+  }, [fetchTrainingHistory]);
 
   // Poll retrain status if task is active
   useEffect(() => {
@@ -269,33 +296,41 @@ export default function MLOpsPage() {
         </GlassPanel>
 
         {/* Hyperparameter Tuning Results */}
-        <GlassPanel static title="HYPERPARAMETER TUNING RESULTS" icon="🏆">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-4)' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 8 }}>ISOLATION FOREST</div>
-              <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                <div>Current F1: <span style={{ color: 'var(--text-primary)' }}>78.75%</span></div>
-                <div>Tuned F1: <span style={{ color: 'var(--safe)' }}>83.03%</span></div>
-                <div style={{ color: 'var(--safe)', fontWeight: 700, marginTop: 4 }}>+4.28% F1</div>
-              </div>
+        <GlassPanel static title="MODEL TRAINING HISTORY" icon="🏆">
+          {trainingHistory.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(trainingHistory.length, 4)}, 1fr)`, gap: 'var(--space-4)' }}>
+              {trainingHistory.map((entry) => {
+                const m = entry.metrics;
+                return (
+                  <div key={entry.id} style={{ textAlign: 'center', background: 'rgba(0,240,255,0.03)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)' }}>
+                    <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 8 }}>
+                      {MODEL_DISPLAY_NAMES[entry.model_type] || entry.name}
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                      {m?.accuracy !== undefined && (
+                        <div>Accuracy: <span style={{ color: 'var(--cyan)', fontWeight: 700 }}>{(m.accuracy * 100).toFixed(1)}%</span></div>
+                      )}
+                      {m?.f1_score !== undefined && (
+                        <div>F1 Score: <span style={{ color: 'var(--safe)', fontWeight: 700 }}>{(m.f1_score * 100).toFixed(2)}%</span></div>
+                      )}
+                      {m?.auc_roc !== undefined && (
+                        <div>AUC-ROC: <span style={{ color: 'var(--warning)', fontWeight: 700 }}>{m.auc_roc.toFixed(4)}</span></div>
+                      )}
+                    </div>
+                    {entry.training_time && (
+                      <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.55rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                        Train time: {entry.training_time.toFixed(1)}s
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 8 }}>RANDOM FOREST</div>
-              <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                <div>Current F1: <span style={{ color: 'var(--text-primary)' }}>69.45%</span></div>
-                <div>Tuned F1: <span style={{ color: 'var(--safe)' }}>70.08%</span></div>
-                <div style={{ color: 'var(--safe)', fontWeight: 700, marginTop: 4 }}>+0.63% F1</div>
-              </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: 'var(--space-4)', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
+              Loading training history from server...
             </div>
-            <div style={{ textAlign: 'center', background: 'rgba(0,240,255,0.05)', borderRadius: 'var(--radius-sm)', padding: 'var(--space-3)' }}>
-              <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--cyan)', marginBottom: 8 }}>🏆 ENSEMBLE (BEST)</div>
-              <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                <div>Accuracy: <span style={{ color: 'var(--cyan)', fontWeight: 700 }}>80.73%</span></div>
-                <div>F1 Score: <span style={{ color: 'var(--cyan)', fontWeight: 700 }}>78.82%</span></div>
-                <div>AUC-ROC: <span style={{ color: 'var(--cyan)', fontWeight: 700 }}>94.77%</span></div>
-              </div>
-            </div>
-          </div>
+          )}
         </GlassPanel>
 
         {/* Training Config */}
@@ -310,20 +345,22 @@ export default function MLOpsPage() {
               <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.75rem', color: 'var(--text-primary)', fontWeight: 600 }}>NSL-KDD</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-              <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>Training Time</span>
-              <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.75rem', color: 'var(--text-primary)', fontWeight: 600 }}>114.1s</span>
+              <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>Models Trained</span>
+              <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.75rem', color: 'var(--text-primary)', fontWeight: 600 }}>{trainedCount}/3</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-              <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>Train Samples</span>
-              <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.75rem', color: 'var(--text-primary)', fontWeight: 600 }}>125,973</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-              <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>Test Samples</span>
-              <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.75rem', color: 'var(--text-primary)', fontWeight: 600 }}>22,544</span>
+              <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>Total Training Time</span>
+              <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.75rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                {trainingHistory.reduce((sum, e) => sum + (e.training_time || 0), 0).toFixed(1)}s
+              </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>Features</span>
               <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.75rem', color: 'var(--text-primary)', fontWeight: 600 }}>40 (→ 63 live)</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>Ensemble Weights</span>
+              <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.75rem', color: 'var(--text-primary)', fontWeight: 600 }}>0.30 / 0.45 / 0.25</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>Classes</span>

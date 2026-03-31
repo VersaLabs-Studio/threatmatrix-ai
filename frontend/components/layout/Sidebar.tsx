@@ -14,6 +14,7 @@ import {
   Bell, FlaskConical, BrainCircuit, BarChart3, Settings,
 } from 'lucide-react';
 import { cx } from '@/lib/utils';
+import { APP_VERSION } from '@/lib/constants';
 import { useAlerts } from '@/hooks/useAlerts';
 import { useMLModels } from '@/hooks/useMLModels';
 
@@ -71,7 +72,7 @@ export function Sidebar() {
       {/* Nav items */}
       {NAV_ITEMS.map((item) => {
         const Icon    = ICON_MAP[item.icon];
-        const isActive = pathname.startsWith(item.href);
+        const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
 
         // Compute badge count for specific items
         let badgeCount = 0;
@@ -128,7 +129,7 @@ export function Sidebar() {
           transform: 'rotate(180deg)',
         }}
       >
-        v0.1.0
+        {APP_VERSION}
       </div>
     </nav>
   );

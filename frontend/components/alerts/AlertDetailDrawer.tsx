@@ -8,6 +8,7 @@
 import { X, Shield, Clock, MapPin, Zap, User, CheckCircle, AlertTriangle, Bot } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import type { AlertResponse } from '@/lib/types';
+import type { AlertStatus } from '@/lib/constants';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatTime, formatIP } from '@/lib/utils';
 import { GlassPanel } from '@/components/shared/GlassPanel';
@@ -15,7 +16,7 @@ import { GlassPanel } from '@/components/shared/GlassPanel';
 interface AlertDetailDrawerProps {
   alert: AlertResponse | null;
   onClose: () => void;
-  onUpdateStatus: (id: string, status: any) => void;
+  onUpdateStatus: (id: string, status: AlertStatus) => void;
 }
 
 export function AlertDetailDrawer({ alert, onClose, onUpdateStatus }: AlertDetailDrawerProps) {
@@ -249,7 +250,14 @@ function ScoreItem({ label, value, accent }: { label: string; value: string; acc
   );
 }
 
-function ActionButton({ icon, label, onClick, variant, disabled, style }: any) {
+function ActionButton({ icon, label, onClick, variant, disabled, style }: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  variant?: string;
+  disabled?: boolean;
+  style?: React.CSSProperties;
+}) {
   const isCyan = variant === 'cyan';
   return (
     <button

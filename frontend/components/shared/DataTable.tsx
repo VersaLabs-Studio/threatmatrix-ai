@@ -29,7 +29,7 @@ interface DataTableProps<T extends any> {
 
 type SortDir = 'asc' | 'desc' | null;
 
-export function DataTable<T extends any>({
+export function DataTable<T>({
   columns, data, loading, rowKey, onRowClick, emptyMessage = 'No data', maxHeight = 400, rowClassName,
 }: DataTableProps<T>) {
   const [sortKey,  setSortKey]  = useState<string | null>(null);

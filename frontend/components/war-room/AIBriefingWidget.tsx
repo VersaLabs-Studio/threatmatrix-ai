@@ -147,7 +147,7 @@ export function AIBriefingWidget() {
               background: 'var(--cyan)',
               marginLeft: 2,
               verticalAlign: 'text-bottom',
-              animation: 'blink 1s step-end infinite',
+              animation: 'blink-cursor 1s step-end infinite',
             }}
           />
         )}

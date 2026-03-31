@@ -59,10 +59,10 @@ function CustomLabel(props: PieLabelRenderProps) {
   return (
     <text
       x={x} y={y}
-      fill="#e2e8f0"
+      fill="var(--text-primary)"
       textAnchor="middle"
       dominantBaseline="central"
-      style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.65rem', fontWeight: 600 }}
+      style={{ fontFamily: 'var(--font-data)', fontSize: '0.65rem', fontWeight: 600 }}
     >
       {`${(Number(percent) * 100).toFixed(0)}%`}
     </text>
@@ -109,7 +109,7 @@ export function ProtocolChart({ data, loading }: ProtocolChartProps) {
                   background: 'var(--bg-elevated)',
                   border: '1px solid rgba(255,255,255,0.06)',
                   borderRadius: 8,
-                  fontFamily: '"JetBrains Mono", monospace',
+                  fontFamily: 'var(--font-data)',
                   fontSize: '0.75rem',
                   color: 'var(--text-primary)',
                 }}
@@ -129,10 +129,10 @@ export function ProtocolChart({ data, loading }: ProtocolChartProps) {
                 background: PROTOCOL_COLORS[entry.protocol] ?? DEFAULT_COLORS[i % DEFAULT_COLORS.length],
               }}
             />
-            <span style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: '0.7rem', color: '#94a3b8', width: '3rem' }}>
+            <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)', width: '3rem' }}>
               {entry.protocol}
             </span>
-            <div style={{ flex: 1, height: 4, background: '#1a1a24', borderRadius: 999, overflow: 'hidden' }}>
+            <div style={{ flex: 1, height: 4, background: 'var(--bg-tertiary)', borderRadius: 999, overflow: 'hidden' }}>
               <div
                 style={{
                   width: `${entry.percent}%`,
@@ -143,7 +143,7 @@ export function ProtocolChart({ data, loading }: ProtocolChartProps) {
                 }}
               />
             </div>
-            <span style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: '0.7rem', color: '#94a3b8', width: '2.5rem', textAlign: 'right' }}>
+            <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)', width: '2.5rem', textAlign: 'right' }}>
               {entry.percent}%
             </span>
           </div>

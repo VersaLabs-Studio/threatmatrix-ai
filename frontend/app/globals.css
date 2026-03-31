@@ -41,6 +41,10 @@
   --glass-bg-hover:   rgba(22, 33, 52, 0.72);
   --glass-border-hover: rgba(255, 255, 255, 0.15);
 
+  /* Border colors */
+  --border:         rgba(255, 255, 255, 0.08);
+  --border-active:  hsla(var(--accent-primary-raw) / 0.4);
+
   /* Severity Colors — Warm and Soothing, but punchy when active */
   --critical:       hsl(0 72% 56%);
   --critical-dim:   hsla(0 72% 56% / 0.2);
@@ -100,6 +104,10 @@
   --radius-lg: 14px;
   --radius-xl: 20px;
   --radius-full: 9999px;
+  --radius-pill: 9999px;
+
+  /* Dark variant (for button text on accent backgrounds) */
+  --bg-dark: hsl(228 28% 3%);
 
   /* Layout */
   --sidebar-width: 64px;
@@ -321,6 +329,12 @@ a:hover {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
+}
+
+/* Slide in from right — for toast notifications */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
 }
 
 /* ── Utility Classes ───────────────────────────────────────────── */
@@ -874,4 +888,43 @@ select:focus-visible {
   .main-content {
     padding: var(--space-4);
   }
+}
+
+/* ── Alert Card Styles (LiveAlertFeed) ─────────────────────────── */
+.alert-card {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid transparent;
+  transition: all var(--transition-fast);
+  background: var(--bg-tertiary);
+}
+
+.alert-card--critical {
+  border-left-color: var(--critical);
+  animation: severity-breathe 4s ease-in-out infinite;
+}
+
+.alert-card--high {
+  border-left-color: var(--high);
+}
+
+.alert-card--medium {
+  border-left-color: var(--warning);
+}
+
+/* ── Streaming Cursor (AI Analyst) ─────────────────────────────── */
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--cyan);
+  animation: blink-cursor 1s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+}
+
+/* ── Action Button Hover (QuickActions) ────────────────────────── */
+.action-button:hover {
+  border-color: var(--cyan) !important;
+  color: var(--cyan) !important;
 }

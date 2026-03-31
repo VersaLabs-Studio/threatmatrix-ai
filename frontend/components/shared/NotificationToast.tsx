@@ -27,7 +27,7 @@ export function NotificationToast({ toasts, onDismiss }: NotificationToastProps)
         position: 'fixed',
         top: 16,
         right: 16,
-        zIndex: 9999,
+        zIndex: 400,
         display: 'flex',
         flexDirection: 'column',
         gap: 8,

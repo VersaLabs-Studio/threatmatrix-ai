@@ -40,7 +40,7 @@ export const alertService = {
     if (filters?.page) params.page = filters.page;
     if (filters?.limit) params.limit = filters.limit;
 
-    return api.get<{ items: AlertResponse[]; total: number }>('/api/v1/alerts', params);
+    return api.get<{ items: AlertResponse[]; total: number }>('/api/v1/alerts/', params);
   },
 
   /** Get a single alert by ID */
@@ -104,7 +104,7 @@ export const flowService = {
     if (filters?.page) params.page = filters.page;
     if (filters?.limit) params.limit = filters.limit;
 
-    return api.get<PaginatedResponse<FlowResponse>>('/api/v1/flows', params);
+    return api.get<PaginatedResponse<FlowResponse>>('/api/v1/flows/', params);
   },
 
   /** Get a single flow by ID */

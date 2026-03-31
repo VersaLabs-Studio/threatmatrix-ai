@@ -61,7 +61,7 @@ export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFee
     if (!lastAlertEvent) return;
     const newItem: AlertFeedItem = {
       id:        lastAlertEvent.id,
-      severity:  lastAlertEvent.severity as Severity,
+      severity:  lastAlertEvent.severity,
       category:  lastAlertEvent.category,
       src_ip:    lastAlertEvent.src_ip,
       timestamp: lastAlertEvent.timestamp,
