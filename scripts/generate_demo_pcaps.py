@@ -42,42 +42,54 @@ DST_IP = "10.0.0.1"  # Fictional target for PCAP scenarios
 SRC_NET = "192.168.1"  # Source network prefix
 
 
-def generate_ddos_pcap(output_path: str, num_packets: int = 800):
+def generate_ddos_pcap(output_path: str, num_packets: int = 1200):
     """
     SYN flood from 25 source IPs targeting port 80.
+    Each source IP reuses the same source port so packets aggregate
+    into 25 multi-packet flows (not 800 single-packet flows).
     Simulates volumetric DDoS attack.
     """
     print(f"  [1/5] Generating DDoS scenario ({num_packets} packets, 25 sources)...")
     packets = []
-    src_ips = [f"10.{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}"
-               for _ in range(25)]
+    # Each source IP gets a fixed source port → 25 flows, ~48 packets each
+    src_ips = {}
+    for _ in range(25):
+        ip = f"10.{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}"
+        src_ips[ip] = random.randint(1024, 65535)
 
     for i in range(num_packets):
-        src_ip = random.choice(src_ips)
-        sport = random.randint(1024, 65535)
-        pkt = Ether() / IP(src=src_ip, dst=DST_IP) / TCP(sport=sport, dport=80, flags="S", seq=i)
+        src_ip = random.choice(list(src_ips.keys()))
+        sport = src_ips[src_ip]
+        pkt = Ether() / IP(src=src_ip, dst=DST_IP) / TCP(
+            sport=sport, dport=80, flags="S",
+            seq=random.randint(0, 4294967295)
+        )
         packets.append(pkt)
 
     wrpcap(output_path, packets)
-    print(f"      Written: {output_path} ({len(packets)} packets)")
+    print(f"      Written: {output_path} ({len(packets)} packets, 25 flows)")
 
 
 def generate_port_scan_pcap(output_path: str, port_range: range = range(1, 513)):
     """
     Sequential SYN scan from one IP across many ports.
+    Uses a single source port so packets aggregate into flows by destination.
     Simulates nmap-style port reconnaissance.
     """
     print(f"  [2/5] Generating port scan scenario ({len(port_range)} ports)...")
     packets = []
     src_ip = f"{SRC_NET}.{random.randint(10, 250)}"
+    sport = random.randint(1024, 65535)  # Single source port for all probes
 
     for port in port_range:
-        sport = random.randint(1024, 65535)
-        pkt = Ether() / IP(src=src_ip, dst=DST_IP) / TCP(sport=sport, dport=port, flags="S")
+        pkt = Ether() / IP(src=src_ip, dst=DST_IP) / TCP(
+            sport=sport, dport=port, flags="S",
+            seq=random.randint(0, 4294967295)
+        )
         packets.append(pkt)
 
     wrpcap(output_path, packets)
-    print(f"      Written: {output_path} ({len(packets)} packets)")
+    print(f"      Written: {output_path} ({len(packets)} packets, scan from {src_ip})")
 
 
 def generate_dns_tunnel_pcap(output_path: str, num_queries: int = 60):
