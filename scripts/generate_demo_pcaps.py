@@ -130,42 +130,22 @@ def generate_ddos_pcap(output_path: str, num_flows: int = 30):
 def generate_port_scan_pcap(output_path: str, num_ports: int = 200):
     """
     Port scan: one source IP probes 200 different ports with SYN.
-    Each probe gets SYN-ACK (port open) or RST (port closed) response.
-    The ML sees: same src_ip hitting many dst_ports, flag="S0"/"REJ",
-    serror_rate=1.0, diff_srv_rate=1.0 — characteristic of probe/scan.
+    Only generates scanner→target SYN packets (no responses)
+    so the PCAP processor groups them into flows by destination port.
+    The ML sees: same src_ip hitting many dst_ports, flag="S0",
+    serror_rate=1.0 — characteristic of probe/scan.
     """
     print(f"  [2/5] Generating port scan scenario ({num_ports} ports probed)...")
     packets = []
     src_ip = f"{SRC_NET}.{random.randint(10, 250)}"
     sport = random.randint(1024, 65535)
 
-    # Simulate a few open ports and mostly closed
-    open_ports = random.sample(range(1, 1025), min(5, num_ports))
-
     for port in range(1, num_ports + 1):
-        seq = port * 1000  # Deterministic, won't overflow
-
-        # Scanner sends SYN
+        # Only SYN packets — no responses to avoid flow merge issues
         syn = (Ether() / IP(src=src_ip, dst=DST_IP) /
-               TCP(sport=sport, dport=port, flags="S", seq=seq))
+               TCP(sport=sport, dport=port, flags="S",
+                   seq=port * 1000))
         packets.append(syn)
-
-        if port in open_ports:
-            # Server responds SYN-ACK (open port)
-            synack = (Ether() / IP(src=DST_IP, dst=src_ip) /
-                      TCP(sport=port, dport=sport, flags="SA",
-                          seq=5000 + port, ack=seq + 1))
-            packets.append(synack)
-            # Scanner sends RST (doesn't complete handshake — scan behavior)
-            rst = (Ether() / IP(src=src_ip, dst=DST_IP) /
-                   TCP(sport=sport, dport=port, flags="R", seq=seq + 1))
-            packets.append(rst)
-        else:
-            # Server responds RST (closed port)
-            rst = (Ether() / IP(src=DST_IP, dst=src_ip) /
-                   TCP(sport=port, dport=sport, flags="RA",
-                       seq=0, ack=seq + 1))
-            packets.append(rst)
 
     wrpcap(output_path, packets)
     print(f"      Written: {output_path} ({len(packets)} packets, {num_ports} probes)")

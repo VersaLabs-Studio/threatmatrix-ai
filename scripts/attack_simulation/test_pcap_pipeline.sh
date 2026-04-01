@@ -120,9 +120,9 @@ for PCAP_FILE in "${PCAP_FILES[@]}"; do
         continue
     fi
 
-    # Wait for processing
-    echo -e "  ${YELLOW}Waiting 30s for processing...${NC}"
-    sleep 30
+    # Wait for processing (longer wait to avoid async bleed-through)
+    echo -e "  ${YELLOW}Waiting 45s for processing...${NC}"
+    sleep 45
 
     # Check results
     CURRENT_FLOWS=$(curl -s -H "Authorization: Bearer ${TOKEN}" "${API_URL}/api/v1/flows/stats" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total_flows', d.get('total', 0)))" 2>/dev/null || echo "0")

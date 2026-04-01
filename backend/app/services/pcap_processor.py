@@ -656,9 +656,9 @@ class PcapProcessor:
                     src_ip, len(ports),
                 )
 
-        # Detect DDoS: 5+ different sources hitting same target
+        # Detect DDoS: 8+ different sources hitting same target
         for target, sources in dst_source_map.items():
-            if len(sources) >= 5:
+            if len(sources) >= 8:
                 for f in flows:
                     flow_target = f"{f.get('dst_ip')}:{f.get('dst_port')}"
                     if flow_target == target and not f.get("is_anomaly"):
@@ -685,9 +685,9 @@ class PcapProcessor:
                     src_ip, count,
                 )
 
-        # Detect SYN flood: 20+ S0 flagged flows from same source
+        # Detect SYN flood: 30+ S0 flagged flows from same source
         for src_ip, count in s0_count_by_src.items():
-            if count >= 20:
+            if count >= 30:
                 for f in flows:
                     if (f.get("src_ip") == src_ip and
                         f.get("flag") == "S0" and
