@@ -49,12 +49,13 @@ SRC_NET = "192.168.1"       # Source network prefix
 
 def _make_handshake(src_ip, dst_ip, sport, dport, seq_start=1000):
     """Create SYN → SYN-ACK → ACK handshake packets."""
+    srv_seq = 5000 + sport  # Server-side sequence (safe, won't overflow)
     syn = (Ether() / IP(src=src_ip, dst=dst_ip) /
            TCP(sport=sport, dport=dport, flags="S", seq=seq_start))
     synack = (Ether() / IP(src=dst_ip, dst=src_ip) /
-              TCP(sport=dport, dport=sport, flags="SA", seq=seq_start * 2, ack=seq_start + 1))
+              TCP(sport=dport, dport=sport, flags="SA", seq=srv_seq, ack=seq_start + 1))
     ack = (Ether() / IP(src=src_ip, dst=dst_ip) /
-           TCP(sport=sport, dport=dport, flags="A", seq=seq_start + 1, ack=seq_start * 2 + 1))
+           TCP(sport=sport, dport=dport, flags="A", seq=seq_start + 1, ack=srv_seq + 1))
     return [syn, synack, ack]
 
 
@@ -107,6 +108,7 @@ def generate_ddos_pcap(output_path: str, num_flows: int = 30):
     for idx, src_ip in enumerate(src_ips):
         sport = random.randint(1024, 65535)
         seq = 1000 * (idx + 1)
+        srv_seq = 5000 + sport  # Match _make_handshake server seq
 
         # Full handshake
         packets.extend(_make_handshake(src_ip, DST_IP, sport, 80, seq))
@@ -115,11 +117,11 @@ def generate_ddos_pcap(output_path: str, num_flows: int = 30):
         attack_payload = b"GET / HTTP/1.1\r\nHost: " + DST_IP.encode() + b"\r\n" + \
                          b"X-Flood: " + b"A" * 800 + b"\r\n\r\n"
         packets.extend(_make_data_exchange(src_ip, DST_IP, sport, 80, attack_payload,
-                                           seq + 1, seq * 2 + 1))
+                                           seq + 1, srv_seq + 1))
 
         # Close connection
         packets.extend(_make_fin(src_ip, DST_IP, sport, 80,
-                                 seq + 1 + len(attack_payload), seq * 2 + 1 + 40))
+                                 seq + 1 + len(attack_payload), srv_seq + 1 + 40))
 
     wrpcap(output_path, packets)
     print(f"      Written: {output_path} ({len(packets)} packets, {num_flows} connections)")
@@ -141,7 +143,7 @@ def generate_port_scan_pcap(output_path: str, num_ports: int = 200):
     open_ports = random.sample(range(1, 1025), min(5, num_ports))
 
     for port in range(1, num_ports + 1):
-        seq = random.randint(0, 4294967295)
+        seq = port * 1000  # Deterministic, won't overflow
 
         # Scanner sends SYN
         syn = (Ether() / IP(src=src_ip, dst=DST_IP) /
@@ -152,7 +154,7 @@ def generate_port_scan_pcap(output_path: str, num_ports: int = 200):
             # Server responds SYN-ACK (open port)
             synack = (Ether() / IP(src=DST_IP, dst=src_ip) /
                       TCP(sport=port, dport=sport, flags="SA",
-                          seq=seq * 2, ack=seq + 1))
+                          seq=5000 + port, ack=seq + 1))
             packets.append(synack)
             # Scanner sends RST (doesn't complete handshake — scan behavior)
             rst = (Ether() / IP(src=src_ip, dst=DST_IP) /
@@ -236,6 +238,7 @@ def generate_brute_force_pcap(output_path: str, num_attempts: int = 50):
     for i in range(num_attempts):
         sport = random.randint(1024, 65535)
         seq = 1000 * (i + 1)
+        srv_seq = 5000 + sport  # Match _make_handshake server seq
 
         # SYN → SYN-ACK → ACK
         packets.extend(_make_handshake(src_ip, DST_IP, sport, 22, seq))
@@ -243,7 +246,7 @@ def generate_brute_force_pcap(output_path: str, num_attempts: int = 50):
         # Server sends SSH banner
         ssh_banner = b"SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6\r\n"
         srv_banner = (Ether() / IP(src=DST_IP, dst=src_ip) /
-                      TCP(sport=22, dport=sport, flags="PA", seq=seq * 2 + 1, ack=seq + 1) /
+                      TCP(sport=22, dport=sport, flags="PA", seq=srv_seq + 1, ack=seq + 1) /
                       Raw(load=ssh_banner))
         packets.append(srv_banner)
 
@@ -252,14 +255,14 @@ def generate_brute_force_pcap(output_path: str, num_attempts: int = 50):
         pw_attempt = passwords[i % len(passwords)]
         client_data = (Ether() / IP(src=src_ip, dst=DST_IP) /
                        TCP(sport=sport, dport=22, flags="PA",
-                           seq=seq + 1, ack=seq * 2 + 1 + len(ssh_banner)) /
+                           seq=seq + 1, ack=srv_seq + 1 + len(ssh_banner)) /
                        Raw(load=client_banner + pw_attempt))
         packets.append(client_data)
 
         # Server rejects (RST — failed authentication)
         rst = (Ether() / IP(src=DST_IP, dst=src_ip) /
                TCP(sport=22, dport=sport, flags="RA",
-                   seq=seq * 2 + 1 + len(ssh_banner),
+                   seq=srv_seq + 1 + len(ssh_banner),
                    ack=seq + 1 + len(client_banner) + len(pw_attempt)))
         packets.append(rst)
 
@@ -285,6 +288,7 @@ def generate_normal_traffic_pcap(output_path: str, num_flows: int = 20):
         src_ip = f"{SRC_NET}.{random.randint(10, 250)}"
         sport = random.randint(49152, 65535)
         seq = 1000 * (i + 1)
+        srv_seq = 5000 + sport
 
         # Full handshake
         packets.extend(_make_handshake(src_ip, DST_IP, sport, 80, seq))
@@ -292,11 +296,11 @@ def generate_normal_traffic_pcap(output_path: str, num_flows: int = 20):
         # HTTP request + response
         payload = http_paths[i % len(http_paths)]
         packets.extend(_make_data_exchange(src_ip, DST_IP, sport, 80, payload,
-                                           seq + 1, seq * 2 + 1))
+                                           seq + 1, srv_seq + 1))
 
         # Close connection
         packets.extend(_make_fin(src_ip, DST_IP, sport, 80,
-                                 seq + 1 + len(payload), seq * 2 + 1 + 40))
+                                 seq + 1 + len(payload), srv_seq + 1 + 40))
 
     # Add DNS lookups
     for _ in range(10):
