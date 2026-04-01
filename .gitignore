@@ -31,6 +31,10 @@ backend/ml/saved_models/*.joblib
 pg_data/
 redis_data/
 
+# PCAP files (generated binary artifacts)
+*.pcap
+*.pcapng
+
 # Node
 node_modules/
 pnpm-lock.yaml

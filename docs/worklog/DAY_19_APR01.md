@@ -8,12 +8,12 @@
 
 | # | Task | Priority | Status |
 |---|------|----------|--------|
-| 1 | Attack Simulation Scripts (nmap, hping3, hydra) | 🔴 | 🔲 PENDING |
-| 2 | PCAP Demo Scenario Files (3-5 attack types) | 🔴 | 🔲 PENDING |
-| 3 | E2E Real Traffic Walkthrough | 🔴 | 🔲 PENDING |
-| 4 | LLM Narrative Quality Verification | 🟡 | 🔲 PENDING |
-| 5 | Auth Enable + Demo Account Creation | 🟡 | 🔲 PENDING |
-| 6 | VPS System Health Verification | 🟢 | 🔲 PENDING |
+| 1 | Attack Simulation Scripts (nmap, hping3, hydra) | 🔴 | ✅ CODE READY (VPS execution pending) |
+| 2 | PCAP Demo Scenario Files (3-5 attack types) | 🔴 | ✅ CODE READY (VPS generation pending) |
+| 3 | E2E Real Traffic Walkthrough | 🔴 | 🔲 PENDING (VPS execution) |
+| 4 | LLM Narrative Quality Verification | 🟡 | 🔲 PENDING (VPS execution) |
+| 5 | Auth Enable + Demo Account Creation | 🟡 | 🔲 PENDING (VPS execution) |
+| 6 | VPS System Health Verification | 🟢 | 🔲 PENDING (VPS execution) |
 
 ---
 
@@ -25,7 +25,7 @@ Day 18 completed the full frontend overhaul with all 10 pages connected to the V
 
 ---
 
-## Task 1: Attack Simulation Scripts 🔴
+## Task 1: Attack Simulation Scripts 🔴 ✅ CODE CREATED
 
 **Reference:** PART5 §7.3 Demo Scenario Test Cases
 
@@ -35,13 +35,32 @@ Create executable scripts for the following attack scenarios against the VPS:
 |----------|------|--------------------|----------------|
 | **Port Scan** | `nmap -sS target_ip` | Probe detected, port sweep classification | HIGH |
 | **DDoS Simulation** | `hping3 --flood target_ip` | Volume anomaly, DDoS classification | CRITICAL |
-| **DNS Tunneling** | Crafted DNS queries | Unusual DNS pattern, high entropy | MEDIUM |
-| **Brute Force SSH** | `hydra -l root -P wordlist ssh://target` | Failed login volume spike | HIGH |
-| **Normal Traffic** | Regular browsing, API calls | No false alerts | — |
+| **DNS Tunneling** | Crafted DNS queries (Scapy) | Unusual DNS pattern, high entropy | MEDIUM |
+| **Brute Force SSH** | bash/sshpass/hydra SSH loop | Failed login volume spike | HIGH |
+| **Normal Traffic** | curl API requests | No false alerts | — |
 
 **Deliverable:** `scripts/attack_simulation/` directory with documented scripts and expected outcomes.
 
-**Verification:**
+### Files Created
+
+| File | Size | Purpose |
+|------|------|---------|
+| `scripts/attack_simulation/01_port_scan.sh` | 2.5KB | nmap SYN scan on ports 1-1024 |
+| `scripts/attack_simulation/02_ddos_simulation.sh` | 3.2KB | hping3 10-second SYN flood |
+| `scripts/attack_simulation/03_dns_tunnel.py` | 5.1KB | Scapy high-entropy DNS queries |
+| `scripts/attack_simulation/04_brute_force.sh` | 3.8KB | Multi-method SSH brute force (hydra/sshpass/raw TCP) |
+| `scripts/attack_simulation/05_normal_traffic.sh` | 2.4KB | Normal API traffic baseline |
+| `scripts/attack_simulation/run_all.sh` | 5.0KB | Master orchestrator (all 5 scenarios) |
+| `scripts/attack_simulation/README.md` | 3.2KB | Usage guide, prerequisites, troubleshooting |
+
+### Implementation Notes
+- Scripts target `127.0.0.1` by default (override with `$1` argument)
+- Each script records pre-attack alert count, executes attack, polls for new alerts
+- Color-coded terminal output with pass/fail reporting
+- `run_all.sh` runs all scenarios with 30s cooldown between each
+- Capture interface note: may need `CAPTURE_INTERFACE=lo` for localhost or target public IP
+
+**Verification (VPS execution):**
 - [ ] Each attack produces ≥1 alert in the alerts table
 - [ ] Alerts have correct severity classification
 - [ ] LLM auto-narrative fires for each alert
@@ -49,7 +68,7 @@ Create executable scripts for the following attack scenarios against the VPS:
 
 ---
 
-## Task 2: PCAP Demo Scenario Files 🔴
+## Task 2: PCAP Demo Scenario Files 🔴 ✅ CODE CREATED
 
 **Reference:** PART5 §8.2 Backup Plans — "Pre-loaded PCAP with interesting anomalies"
 
@@ -57,15 +76,31 @@ Create or obtain PCAP files representing distinct attack patterns for offline de
 
 | PCAP File | Content | Purpose |
 |-----------|---------|---------|
-| `ddos_scenario.pcap` | SYN flood / volumetric attack | Show CRITICAL alert generation |
-| `port_scan.pcap` | nmap scan results | Show probe detection |
-| `dns_tunnel.pcap` | DNS exfiltration pattern | Show entropy-based detection |
-| `brute_force.pcap` | Repeated SSH/FTP attempts | Show R2L classification |
-| `normal_traffic.pcap` | Clean traffic baseline | Show false-positive rate |
+| `ddos_scenario.pcap` | 800 SYN packets, 25 source IPs | Show CRITICAL alert generation |
+| `port_scan.pcap` | 512 SYN packets, 1 source → ports 1-512 | Show probe detection |
+| `dns_tunnel.pcap` | 60 DNS queries, high-entropy subdomains | Show entropy-based detection |
+| `brute_force.pcap` | 60 SYN packets to port 22 | Show R2L classification |
+| `normal_traffic.pcap` | 30 HTTP flows + 10 DNS lookups | Show false-positive rate |
 
-**Deliverable:** `pcaps/demo/` directory with 3-5 PCAP files + README explaining each scenario.
+**Deliverable:** `pcaps/demo/` directory with 5 PCAP files + README + generator script.
 
-**Verification:**
+### Files Created
+
+| File | Size | Purpose |
+|------|------|---------|
+| `scripts/generate_demo_pcaps.py` | 7.8KB | Scapy-based PCAP generator (5 scenarios) |
+| `pcaps/demo/README.md` | 2.5KB | PCAP descriptions, upload instructions, verification |
+
+### Implementation Notes
+- Generator uses Scapy to craft synthetic packets with realistic patterns
+- DDoS PCAP: 25 randomized source IPs, 800 SYN packets to port 80
+- Port scan PCAP: sequential port sweep from single source
+- DNS tunnel PCAP: base64-encoded high-entropy subdomains
+- Normal traffic PCAP: full TCP handshake sequences + DNS lookups
+- Run on VPS: `python3 scripts/generate_demo_pcaps.py --output-dir pcaps/demo`
+- Generated PCAPs are gitignored (*.pcap in .gitignore)
+
+**Verification (VPS execution):**
 - [ ] Each PCAP uploads successfully via POST /capture/upload-pcap
 - [ ] PCAP processor extracts flows and scores them
 - [ ] Attack PCAPs produce alerts; normal PCAP produces none
@@ -147,12 +182,50 @@ Full infrastructure check:
 
 ## Success Criteria for Day 19
 
-- [ ] ≥3 attack types produce visible alerts in the frontend
+- [x] PCAP demo files generated (5 files, 117KB total) ✅
+- [x] Attack simulation scripts created (5 scripts + orchestrator) ✅
+- [ ] ≥3 attack types produce visible alerts in the frontend (via Option A or B)
 - [ ] LLM narratives are generated and coherent for each alert
-- [ ] At least 3 PCAP demo files created and verified
+- [ ] PCAP uploads produce alerts (Option B — pending VPS test)
 - [ ] E2E walkthrough documented with pass/fail
 - [ ] Demo accounts created (can defer to later if auth flow has issues)
 - [ ] VPS infrastructure verified healthy
+
+---
+
+## Network Interface Architecture Finding
+
+Running attack scripts on the VPS targeting `127.0.0.1` or `187.124.45.161` produced **zero alerts** despite 691K+ packets sent. Root cause confirmed:
+
+- Linux local routing table routes traffic to the host's own IP through `lo` (loopback), not `eth0`
+- Capture engine listens on `eth0` → never sees loopback traffic
+- Changing `CAPTURE_INTERFACE` to `lo` would break production monitoring
+
+**Two-pronged approach confirmed:**
+
+| Approach | Method | Status |
+|----------|--------|--------|
+| **Option A** | Run attack scripts from local Windows machine → VPS public IP | Scripts ready (`run_external_attacks.py`) |
+| **Option B** | Upload PCAP files via API endpoint (bypasses capture interface) | PCAPs generated, upload test script ready (`test_pcap_pipeline.sh`) |
+
+### Files Added (Network Fix)
+
+| File | Purpose |
+|------|---------|
+| `scripts/attack_simulation/run_external_attacks.py` | Cross-platform Python attack runner (Windows/macOS/Linux) |
+| `scripts/attack_simulation/test_pcap_pipeline.sh` | VPS-side PCAP upload E2E test |
+
+### VPS Execution Commands
+
+```bash
+# Option B: Test PCAP pipeline on VPS
+cd /home/threatmatrix/threatmatrix-ai
+bash scripts/attack_simulation/test_pcap_pipeline.sh
+
+# Option A: Run from local machine
+pip install scapy
+python scripts/attack_simulation/run_external_attacks.py --target 187.124.45.161
+```
 
 ---
 
@@ -162,7 +235,8 @@ All Day 19 tasks are **within the PART5 §7-8 scope** (Testing Strategy + Demo D
 
 ---
 
-_Day 19 — PLANNED_
-_Focus: Real traffic testing → Attack simulation → Demo preparation_
+_Day 19 — IN PROGRESS_
+_Focus: Attack simulation code created → VPS execution next → Demo preparation_
 _Version: v0.6.0 (1 week ahead of schedule)_
 _Reference: PART5 §7.3 (Demo Scenarios), §8.1 (Demo Script), §8.3 (Pre-Demo Checklist)_
+_Files created: 9 new files (7 scripts + 2 READMEs) across scripts/attack_simulation/ and pcaps/demo/_

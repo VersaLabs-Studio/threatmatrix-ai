@@ -76,24 +76,60 @@ After running any script, verify in the frontend:
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| No alerts generated | Capture engine on wrong interface | Check `CAPTURE_INTERFACE` in docker-compose.yml |
-| No alerts from localhost | Capture on `eth0`, not `lo` | Target the VPS public IP instead |
+| No alerts when running on VPS | Linux local routing → `lo`, not `eth0` | Use Option A (external) or Option B (PCAP) below |
 | Scripts timeout | API not reachable | Verify `docker-compose ps` shows all 5 services |
 | hping3 not found | Not installed | `apt install hping3` |
 | DNS tunnel needs root | Raw sockets require privilege | `sudo python3 03_dns_tunnel.py` |
 
-## Capture Interface Note
+## Network Interface Architecture
 
-The capture engine runs in `network_mode: host` and defaults to `CAPTURE_INTERFACE=eth0`. When running scripts on the VPS:
+The capture engine runs in `network_mode: host` and captures on `CAPTURE_INTERFACE=eth0` (production default). **Linux's local routing table routes traffic to the host's own IP through `lo` (loopback), regardless of whether you target `127.0.0.1` or the public IP.** This means:
 
-- **Option A (recommended):** Target `127.0.0.1` and set `CAPTURE_INTERFACE=lo` in docker-compose.yml for the capture service
-- **Option B:** Target the VPS's public IP (`187.124.45.161`) — traffic routes through `eth0` which is the default capture interface
+- Running attack scripts on the VPS → traffic goes through `lo` → capture engine on `eth0` never sees it
+- `ip route get 187.124.45.161` confirms: `local ... dev lo` (kernel shortcut)
 
-Test which approach works:
+**Do NOT change `CAPTURE_INTERFACE`** — this is the correct production config per MASTER_DOC_PART4 §8.1.
+
+### Option A: Run Attacks from External Machine ✅ (Recommended for Demo)
+
+Traffic from an external machine arrives via the internet → hits `eth0` → capture engine detects it.
+
 ```bash
-# Check current capture interface
-curl http://localhost:8000/api/v1/capture/status
+# From your local machine (install scapy first: pip install scapy)
+python3 scripts/attack_simulation/run_external_attacks.py --target 187.124.45.161
 
-# Check what interface the VPS IP routes through
-ip route get 187.124.45.161
+# Or run individual scenarios
+python3 scripts/attack_simulation/run_external_attacks.py --target 187.124.45.161 --scenario 1  # Port scan
+python3 scripts/attack_simulation/run_external_attacks.py --target 187.124.45.161 --scenario 2  # DDoS
 ```
+
+For demo day (PART5 §8.1 at 5:30 mark): Run `nmap` from the presenter's laptop targeting the VPS.
+
+### Option B: Use PCAP Upload Endpoint ✅ (Backup / Offline Demo)
+
+PCAP files bypass the capture interface entirely. The PCAP processor reads files directly and feeds them into the ML pipeline.
+
+```bash
+# Generate PCAPs (already done — files in pcaps/demo/)
+python3 scripts/generate_demo_pcaps.py --output-dir pcaps/demo
+
+# Test full pipeline on VPS
+bash scripts/attack_simulation/test_pcap_pipeline.sh
+
+# Or upload individual PCAPs
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@threatmatrix.ai","password":"Demo2026!"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+curl -X POST http://localhost:8000/api/v1/capture/upload-pcap \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -F "file=@pcaps/demo/ddos_scenario.pcap"
+```
+
+### Summary
+
+| Approach | When to Use | Interface |
+|----------|------------|-----------|
+| **Option A** (external attacks) | Demo day, live testing | `eth0` (production) |
+| **Option B** (PCAP upload) | Backup demo, offline testing, quick validation | Bypasses capture |
