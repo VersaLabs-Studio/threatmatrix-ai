@@ -468,13 +468,25 @@ class PcapProcessor:
             from ml.inference.preprocessor import FlowPreprocessor
             import numpy as np
 
+            logger.info("[PCAP] ML imports successful, loading preprocessor...")
             preprocessor = FlowPreprocessor()
             preprocessor.load()
 
+            if not preprocessor._loaded:
+                logger.error(
+                    "[PCAP] Preprocessor failed to load. "
+                    "Check ml/saved_models/preprocessor_encoders.pkl and preprocessor_scaler.pkl exist."
+                )
+                return self._set_defaults(flow_features)
+
+            logger.info("[PCAP] Preprocessor loaded, loading model manager...")
             manager = ModelManager()
             manager.load_all()
+            logger.info("[PCAP] Model manager loaded, scoring %d flows...", len(flow_features))
 
-            for features in flow_features:
+            scored_count = 0
+            anomaly_count = 0
+            for i, features in enumerate(flow_features):
                 try:
                     X = preprocessor.preprocess_flow(features)
                     if X is not None:
@@ -488,32 +500,72 @@ class PcapProcessor:
                             features["if_score"] = r.get("if_score", 0)
                             features["rf_score"] = r.get("rf_confidence", 0)
                             features["ae_score"] = r.get("ae_score", 0)
+                            scored_count += 1
+                            if r["is_anomaly"]:
+                                anomaly_count += 1
+                            if i < 3:  # Log first 3 for debugging
+                                logger.info(
+                                    "[PCAP] Flow %d: score=%.3f anomaly=%s label=%s "
+                                    "src=%s:%d → dst=%s:%d proto=%s",
+                                    i, r["composite_score"], r["is_anomaly"],
+                                    r.get("label", "?"),
+                                    features.get("src_ip", "?"),
+                                    features.get("src_port", 0),
+                                    features.get("dst_ip", "?"),
+                                    features.get("dst_port", 0),
+                                    features.get("protocol_type", "?"),
+                                )
                             continue
 
-                    # Preprocessing returned None — skip scoring
+                    # Preprocessing returned None
+                    if i < 3:
+                        logger.warning(
+                            "[PCAP] Flow %d preprocessing returned None. "
+                            "Features: protocol_type=%s service=%s flag=%s",
+                            i,
+                            features.get("protocol_type", "MISSING"),
+                            features.get("service", "MISSING"),
+                            features.get("flag", "MISSING"),
+                        )
                     features["anomaly_score"] = 0.0
                     features["is_anomaly"] = False
                     features["label"] = None
                     features["severity"] = "none"
 
                 except Exception as e:
-                    logger.debug("[PCAP] Scoring error for flow: %s", e)
+                    logger.error("[PCAP] Scoring error for flow %d: %s", i, e, exc_info=True)
                     features["anomaly_score"] = 0.0
                     features["is_anomaly"] = False
                     features["label"] = None
                     features["severity"] = "none"
 
-        except ImportError:
-            logger.warning(
-                "[PCAP] ML models not available for scoring — "
-                "flows will be stored without anomaly scores"
+            logger.info(
+                "[PCAP] Scoring complete: %d/%d scored, %d anomalies",
+                scored_count, len(flow_features), anomaly_count,
             )
-            for f in flow_features:
-                f["anomaly_score"] = 0.0
-                f["is_anomaly"] = False
-                f["label"] = None
-                f["severity"] = "none"
 
+        except ImportError as e:
+            logger.error(
+                "[PCAP] ML models not available for scoring: %s — "
+                "flows will be stored without anomaly scores. "
+                "Check ml/inference/ modules and saved_models/ directory.",
+                e,
+            )
+            return self._set_defaults(flow_features)
+        except Exception as e:
+            logger.error("[PCAP] Unexpected error during scoring: %s", e, exc_info=True)
+            return self._set_defaults(flow_features)
+
+        return flow_features
+
+    @staticmethod
+    def _set_defaults(flow_features: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Set default (non-anomaly) values for all flows."""
+        for f in flow_features:
+            f["anomaly_score"] = 0.0
+            f["is_anomaly"] = False
+            f["label"] = None
+            f["severity"] = "none"
         return flow_features
 
     # ── Database Persistence ───────────────────────────────────
