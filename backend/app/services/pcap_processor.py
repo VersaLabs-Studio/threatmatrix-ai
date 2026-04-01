@@ -10,15 +10,20 @@ Per MASTER_DOC_PART5 Week 5:
 Pipeline:
   1. Read PCAP with Scapy
   2. Group packets into flows (5-tuple)
-  3. Extract features per flow
+  3. Extract features per flow (NSL-KDD compatible)
   4. Score with ML ensemble
   5. Persist to network_flows (source='pcap')
-  6. Update pcap_uploads record
+  6. Create alerts for anomalous flows
+  7. Update pcap_uploads record
 """
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+import math
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
@@ -28,6 +33,31 @@ from sqlalchemy import text
 from app.database import async_session
 
 logger = logging.getLogger(__name__)
+
+# ── Service Port Map (mirrors capture/feature_extractor.py) ───────
+SERVICE_MAP: Dict[int, str] = {
+    20: "ftp-data", 21: "ftp", 22: "ssh", 23: "telnet", 25: "smtp",
+    53: "dns", 67: "dhcp", 68: "dhcp", 80: "http", 110: "pop3",
+    111: "rpcbind", 119: "nntp", 123: "ntp", 135: "msrpc",
+    137: "netbios-ns", 138: "netbios-dgm", 139: "netbios-ssn",
+    143: "imap", 161: "snmp", 162: "snmp", 194: "irc", 389: "ldap",
+    443: "https", 445: "microsoft-ds", 465: "smtps", 514: "syslog",
+    515: "printer", 587: "submission", 631: "ipp", 636: "ldaps",
+    993: "imaps", 995: "pop3s", 1080: "socks", 1433: "mssql",
+    1434: "mssql", 1521: "oracle", 1723: "pptp", 2049: "nfs",
+    2082: "cpanel", 2083: "cpanel-ssl", 3306: "mysql", 3389: "rdp",
+    5060: "sip", 5432: "postgresql", 5900: "vnc", 5984: "couchdb",
+    6379: "redis", 8000: "http-alt", 8080: "http-proxy",
+    8443: "https-alt", 8888: "http-alt2", 9090: "wsman",
+    9200: "elasticsearch", 27017: "mongodb",
+}
+
+INTERNAL_PREFIXES = (
+    "10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.",
+    "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.",
+    "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31.",
+    "127.",
+)
 
 
 class PcapProcessor:
@@ -87,6 +117,10 @@ class PcapProcessor:
             # 6. Persist to database
             await self._persist_flows(scored_flows, upload_id)
             await self._update_upload_record(upload_id, status="complete")
+
+            # 7. Create alerts for anomalous flows (via Redis → AlertEngine)
+            if anomalies:
+                await self._publish_alerts(anomalies)
 
             logger.info(
                 "[PCAP] Complete: %d packets, %d flows, %d anomalies",
@@ -245,9 +279,8 @@ class PcapProcessor:
         """
         Extract ML-ready features from a flow.
 
-        Computes basic statistics from the flow metadata.
-        The ML preprocessor (FlowPreprocessor) maps these to the
-        full 63-feature vector used by the ensemble.
+        Produces the 40 NSL-KDD features that FlowPreprocessor expects,
+        matching the format from capture/feature_extractor.py.
 
         Args:
             flow: Flow dict with packets, timing, and byte counts.
@@ -266,22 +299,148 @@ class PcapProcessor:
         pkt_min = min(pkt_sizes) if pkt_sizes else 0
         pkt_max = max(pkt_sizes) if pkt_sizes else 0
 
+        # Count TCP flags from packets
+        syn_count = 0
+        ack_count = 0
+        fin_count = 0
+        rst_count = 0
+        psh_count = 0
+        urg_count = 0
+        payload_bytes = b""
+
+        for pkt in flow["packets"]:
+            try:
+                # TCP flags
+                if hasattr(pkt, "flags"):
+                    flags = int(pkt.flags)
+                    if flags & 0x02: syn_count += 1   # SYN
+                    if flags & 0x10: ack_count += 1   # ACK
+                    if flags & 0x01: fin_count += 1   # FIN
+                    if flags & 0x04: rst_count += 1   # RST
+                    if flags & 0x08: psh_count += 1   # PSH
+                    if flags & 0x20: urg_count += 1   # URG
+                # Payload
+                if hasattr(pkt, "payload"):
+                    raw = bytes(pkt.payload)
+                    if raw:
+                        payload_bytes += raw[:256]  # Cap for entropy calc
+            except Exception:
+                continue
+
+        # Map protocol number to name
+        protocol = flow.get("protocol", 0)
+        protocol_name = {1: "icmp", 6: "tcp", 17: "udp"}.get(protocol, "other")
+
+        # Map destination port to service name
+        dst_port = flow.get("dst_port", 0)
+        service = SERVICE_MAP.get(dst_port, "other")
+
+        # Determine TCP flag status (NSL-KDD style)
+        if protocol == 17:  # UDP
+            flag_status = "SF" if n_pkts > 0 else "OTH"
+        elif protocol == 1:  # ICMP
+            flag_status = "OTH"
+        else:  # TCP
+            if fin_count > 0:
+                flag_status = "SF"
+            elif rst_count > 0:
+                flag_status = "RSTR"
+            elif syn_count > 0 and ack_count == 0:
+                flag_status = "S0"
+            elif syn_count > 0 and ack_count > 0:
+                flag_status = "S1"
+            else:
+                flag_status = "OTH"
+
+        # Shannon entropy of payload
+        entropy = 0.0
+        if payload_bytes:
+            byte_counts: Dict[int, int] = {}
+            for b in payload_bytes:
+                byte_counts[b] = byte_counts.get(b, 0) + 1
+            length = len(payload_bytes)
+            for count in byte_counts.values():
+                p = count / length
+                if p > 0:
+                    entropy -= p * math.log2(p)
+
+        # Bidirectional byte split (approximate)
+        src_bytes = total_bytes // 2
+        dst_bytes = total_bytes - src_bytes
+
+        # Is internal?
+        is_internal = flow.get("src_ip", "").startswith(INTERNAL_PREFIXES)
+
         return {
-            "src_ip": flow["src_ip"],
-            "dst_ip": flow["dst_ip"],
-            "src_port": flow["src_port"],
-            "dst_port": flow["dst_port"],
-            "protocol": flow["protocol"],
-            "duration": duration,
+            # NSL-KDD Basic (9) — exact names for FlowPreprocessor
+            "duration": round(duration, 6),
+            "protocol_type": protocol_name,
+            "service": service,
+            "flag": flag_status,
+            "src_bytes": src_bytes,
+            "dst_bytes": dst_bytes,
+            "land": (flow.get("src_ip") == flow.get("dst_ip")
+                     and flow.get("src_port") == flow.get("dst_port")
+                     and flow.get("src_port", 0) != 0),
+            "wrong_fragment": 0,
+            "urgent": urg_count,
+
+            # NSL-KDD Content (13) — approximated without DPI
+            "hot": 0,
+            "num_failed_logins": 0,
+            "logged_in": 1 if (syn_count > 0 and ack_count > 0) else 0,
+            "num_compromised": 0,
+            "root_shell": 0,
+            "su_attempted": 0,
+            "num_root": 0,
+            "num_file_creations": 0,
+            "num_shells": 0,
+            "num_access_files": 0,
+            "is_host_login": 0,
+            "is_guest_login": 0,
+
+            # NSL-KDD Time-based (8) — single-flow approximation
+            "count": n_pkts,
+            "srv_count": n_pkts,
+            "serror_rate": 1.0 if (syn_count > 0 and ack_count == 0) else 0.0,
+            "srv_serror_rate": 1.0 if (syn_count > 0 and ack_count == 0) else 0.0,
+            "rerror_rate": 1.0 if rst_count > 0 else 0.0,
+            "srv_rerror_rate": 1.0 if rst_count > 0 else 0.0,
+            "same_srv_rate": 1.0,
+            "diff_srv_rate": 0.0,
+
+            # NSL-KDD Host-based (10) — single-flow approximation
+            "dst_host_count": 1,
+            "dst_host_srv_count": 1,
+            "dst_host_same_srv_rate": 1.0,
+            "dst_host_diff_srv_rate": 0.0,
+            "dst_host_same_src_port_rate": 1.0,
+            "dst_host_serror_rate": 1.0 if (syn_count > 0 and ack_count == 0) else 0.0,
+            "dst_host_srv_serror_rate": 1.0 if (syn_count > 0 and ack_count == 0) else 0.0,
+            "dst_host_rerror_rate": 1.0 if rst_count > 0 else 0.0,
+            "dst_host_srv_rerror_rate": 1.0 if rst_count > 0 else 0.0,
+            "dst_host_srv_diff_host_rate": 0.0,
+
+            # Extra metadata (not in NSL-KDD, used for DB/alerts)
+            "src_ip": flow.get("src_ip", "0.0.0.0"),
+            "dst_ip": flow.get("dst_ip", "0.0.0.0"),
+            "src_port": flow.get("src_port", 0),
+            "dst_port": dst_port,
+            "protocol": protocol,
             "total_bytes": total_bytes,
             "total_packets": n_pkts,
-            "src_bytes": total_bytes // 2,  # Approximation without direction
-            "dst_bytes": total_bytes - total_bytes // 2,
-            "packets_per_second": n_pkts / duration,
-            "bytes_per_packet": total_bytes / max(n_pkts, 1),
-            "avg_pkt_size": pkt_mean,
+            "packets_per_second": round(n_pkts / duration, 6),
+            "bytes_per_packet": round(total_bytes / max(n_pkts, 1), 6),
+            "avg_pkt_size": round(pkt_mean, 2),
             "min_pkt_size": pkt_min,
             "max_pkt_size": pkt_max,
+            "syn_count": syn_count,
+            "ack_count": ack_count,
+            "fin_count": fin_count,
+            "rst_count": rst_count,
+            "psh_count": psh_count,
+            "payload_entropy": round(entropy, 6),
+            "is_internal": is_internal,
         }
 
     # ── ML Scoring ─────────────────────────────────────────────
@@ -485,6 +644,168 @@ class PcapProcessor:
             self.stats["flows_extracted"],
             self.stats["anomalies_found"],
         )
+
+    # ── Alert Creation ─────────────────────────────────────────
+
+    async def _publish_alerts(self, anomalies: List[Dict[str, Any]]) -> None:
+        """
+        Create alerts directly in the database for anomalous PCAP flows.
+
+        The live pipeline publishes to Redis alerts:live channel which
+        AlertEngine consumes. For PCAP uploads we insert directly into
+        the alerts table since the flow was not routed through Redis.
+
+        Args:
+            anomalies: List of scored flow dicts where is_anomaly=True.
+        """
+        alert_count = 0
+        now = datetime.now(timezone.utc)
+
+        # Severity thresholds per MASTER_DOC_PART4 §1.2
+        def score_to_severity(score: float) -> str:
+            if score >= 0.90:
+                return "critical"
+            elif score >= 0.75:
+                return "high"
+            elif score >= 0.50:
+                return "medium"
+            elif score >= 0.30:
+                return "low"
+            return "info"
+
+        # Category mapping from ML label
+        LABEL_TO_CATEGORY = {
+            "dos": "ddos",
+            "probe": "port_scan",
+            "r2l": "unauthorized_access",
+            "u2r": "privilege_escalation",
+            "normal": "anomaly",
+        }
+
+        async with async_session() as session:
+            for flow in anomalies:
+                try:
+                    composite_score = flow.get("anomaly_score", 0.0)
+                    severity = score_to_severity(composite_score)
+                    label = flow.get("label", "unknown")
+                    category = LABEL_TO_CATEGORY.get(label, "anomaly")
+
+                    # Generate unique alert reference
+                    timestamp = now.strftime("%Y%m%d%H%M%S")
+                    unique_suffix = uuid.uuid4().hex[:8].upper()
+                    alert_ref = f"TM-{timestamp}-{unique_suffix}"
+
+                    title = f"{severity.upper()} — {category.replace('_', ' ')} detected (PCAP)"
+                    src_ip = flow.get("src_ip", "unknown")
+                    dst_ip = flow.get("dst_ip", "unknown")
+
+                    await session.execute(
+                        text("""
+                            INSERT INTO alerts (
+                                id, alert_id, severity, title, description,
+                                category, source_ip, dest_ip, confidence,
+                                status, ml_model,
+                                composite_score, if_score, rf_score, ae_score,
+                                created_at, updated_at
+                            ) VALUES (
+                                :id, :alert_id, :severity, :title, :description,
+                                :category, :source_ip, :dest_ip, :confidence,
+                                'open', 'ensemble',
+                                :composite_score, :if_score, :rf_score, :ae_score,
+                                :created_at, :updated_at
+                            )
+                        """),
+                        {
+                            "id": str(uuid4()),
+                            "alert_id": alert_ref,
+                            "severity": severity,
+                            "title": title,
+                            "description": (
+                                f"Anomalous flow detected in PCAP analysis: "
+                                f"{src_ip}:{flow.get('src_port', 0)} → "
+                                f"{dst_ip}:{flow.get('dst_port', 0)} "
+                                f"(protocol={flow.get('protocol_type', 'unknown')}, "
+                                f"score={composite_score:.3f})"
+                            ),
+                            "category": category,
+                            "source_ip": src_ip,
+                            "dest_ip": dst_ip,
+                            "confidence": composite_score,
+                            "composite_score": composite_score,
+                            "if_score": flow.get("if_score", 0),
+                            "rf_score": flow.get("rf_score", 0),
+                            "ae_score": flow.get("ae_score", 0),
+                            "created_at": now,
+                            "updated_at": now,
+                        },
+                    )
+                    alert_count += 1
+
+                except Exception as e:
+                    logger.error("[PCAP] Failed to create alert: %s", e)
+                    continue
+
+            await session.commit()
+
+        if alert_count > 0:
+            logger.info("[PCAP] Created %d alerts from anomalous flows", alert_count)
+
+            # Fire-and-forget LLM narratives for alerts
+            try:
+                asyncio.create_task(
+                    self._generate_pcap_narratives(anomalies)
+                )
+            except Exception:
+                pass  # Non-critical
+
+    async def _generate_pcap_narratives(
+        self, anomalies: List[Dict[str, Any]]
+    ) -> None:
+        """Generate LLM narratives for PCAP alerts (fire-and-forget)."""
+        try:
+            from app.services.llm_gateway import LLMGateway
+
+            gateway = LLMGateway()
+            for flow in anomalies[:5]:  # Limit to 5 to avoid budget waste
+                try:
+                    alert_data = {
+                        "severity": flow.get("severity", "medium"),
+                        "category": flow.get("label", "anomaly"),
+                        "source_ip": flow.get("src_ip", "unknown"),
+                        "dest_ip": flow.get("dst_ip", "unknown"),
+                        "confidence": flow.get("anomaly_score", 0.0),
+                        "composite_score": flow.get("anomaly_score", 0.0),
+                        "if_score": flow.get("if_score", 0.0),
+                        "rf_label": flow.get("label", "unknown"),
+                        "rf_confidence": flow.get("rf_score", 0.0),
+                        "ae_score": flow.get("ae_score", 0.0),
+                    }
+                    result = await gateway.analyze_alert(alert_data)
+                    narrative = result.get("content", "")
+                    if narrative and not narrative.startswith("["):
+                        # Update the most recent alert with matching IPs
+                        async with async_session() as session:
+                            await session.execute(
+                                text("""
+                                    UPDATE alerts SET ai_narrative = :narrative, updated_at = :now
+                                    WHERE source_ip = :src AND dest_ip = :dst
+                                    AND ai_narrative IS NULL
+                                    ORDER BY created_at DESC LIMIT 1
+                                """),
+                                {
+                                    "narrative": narrative,
+                                    "src": flow.get("src_ip"),
+                                    "dst": flow.get("dst_ip"),
+                                    "now": datetime.now(timezone.utc),
+                                },
+                            )
+                            await session.commit()
+                except Exception:
+                    continue
+
+            await gateway.close()
+        except Exception as e:
+            logger.error("[PCAP] LLM narrative generation failed: %s", e)
 
     async def create_upload_record(
         self,
