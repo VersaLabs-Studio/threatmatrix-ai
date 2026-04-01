@@ -110,15 +110,35 @@ class PcapProcessor:
             # 4. Score with ML ensemble
             scored_flows = await self._score_flows(flow_features)
 
-            # 5. Count anomalies
+            # 5. Count ML anomalies
+            ml_anomalies = [f for f in scored_flows if f.get("is_anomaly")]
+
+            # 6. Heuristic analysis — detect attack patterns from aggregate flow stats
+            #    (ML models rely on window-based features that PCAP can't provide)
+            heuristic_anomalies = self._heuristic_analysis(scored_flows)
+
+            # Merge: mark heuristic-detected flows as anomalies
+            for f in heuristic_anomalies:
+                if not f.get("is_anomaly"):
+                    f["is_anomaly"] = True
+                    if f.get("severity", "none") == "none":
+                        f["severity"] = "medium"
+                    if f.get("anomaly_score", 0) < 0.50:
+                        f["anomaly_score"] = 0.52
+
             anomalies = [f for f in scored_flows if f.get("is_anomaly")]
             self.stats["anomalies_found"] = len(anomalies)
 
-            # 6. Persist to database
+            logger.info(
+                "[PCAP] ML detected %d anomalies, heuristics detected %d, total %d",
+                len(ml_anomalies), len(heuristic_anomalies), len(anomalies),
+            )
+
+            # 7. Persist to database
             await self._persist_flows(scored_flows, upload_id)
             await self._update_upload_record(upload_id, status="complete")
 
-            # 7. Create alerts for anomalous flows (via Redis → AlertEngine)
+            # 8. Create alerts for anomalous flows
             if anomalies:
                 await self._publish_alerts(anomalies)
 
@@ -568,6 +588,129 @@ class PcapProcessor:
             f["severity"] = "none"
         return flow_features
 
+    def _heuristic_analysis(
+        self, flows: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Detect attack patterns using aggregate flow analysis.
+
+        ML models rely on window-based features (count, serror_rate over 2s windows)
+        that PCAP can't provide. This heuristic detects attacks from aggregate patterns
+        across all flows in the PCAP:
+
+        - Port scan: same src_ip hitting many different dst_ports
+        - DDoS: many different src_ips hitting same dst_ip:dst_port
+        - Brute force: many flows to ssh/ftp from same src_ip
+        - SYN flood: many flows with flag="S0" (SYN without response)
+
+        Returns flows that should be marked as anomalies.
+        """
+        if not flows:
+            return []
+
+        anomalies: List[Dict[str, Any]] = []
+
+        # Aggregate statistics
+        src_port_map: Dict[str, set] = {}    # src_ip → set of dst_ports
+        dst_source_map: Dict[str, set] = {}  # dst_ip:dst_port → set of src_ips
+        src_ssh_count: Dict[str, int] = {}   # src_ip → count of ssh/ftp flows
+        s0_count_by_src: Dict[str, int] = {} # src_ip → count of S0 flagged flows
+
+        for f in flows:
+            src_ip = f.get("src_ip", "")
+            dst_ip = f.get("dst_ip", "")
+            dst_port = f.get("dst_port", 0)
+            flag = f.get("flag", "OTH")
+            service = f.get("service", "other")
+
+            # Track src_ip → dst_ports (port scan detection)
+            if src_ip not in src_port_map:
+                src_port_map[src_ip] = set()
+            src_port_map[src_ip].add(dst_port)
+
+            # Track dst_ip:dst_port → src_ips (DDoS detection)
+            target_key = f"{dst_ip}:{dst_port}"
+            if target_key not in dst_source_map:
+                dst_source_map[target_key] = set()
+            dst_source_map[target_key].add(src_ip)
+
+            # Track SSH/FTP attempts (brute force detection)
+            if service in ("ssh", "ftp", "telnet"):
+                src_ssh_count[src_ip] = src_ssh_count.get(src_ip, 0) + 1
+
+            # Track S0 flags (SYN without response)
+            if flag == "S0":
+                s0_count_by_src[src_ip] = s0_count_by_src.get(src_ip, 0) + 1
+
+        # Detect port scans: src_ip hitting 10+ different ports
+        for src_ip, ports in src_port_map.items():
+            if len(ports) >= 10:
+                for f in flows:
+                    if f.get("src_ip") == src_ip and f.get("dst_port") in ports:
+                        if not f.get("is_anomaly"):
+                            f["label"] = "probe"
+                            f["category"] = "port_scan"
+                            anomalies.append(f)
+                logger.info(
+                    "[PCAP] Heuristic: port scan from %s (%d ports)",
+                    src_ip, len(ports),
+                )
+
+        # Detect DDoS: 5+ different sources hitting same target
+        for target, sources in dst_source_map.items():
+            if len(sources) >= 5:
+                for f in flows:
+                    flow_target = f"{f.get('dst_ip')}:{f.get('dst_port')}"
+                    if flow_target == target and not f.get("is_anomaly"):
+                        f["label"] = "dos"
+                        f["category"] = "ddos"
+                        anomalies.append(f)
+                logger.info(
+                    "[PCAP] Heuristic: DDoS against %s (%d sources)",
+                    target, len(sources),
+                )
+
+        # Detect brute force: 10+ SSH/FTP attempts from same source
+        for src_ip, count in src_ssh_count.items():
+            if count >= 10:
+                for f in flows:
+                    if (f.get("src_ip") == src_ip and
+                        f.get("service") in ("ssh", "ftp", "telnet") and
+                        not f.get("is_anomaly")):
+                        f["label"] = "r2l"
+                        f["category"] = "brute_force"
+                        anomalies.append(f)
+                logger.info(
+                    "[PCAP] Heuristic: brute force from %s (%d attempts)",
+                    src_ip, count,
+                )
+
+        # Detect SYN flood: 20+ S0 flagged flows from same source
+        for src_ip, count in s0_count_by_src.items():
+            if count >= 20:
+                for f in flows:
+                    if (f.get("src_ip") == src_ip and
+                        f.get("flag") == "S0" and
+                        not f.get("is_anomaly")):
+                        f["label"] = "dos"
+                        f["category"] = "syn_flood"
+                        anomalies.append(f)
+                logger.info(
+                    "[PCAP] Heuristic: SYN flood from %s (%d S0 flows)",
+                    src_ip, count,
+                )
+
+        # Deduplicate (a flow might match multiple heuristics)
+        seen = set()
+        unique_anomalies = []
+        for f in anomalies:
+            key = f"{f.get('src_ip')}:{f.get('src_port')}-{f.get('dst_ip')}:{f.get('dst_port')}"
+            if key not in seen:
+                seen.add(key)
+                unique_anomalies.append(f)
+
+        return unique_anomalies
+
     # ── Database Persistence ───────────────────────────────────
 
     async def _persist_flows(
@@ -740,7 +883,8 @@ class PcapProcessor:
                     composite_score = flow.get("anomaly_score", 0.0)
                     severity = score_to_severity(composite_score)
                     label = flow.get("label", "unknown")
-                    category = LABEL_TO_CATEGORY.get(label, "anomaly")
+                    # Use category from heuristic if set, otherwise map from label
+                    category = flow.get("category") or LABEL_TO_CATEGORY.get(label, "anomaly")
 
                     # Generate unique alert reference
                     timestamp = now.strftime("%Y%m%d%H%M%S")
