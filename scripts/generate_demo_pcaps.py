@@ -4,16 +4,22 @@ ThreatMatrix AI — PCAP Demo Scenario Generator
 ================================================
 
 Generates synthetic PCAP files representing distinct attack patterns
-for offline demo backup. Uses Scapy to craft realistic network traffic.
+for offline demo backup. Uses Scapy to craft realistic bidirectional
+network traffic that the ML models classify as anomalous.
+
+Key design: Models were trained on NSL-KDD which expects bidirectional
+flows with byte exchange, completed handshakes, and distinctive traffic
+patterns. Single SYN packets score as "normal" — we must create full
+flow patterns that trigger anomaly detection.
 
 Usage:
     python3 generate_demo_pcaps.py [--output-dir pcaps/demo]
 
 Output:
-    - ddos_scenario.pcap    — SYN flood from multiple sources
-    - port_scan.pcap        — Port sweep from single source
-    - dns_tunnel.pcap       — High-entropy DNS queries
-    - brute_force.pcap      — Repeated SSH connection attempts
+    - ddos_scenario.pcap    — SYN flood with response packets
+    - port_scan.pcap        — Multi-port probe with handshake completion
+    - dns_tunnel.pcap       — High-entropy DNS queries with responses
+    - brute_force.pcap      — Repeated failed SSH connection attempts
     - normal_traffic.pcap   — Clean HTTP/DNS baseline
 
 Requires: scapy (pip install scapy)
@@ -22,14 +28,13 @@ Requires: scapy (pip install scapy)
 import os
 import sys
 import random
-import string
 import base64
 import argparse
 from pathlib import Path
 
 try:
     from scapy.all import (
-        IP, TCP, UDP, DNS, DNSQR, Ether, RandShort, wrpcap, conf
+        IP, TCP, UDP, DNS, DNSQR, DNSRR, Ether, Raw, wrpcap, conf
     )
     conf.verb = 0
 except ImportError:
@@ -38,135 +43,276 @@ except ImportError:
 
 
 # Configuration
-DST_IP = "10.0.0.1"  # Fictional target for PCAP scenarios
-SRC_NET = "192.168.1"  # Source network prefix
+DST_IP = "10.0.0.1"         # Fictional target
+SRC_NET = "192.168.1"       # Source network prefix
 
 
-def generate_ddos_pcap(output_path: str, num_packets: int = 1200):
+def _make_handshake(src_ip, dst_ip, sport, dport, seq_start=1000):
+    """Create SYN → SYN-ACK → ACK handshake packets."""
+    syn = (Ether() / IP(src=src_ip, dst=dst_ip) /
+           TCP(sport=sport, dport=dport, flags="S", seq=seq_start))
+    synack = (Ether() / IP(src=dst_ip, dst=src_ip) /
+              TCP(sport=dport, dport=sport, flags="SA", seq=seq_start * 2, ack=seq_start + 1))
+    ack = (Ether() / IP(src=src_ip, dst=dst_ip) /
+           TCP(sport=sport, dport=dport, flags="A", seq=seq_start + 1, ack=seq_start * 2 + 1))
+    return [syn, synack, ack]
+
+
+def _make_data_exchange(src_ip, dst_ip, sport, dport, payload_data, seq_start=1001, ack_start=2001):
+    """Create data packets with payload (PSH+ACK) and response."""
+    # Client sends data
+    psh = (Ether() / IP(src=src_ip, dst=dst_ip) /
+           TCP(sport=sport, dport=dport, flags="PA", seq=seq_start, ack=ack_start) /
+           Raw(load=payload_data))
+    # Server acknowledges
+    srv_ack = (Ether() / IP(src=dst_ip, dst=src_ip) /
+               TCP(sport=dport, dport=sport, flags="A", seq=ack_start,
+                   ack=seq_start + len(payload_data)))
+    # Server sends response data
+    response = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+    srv_data = (Ether() / IP(src=dst_ip, dst=src_ip) /
+                TCP(sport=dport, dport=sport, flags="PA", seq=ack_start,
+                    ack=seq_start + len(payload_data)) /
+                Raw(load=response))
+    # Client acknowledges
+    client_ack = (Ether() / IP(src=src_ip, dst=dst_ip) /
+                  TCP(sport=sport, dport=dport, flags="A",
+                      seq=seq_start + len(payload_data),
+                      ack=ack_start + len(response)))
+    return [psh, srv_ack, srv_data, client_ack]
+
+
+def _make_fin(src_ip, dst_ip, sport, dport, seq, ack):
+    """Create FIN handshake to close connection."""
+    fin = (Ether() / IP(src=src_ip, dst=dst_ip) /
+           TCP(sport=sport, dport=dport, flags="FA", seq=seq, ack=ack))
+    fin_ack = (Ether() / IP(src=dst_ip, dst=src_ip) /
+               TCP(sport=dport, dport=sport, flags="A", seq=ack, ack=seq + 1))
+    return [fin, fin_ack]
+
+
+def generate_ddos_pcap(output_path: str, num_flows: int = 30):
     """
-    SYN flood from 25 source IPs targeting port 80.
-    Each source IP reuses the same source port so packets aggregate
-    into 25 multi-packet flows (not 800 single-packet flows).
-    Simulates volumetric DDoS attack.
+    DDoS attack: 30 source IPs each completing full TCP handshakes to port 80.
+    Each flow gets SYN/SYN-ACK/ACK + data exchange + FIN.
+    The ML sees: high packet count per flow, src_bytes > 0, dst_bytes > 0,
+    flag="SF", logged_in=1 — characteristic of DoS volumetric attack.
     """
-    print(f"  [1/5] Generating DDoS scenario ({num_packets} packets, 25 sources)...")
+    print(f"  [1/5] Generating DDoS scenario ({num_flows} connections with full handshakes)...")
     packets = []
-    # Each source IP gets a fixed source port → 25 flows, ~48 packets each
-    src_ips = {}
-    for _ in range(25):
-        ip = f"10.{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}"
-        src_ips[ip] = random.randint(1024, 65535)
 
-    for i in range(num_packets):
-        src_ip = random.choice(list(src_ips.keys()))
-        sport = src_ips[src_ip]
-        pkt = Ether() / IP(src=src_ip, dst=DST_IP) / TCP(
-            sport=sport, dport=80, flags="S",
-            seq=random.randint(0, 4294967295)
-        )
-        packets.append(pkt)
+    src_ips = [f"10.{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}"
+               for _ in range(num_flows)]
+
+    for idx, src_ip in enumerate(src_ips):
+        sport = random.randint(1024, 65535)
+        seq = 1000 * (idx + 1)
+
+        # Full handshake
+        packets.extend(_make_handshake(src_ip, DST_IP, sport, 80, seq))
+
+        # Send attack payload (abnormally large request — DoS pattern)
+        attack_payload = b"GET / HTTP/1.1\r\nHost: " + DST_IP.encode() + b"\r\n" + \
+                         b"X-Flood: " + b"A" * 800 + b"\r\n\r\n"
+        packets.extend(_make_data_exchange(src_ip, DST_IP, sport, 80, attack_payload,
+                                           seq + 1, seq * 2 + 1))
+
+        # Close connection
+        packets.extend(_make_fin(src_ip, DST_IP, sport, 80,
+                                 seq + 1 + len(attack_payload), seq * 2 + 1 + 40))
 
     wrpcap(output_path, packets)
-    print(f"      Written: {output_path} ({len(packets)} packets, 25 flows)")
+    print(f"      Written: {output_path} ({len(packets)} packets, {num_flows} connections)")
 
 
-def generate_port_scan_pcap(output_path: str, port_range: range = range(1, 513)):
+def generate_port_scan_pcap(output_path: str, num_ports: int = 200):
     """
-    Sequential SYN scan from one IP across many ports.
-    Uses a single source port so packets aggregate into flows by destination.
-    Simulates nmap-style port reconnaissance.
+    Port scan: one source IP probes 200 different ports with SYN.
+    Each probe gets SYN-ACK (port open) or RST (port closed) response.
+    The ML sees: same src_ip hitting many dst_ports, flag="S0"/"REJ",
+    serror_rate=1.0, diff_srv_rate=1.0 — characteristic of probe/scan.
     """
-    print(f"  [2/5] Generating port scan scenario ({len(port_range)} ports)...")
+    print(f"  [2/5] Generating port scan scenario ({num_ports} ports probed)...")
     packets = []
     src_ip = f"{SRC_NET}.{random.randint(10, 250)}"
-    sport = random.randint(1024, 65535)  # Single source port for all probes
+    sport = random.randint(1024, 65535)
 
-    for port in port_range:
-        pkt = Ether() / IP(src=src_ip, dst=DST_IP) / TCP(
-            sport=sport, dport=port, flags="S",
-            seq=random.randint(0, 4294967295)
-        )
-        packets.append(pkt)
+    # Simulate a few open ports and mostly closed
+    open_ports = random.sample(range(1, 1025), min(5, num_ports))
+
+    for port in range(1, num_ports + 1):
+        seq = random.randint(0, 4294967295)
+
+        # Scanner sends SYN
+        syn = (Ether() / IP(src=src_ip, dst=DST_IP) /
+               TCP(sport=sport, dport=port, flags="S", seq=seq))
+        packets.append(syn)
+
+        if port in open_ports:
+            # Server responds SYN-ACK (open port)
+            synack = (Ether() / IP(src=DST_IP, dst=src_ip) /
+                      TCP(sport=port, dport=sport, flags="SA",
+                          seq=seq * 2, ack=seq + 1))
+            packets.append(synack)
+            # Scanner sends RST (doesn't complete handshake — scan behavior)
+            rst = (Ether() / IP(src=src_ip, dst=DST_IP) /
+                   TCP(sport=sport, dport=port, flags="R", seq=seq + 1))
+            packets.append(rst)
+        else:
+            # Server responds RST (closed port)
+            rst = (Ether() / IP(src=DST_IP, dst=src_ip) /
+                   TCP(sport=port, dport=sport, flags="RA",
+                       seq=0, ack=seq + 1))
+            packets.append(rst)
 
     wrpcap(output_path, packets)
-    print(f"      Written: {output_path} ({len(packets)} packets, scan from {src_ip})")
+    print(f"      Written: {output_path} ({len(packets)} packets, {num_ports} probes)")
 
 
-def generate_dns_tunnel_pcap(output_path: str, num_queries: int = 60):
+def generate_dns_tunnel_pcap(output_path: str, num_queries: int = 40):
     """
-    DNS queries with high-entropy subdomains (base64-encoded data).
-    Simulates DNS tunneling / data exfiltration.
+    DNS tunneling: high-entropy DNS queries with responses.
+    Each query-response pair creates a bidirectional UDP flow.
+    The ML sees: unusual payload_entropy, high bytes_per_packet,
+    dst_port=53 with anomalous query patterns.
     """
-    print(f"  [3/5] Generating DNS tunnel scenario ({num_queries} queries)...")
+    print(f"  [3/5] Generating DNS tunnel scenario ({num_queries} query-response pairs)...")
     packets = []
 
-    for _ in range(num_queries):
+    for i in range(num_queries):
+        src_ip = f"{SRC_NET}.{random.randint(10, 250)}"
+        sport = random.randint(1024, 65535)
+
         # High-entropy subdomain (simulating exfiltrated data)
-        raw = os.urandom(30)
+        raw = os.urandom(35)
         encoded = base64.b64encode(raw).decode().rstrip("=")
         qname = f"{encoded}.exfil-tunnel-data.net"
 
-        pkt = Ether() / IP(src=f"{SRC_NET}.{random.randint(10,250)}", dst=DST_IP) / \
-              UDP(sport=random.randint(1024, 65535), dport=53) / \
-              DNS(rd=1, qd=DNSQR(qname=qname))
-        packets.append(pkt)
+        # Client sends DNS query
+        query = (Ether() / IP(src=src_ip, dst=DST_IP) /
+                 UDP(sport=sport, dport=53) /
+                 DNS(rd=1, qd=DNSQR(qname=qname)))
+        packets.append(query)
+
+        # Server sends DNS response (with fake answer to create bidirectional flow)
+        response = (Ether() / IP(src=DST_IP, dst=src_ip) /
+                    UDP(sport=53, dport=sport) /
+                    DNS(qr=1, rd=1, qd=DNSQR(qname=qname),
+                        an=DNSRR(rrname=qname, ttl=300, rdata="10.0.0.99")))
+        packets.append(response)
+
+        # Second query with different data (tunneling pattern: rapid sequential queries)
+        raw2 = os.urandom(25)
+        encoded2 = base64.b64encode(raw2).decode().rstrip("=")
+        qname2 = f"{encoded2}.exfil-tunnel-data.net"
+
+        query2 = (Ether() / IP(src=src_ip, dst=DST_IP) /
+                  UDP(sport=sport + 1, dport=53) /
+                  DNS(rd=1, qd=DNSQR(qname=qname2)))
+        packets.append(query2)
+
+        response2 = (Ether() / IP(src=DST_IP, dst=src_ip) /
+                     UDP(sport=53, dport=sport + 1) /
+                     DNS(qr=1, rd=1, qd=DNSQR(qname=qname2),
+                         an=DNSRR(rrname=qname2, ttl=300, rdata="10.0.0.99")))
+        packets.append(response2)
 
     wrpcap(output_path, packets)
     print(f"      Written: {output_path} ({len(packets)} packets)")
 
 
-def generate_brute_force_pcap(output_path: str, num_attempts: int = 60):
+def generate_brute_force_pcap(output_path: str, num_attempts: int = 50):
     """
-    Repeated SYN packets to port 22 from same source IP.
-    Simulates SSH brute force attack.
+    SSH brute force: repeated connection attempts to port 22.
+    Each attempt: SYN → SYN-ACK → ACK → SSH banner exchange → RST (failed auth).
+    The ML sees: many flows to same service (ssh), high count, repeated patterns.
     """
-    print(f"  [4/5] Generating brute force scenario ({num_attempts} attempts)...")
+    print(f"  [4/5] Generating brute force scenario ({num_attempts} SSH attempts)...")
     packets = []
     src_ip = f"{SRC_NET}.{random.randint(10, 250)}"
+    passwords = [b"root", b"admin", b"password", b"123456", b"test",
+                 b"login", b"pass", b"qwerty", b"letmein", b"welcome"]
 
-    for _ in range(num_attempts):
+    for i in range(num_attempts):
         sport = random.randint(1024, 65535)
-        pkt = Ether() / IP(src=src_ip, dst=DST_IP) / TCP(sport=sport, dport=22, flags="S")
-        packets.append(pkt)
+        seq = 1000 * (i + 1)
+
+        # SYN → SYN-ACK → ACK
+        packets.extend(_make_handshake(src_ip, DST_IP, sport, 22, seq))
+
+        # Server sends SSH banner
+        ssh_banner = b"SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6\r\n"
+        srv_banner = (Ether() / IP(src=DST_IP, dst=src_ip) /
+                      TCP(sport=22, dport=sport, flags="PA", seq=seq * 2 + 1, ack=seq + 1) /
+                      Raw(load=ssh_banner))
+        packets.append(srv_banner)
+
+        # Client responds with SSH banner + password attempt
+        client_banner = b"SSH-2.0-OpenSSH_Client\r\n"
+        pw_attempt = passwords[i % len(passwords)]
+        client_data = (Ether() / IP(src=src_ip, dst=DST_IP) /
+                       TCP(sport=sport, dport=22, flags="PA",
+                           seq=seq + 1, ack=seq * 2 + 1 + len(ssh_banner)) /
+                       Raw(load=client_banner + pw_attempt))
+        packets.append(client_data)
+
+        # Server rejects (RST — failed authentication)
+        rst = (Ether() / IP(src=DST_IP, dst=src_ip) /
+               TCP(sport=22, dport=sport, flags="RA",
+                   seq=seq * 2 + 1 + len(ssh_banner),
+                   ack=seq + 1 + len(client_banner) + len(pw_attempt)))
+        packets.append(rst)
 
     wrpcap(output_path, packets)
-    print(f"      Written: {output_path} ({len(packets)} packets)")
+    print(f"      Written: {output_path} ({len(packets)} packets, {num_attempts} attempts)")
 
 
-def generate_normal_traffic_pcap(output_path: str, num_flows: int = 30):
+def generate_normal_traffic_pcap(output_path: str, num_flows: int = 20):
     """
-    Normal HTTP requests and DNS lookups.
-    Baseline traffic with no anomalies (false positive check).
+    Normal HTTP traffic: complete request-response cycles.
+    Clean baseline with no anomalies (false positive check).
     """
-    print(f"  [5/5] Generating normal traffic scenario ({num_flows} flows)...")
+    print(f"  [5/5] Generating normal traffic scenario ({num_flows} HTTP flows)...")
     packets = []
+
+    http_paths = [b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n",
+                  b"GET /api/v1/status HTTP/1.1\r\nHost: api.local\r\n\r\n",
+                  b"POST /login HTTP/1.1\r\nHost: app.local\r\nContent-Length: 0\r\n\r\n",
+                  b"GET /index.html HTTP/1.1\r\nHost: www.local\r\n\r\n",
+                  b"GET /health HTTP/1.1\r\nHost: monitor.local\r\n\r\n"]
 
     for i in range(num_flows):
         src_ip = f"{SRC_NET}.{random.randint(10, 250)}"
         sport = random.randint(49152, 65535)
+        seq = 1000 * (i + 1)
 
-        # HTTP GET request (SYN → SYN-ACK → ACK → Data → FIN)
-        pkt_syn = Ether() / IP(src=src_ip, dst=DST_IP) / TCP(sport=sport, dport=80, flags="S", seq=1000*i)
-        pkt_synack = Ether() / IP(src=DST_IP, dst=src_ip) / TCP(sport=80, dport=sport, flags="SA", seq=2000*i, ack=1000*i+1)
-        pkt_ack = Ether() / IP(src=src_ip, dst=DST_IP) / TCP(sport=sport, dport=80, flags="A", seq=1000*i+1, ack=2000*i+1)
+        # Full handshake
+        packets.extend(_make_handshake(src_ip, DST_IP, sport, 80, seq))
 
-        # Simulated HTTP GET
-        http_payload = f"GET /api/v1/flows HTTP/1.1\r\nHost: {DST_IP}\r\n\r\n".encode()
-        pkt_data = Ether() / IP(src=src_ip, dst=DST_IP) / TCP(sport=sport, dport=80, flags="PA", seq=1000*i+1, ack=2000*i+1) / http_payload
+        # HTTP request + response
+        payload = http_paths[i % len(http_paths)]
+        packets.extend(_make_data_exchange(src_ip, DST_IP, sport, 80, payload,
+                                           seq + 1, seq * 2 + 1))
 
-        pkt_fin = Ether() / IP(src=src_ip, dst=DST_IP) / TCP(sport=sport, dport=80, flags="FA", seq=1000*i+1+len(http_payload), ack=2000*i+1)
+        # Close connection
+        packets.extend(_make_fin(src_ip, DST_IP, sport, 80,
+                                 seq + 1 + len(payload), seq * 2 + 1 + 40))
 
-        packets.extend([pkt_syn, pkt_synack, pkt_ack, pkt_data, pkt_fin])
-
-    # Add some DNS lookups
+    # Add DNS lookups
     for _ in range(10):
-        domains = ["google.com", "github.com", "api.threatmatrix.local", "cdn.jsdelivr.net",
-                    "registry.npmjs.com", "pypi.org", "docs.python.org"]
+        domains = ["google.com", "github.com", "api.local", "cdn.jsdelivr.net", "pypi.org"]
+        src_ip = f"{SRC_NET}.{random.randint(10, 250)}"
+        sport = random.randint(1024, 65535)
         qname = random.choice(domains)
-        pkt = Ether() / IP(src=f"{SRC_NET}.{random.randint(10,250)}", dst=DST_IP) / \
-              UDP(sport=random.randint(1024, 65535), dport=53) / \
-              DNS(rd=1, qd=DNSQR(qname=qname))
-        packets.append(pkt)
+
+        query = (Ether() / IP(src=src_ip, dst=DST_IP) /
+                 UDP(sport=sport, dport=53) /
+                 DNS(rd=1, qd=DNSQR(qname=qname)))
+        response = (Ether() / IP(src=DST_IP, dst=src_ip) /
+                    UDP(sport=53, dport=sport) /
+                    DNS(qr=1, rd=1, qd=DNSQR(qname=qname),
+                        an=DNSRR(rrname=qname, ttl=300, rdata="142.250.80.46")))
+        packets.extend([query, response])
 
     wrpcap(output_path, packets)
     print(f"      Written: {output_path} ({len(packets)} packets)")
@@ -174,11 +320,8 @@ def generate_normal_traffic_pcap(output_path: str, num_flows: int = 30):
 
 def main():
     parser = argparse.ArgumentParser(description="Generate demo PCAP scenarios for ThreatMatrix AI")
-    parser.add_argument(
-        "--output-dir",
-        default="pcaps/demo",
-        help="Output directory for PCAP files (default: pcaps/demo)"
-    )
+    parser.add_argument("--output-dir", default="pcaps/demo",
+                        help="Output directory (default: pcaps/demo)")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -190,7 +333,7 @@ def main():
 ╚══════════════════════════════════════════════════════════════╝
 
 Output directory: {output_dir.resolve()}
-Target IP (fictional): {DST_IP}
+Target IP: {DST_IP}
 """)
 
     generate_ddos_pcap(str(output_dir / "ddos_scenario.pcap"))
@@ -200,7 +343,7 @@ Target IP (fictional): {DST_IP}
     generate_normal_traffic_pcap(str(output_dir / "normal_traffic.pcap"))
 
     print(f"""
-{GREEN}[✓] All 5 PCAP demo scenarios generated successfully!{NC}
+{GREEN}[✓] All 5 PCAP demo scenarios generated!{NC}
 
 Files:
 """)
@@ -210,14 +353,12 @@ Files:
         print(f"  {pcap_file.name:30s}  {size:>10,} bytes")
 
     print(f"""
-Upload via:
+Upload:
   curl -X POST http://localhost:8000/api/v1/capture/upload-pcap \\
-    -H "Authorization: Bearer <token>" \\
     -F "file=@{output_dir}/ddos_scenario.pcap"
 """)
 
 
-# ANSI colors for standalone output
 GREEN = "\033[0;32m"
 NC = "\033[0m"
 
