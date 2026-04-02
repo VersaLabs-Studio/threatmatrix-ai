@@ -656,9 +656,9 @@ class PcapProcessor:
                     src_ip, len(ports),
                 )
 
-        # Detect DDoS: 8+ different sources hitting same target
+        # Detect DDoS: 8+ different sources hitting same TCP target (exclude DNS/UDP)
         for target, sources in dst_source_map.items():
-            if len(sources) >= 8:
+            if len(sources) >= 8 and ":53" not in target:
                 for f in flows:
                     flow_target = f"{f.get('dst_ip')}:{f.get('dst_port')}"
                     if flow_target == target and not f.get("is_anomaly"):
@@ -699,6 +699,24 @@ class PcapProcessor:
                     "[PCAP] Heuristic: SYN flood from %s (%d S0 flows)",
                     src_ip, count,
                 )
+
+        # Detect DNS tunneling: 8+ sources hitting port 53 with high entropy
+        dns_sources = set()
+        for f in flows:
+            if f.get("dst_port") == 53 and f.get("protocol_type") == "udp":
+                dns_sources.add(f.get("src_ip", ""))
+        if len(dns_sources) >= 8:
+            for f in flows:
+                if (f.get("dst_port") == 53 and
+                    f.get("protocol_type") == "udp" and
+                    not f.get("is_anomaly")):
+                    f["label"] = "probe"
+                    f["category"] = "dns_tunnel"
+                    anomalies.append(f)
+            logger.info(
+                "[PCAP] Heuristic: DNS tunneling (%d sources querying port 53)",
+                len(dns_sources),
+            )
 
         # Deduplicate (a flow might match multiple heuristics)
         seen = set()

@@ -92,39 +92,33 @@ def _make_fin(src_ip, dst_ip, sport, dport, seq, ack):
     return [fin, fin_ack]
 
 
-def generate_ddos_pcap(output_path: str, num_flows: int = 30):
+def generate_ddos_pcap(output_path: str, num_sources: int = 50):
     """
-    DDoS attack: 30 source IPs each completing full TCP handshakes to port 80.
-    Each flow gets SYN/SYN-ACK/ACK + data exchange + FIN.
-    The ML sees: high packet count per flow, src_bytes > 0, dst_bytes > 0,
-    flag="SF", logged_in=1 — characteristic of DoS volumetric attack.
+    DDoS attack: 50 source IPs each sending SYN packets to port 80.
+    SYN-only (no responses) so each source creates exactly 1 flow.
+    The ML sees: many flows to same target from different sources,
+    flag="S0" — characteristic of DDoS volumetric attack.
     """
-    print(f"  [1/5] Generating DDoS scenario ({num_flows} connections with full handshakes)...")
+    print(f"  [1/5] Generating DDoS scenario ({num_sources} sources flooding port 80)...")
     packets = []
 
     src_ips = [f"10.{random.randint(1,254)}.{random.randint(1,254)}.{random.randint(1,254)}"
-               for _ in range(num_flows)]
+               for _ in range(num_sources)]
 
-    for idx, src_ip in enumerate(src_ips):
+    # Each source sends 5 SYN packets to port 80 (same sport → 1 flow per source)
+    for src_ip in src_ips:
         sport = random.randint(1024, 65535)
-        seq = 1000 * (idx + 1)
-        srv_seq = 5000 + sport  # Match _make_handshake server seq
-
-        # Full handshake
-        packets.extend(_make_handshake(src_ip, DST_IP, sport, 80, seq))
-
-        # Send attack payload (abnormally large request — DoS pattern)
-        attack_payload = b"GET / HTTP/1.1\r\nHost: " + DST_IP.encode() + b"\r\n" + \
-                         b"X-Flood: " + b"A" * 800 + b"\r\n\r\n"
-        packets.extend(_make_data_exchange(src_ip, DST_IP, sport, 80, attack_payload,
-                                           seq + 1, srv_seq + 1))
-
-        # Close connection
-        packets.extend(_make_fin(src_ip, DST_IP, sport, 80,
-                                 seq + 1 + len(attack_payload), srv_seq + 1 + 40))
+        for j in range(5):
+            pkt = (Ether() / IP(src=src_ip, dst=DST_IP) /
+                   TCP(sport=sport, dport=80, flags="S",
+                       seq=random.randint(1000, 4000000)))
+            packets.append(pkt)
 
     wrpcap(output_path, packets)
-    print(f"      Written: {output_path} ({len(packets)} packets, {num_flows} connections)")
+    print(f"      Written: {output_path} ({len(packets)} packets, {num_sources} sources)")
+
+    wrpcap(output_path, packets)
+    print(f"      Written: {output_path} ({len(packets)} packets, {num_sources} sources)")
 
 
 def generate_port_scan_pcap(output_path: str, num_ports: int = 200):
