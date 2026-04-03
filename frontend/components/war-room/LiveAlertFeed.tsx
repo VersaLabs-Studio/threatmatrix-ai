@@ -6,13 +6,14 @@
 // Source: WebSocket alerts:live channel
 // ═══════════════════════════════════════════════════════
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 import { SEVERITY_COLORS, type Severity } from '@/lib/constants';
-import { formatTime } from '@/lib/utils';
+import { formatTime, relativeTime } from '@/lib/utils';
 import type { AlertEvent } from '@/hooks/useWebSocket';
+import { api } from '@/lib/api';
 
 interface AlertFeedItem {
   id: string;
@@ -31,6 +32,20 @@ interface LiveAlertFeedProps {
   lastAnomalyEvent?: AnomalyDetectedEvent | null;
 }
 
+// API alert item type
+interface ApiAlertItem {
+  id: string;
+  alert_id: string;
+  severity: Severity;
+  category: string;
+  source_ip: string;
+  dest_ip: string;
+  confidence: number;
+  title: string;
+  created_at: string;
+  isNew?: boolean;
+}
+
 const SEVERITY_ICONS: Record<Severity, string> = {
   critical: '🔴',
   high:     '🟠',
@@ -39,24 +54,47 @@ const SEVERITY_ICONS: Record<Severity, string> = {
   info:     '⚪',
 };
 
-// Seed mock alerts for demo purposes
-const SEED_ALERTS: AlertFeedItem[] = [
-  { id: 'seed-1', severity: 'critical', category: 'DDoS Detected',     src_ip: '45.33.32.156', timestamp: new Date(Date.now() - 45000).toISOString() },
-  { id: 'seed-2', severity: 'high',     category: 'Port Scan',         src_ip: '192.168.1.15', timestamp: new Date(Date.now() - 90000).toISOString() },
-  { id: 'seed-3', severity: 'medium',   category: 'Suspicious DNS',    src_ip: '10.0.1.23',    timestamp: new Date(Date.now() - 130000).toISOString() },
-  { id: 'seed-4', severity: 'high',     category: 'C2 Communication',  src_ip: '104.21.55.12', timestamp: new Date(Date.now() - 180000).toISOString() },
-  { id: 'seed-5', severity: 'low',      category: 'Unusual Port',      src_ip: '172.16.0.5',   timestamp: new Date(Date.now() - 240000).toISOString() },
-  { id: 'seed-6', severity: 'critical', category: 'Brute Force',       src_ip: '185.220.101.4',timestamp: new Date(Date.now() - 320000).toISOString() },
-];
+// No mock data — feed starts empty and populates from WebSocket events
+const INITIAL_ALERTS: AlertFeedItem[] = [];
 
 const MAX_FEED_SIZE = 50;
 
 export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFeedProps) {
-  const [alerts, setAlerts] = useState<AlertFeedItem[]>(SEED_ALERTS);
+  const [alerts, setAlerts] = useState<AlertFeedItem[]>(INITIAL_ALERTS);
+  const [apiAlerts, setApiAlerts] = useState<ApiAlertItem[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Ingest new WebSocket alert events
+  // Fetch alerts from API (for DEV_MODE where WebSocket doesn't work)
+  const fetchAlerts = useCallback(async () => {
+    try {
+      const { data } = await api.get<{ items: ApiAlertItem[]; total: number }>('/api/v1/alerts/?limit=20&page=1');
+      if (data?.items) {
+        const transformed: AlertFeedItem[] = data.items.map((a) => ({
+          id: a.id,
+          severity: a.severity,
+          category: a.category || 'Unknown',
+          src_ip: a.source_ip || a.dest_ip || 'N/A',
+          timestamp: a.created_at,
+          composite_score: a.confidence,
+          isNew: false,
+        }));
+        setApiAlerts(data.items);
+        setAlerts(transformed);
+      }
+    } catch (e) {
+      console.error('[LiveAlertFeed] Failed to fetch alerts:', e);
+    }
+  }, []);
+
+  // Initial fetch + polling
+  useEffect(() => {
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, 5000);
+    return () => clearInterval(interval);
+  }, [fetchAlerts]);
+
+  // Ingest new WebSocket alert events (if WebSocket connects)
   useEffect(() => {
     if (!lastAlertEvent) return;
     const newItem: AlertFeedItem = {
@@ -105,92 +143,135 @@ export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFee
 
   return (
     <GlassPanel icon="🚨" title="LIVE ALERT FEED" badge={`${alerts.length}`} style={{ height: '100%' }}>
-      <div
-        ref={listRef}
-        style={{
-          overflowY: 'auto',
-          maxHeight: 220,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
-          paddingRight: 4,
-        }}
-      >
-        {alerts.map((alert, idx) => (
-          <div
-            key={alert.id}
-            className={alert.severity === 'critical' ? 'alert-card alert-card--critical' : 'alert-card'}
-            onClick={() => router.push('/alerts')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '6px 10px',
-              borderRadius: 'var(--radius-sm)',
-              background: 'var(--bg-tertiary)',
-              border: `1px solid ${alert.isNew ? SEVERITY_COLORS[alert.severity] + '66' : 'var(--border)'}`,
-              backdropFilter: 'blur(4px)',
-              transition: 'border-color 0.4s ease, background 0.4s ease, opacity 0.4s ease, filter 0.4s ease, transform 0.2s ease',
-              animation: alert.isNew ? `stagger-in 0.3s ease forwards` : undefined,
-              animationDelay: alert.isNew ? `${idx * 50}ms` : undefined,
-              opacity: alert.isNew ? 0 : (idx > alerts.length - 3 ? 0.4 : 1),
-              filter: idx > alerts.length - 3 ? 'grayscale(0.5)' : 'none',
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ fontSize: '0.7rem' }}>{SEVERITY_ICONS[alert.severity]}</span>
-            <span
-              style={{
-                fontFamily: 'var(--font-data)',
-                fontSize: '0.65rem',
-                color: 'var(--text-muted)',
-                flexShrink: 0,
-                width: '5.5rem',
-              }}
-            >
-              {formatTime(alert.timestamp)}
-            </span>
-            <span
-              style={{
-                fontFamily: 'var(--font-data)',
-                fontSize: '0.72rem',
-                color: SEVERITY_COLORS[alert.severity],
-                fontWeight: 600,
-                flex: 1,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {alert.category}
-            </span>
-            <span
-              style={{
-                fontFamily: 'var(--font-data)',
-                fontSize: '0.65rem',
-                color: 'var(--text-muted)',
-                flexShrink: 0,
-              }}
-            >
-              {alert.src_ip}
-            </span>
-            {alert.composite_score !== undefined && (
-              <span
-                style={{
-                  fontFamily: 'var(--font-data)',
-                  fontSize: '0.6rem',
-                  color: 'var(--cyan)',
-                  flexShrink: 0,
-                  width: '2.5rem',
-                  textAlign: 'right',
-                }}
-              >
-                {(alert.composite_score * 100).toFixed(0)}%
-              </span>
-            )}
+      {alerts.length === 0 ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          height: 120, fontFamily: 'var(--font-data)', fontSize: '0.7rem',
+          color: 'var(--text-muted)', textAlign: 'center',
+        }}>
+          <div>
+            <div style={{ fontSize: '1.5rem', marginBottom: 8 }}>🛡️</div>
+            <div>No alerts yet</div>
+            <div style={{ fontSize: '0.6rem', marginTop: 4, opacity: 0.7 }}>Run an attack to trigger detection</div>
           </div>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div
+          ref={listRef}
+          style={{
+            overflowY: 'auto',
+            maxHeight: 280,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            paddingRight: 4,
+          }}
+        >
+        {alerts.map((alert, idx) => {
+          const severityDot = SEVERITY_ICONS[alert.severity] || '⚪';
+          const severityColor = SEVERITY_COLORS[alert.severity] || 'var(--text-muted)';
+          
+          return (
+            <div
+              key={alert.id}
+              onClick={() => router.push('/alerts')}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                padding: '8px 10px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-tertiary)',
+                border: `1px solid ${alert.isNew ? severityColor + '44' : 'var(--border)'}`,
+                borderLeft: `3px solid ${severityColor}`,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                opacity: idx > 15 ? 0.5 : 1,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-elevated)';
+                e.currentTarget.style.borderColor = severityColor + '66';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bg-tertiary)';
+                e.currentTarget.style.borderColor = alert.isNew ? severityColor + '44' : 'var(--border)';
+              }}
+            >
+              {/* Severity dot with pulse for critical */}
+              <div style={{
+                position: 'relative',
+                width: 24,
+                height: 24,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <span style={{
+                  fontSize: '0.8rem',
+                  filter: alert.severity === 'critical' ? `drop-shadow(0 0 4px ${severityColor})` : 'none',
+                }}>
+                  {severityDot}
+                </span>
+              </div>
+              
+              {/* Alert content */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-data)',
+                      fontSize: '0.65rem',
+                      color: severityColor,
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    {alert.category}
+                  </span>
+                  {alert.composite_score !== undefined && (
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-data)',
+                        fontSize: '0.55rem',
+                        color: 'var(--text-muted)',
+                        background: 'var(--bg-primary)',
+                        padding: '1px 4px',
+                        borderRadius: 'var(--radius-sm)',
+                      }}
+                    >
+                      {(alert.composite_score * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-data)',
+                      fontSize: '0.6rem',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    {alert.src_ip}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.5rem' }}>→</span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-data)',
+                      fontSize: '0.6rem',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    {relativeTime(alert.timestamp)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        </div>
+      )}
 
       <Link
         href="/alerts"

@@ -14,25 +14,27 @@ interface GeoEntry {
   isAnomaly?: boolean;
 }
 
-const MOCK_GEO: GeoEntry[] = [
-  { country: 'Ethiopia', flag: '🇪🇹', percent: 48, isAnomaly: false },
-  { country: 'China',    flag: '🇨🇳', percent: 18, isAnomaly: true  },
-  { country: 'USA',      flag: '🇺🇸', percent: 12, isAnomaly: false },
-  { country: 'Russia',   flag: '🇷🇺', percent: 9,  isAnomaly: true  },
-  { country: 'Germany',  flag: '🇩🇪', percent: 7,  isAnomaly: false },
-  { country: 'Other',    flag: '🌐', percent: 6,  isAnomaly: false },
-];
-
+// No mock data — GeoIP requires GeoIP database on VPS (not available)
+// Shows placeholder until GeoIP integration is added
 interface GeoDistributionProps {
   data?: GeoEntry[];
 }
 
-export function GeoDistribution({ data = MOCK_GEO }: GeoDistributionProps) {
-  const entries = data.length > 0 ? data : MOCK_GEO;
+export function GeoDistribution({ data = [] }: GeoDistributionProps) {
+  const entries = data.length > 0 ? data : [];
 
   return (
     <GlassPanel tilt refract icon="🌍" title="GEO DISTRIBUTION" style={{ height: '100%' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {entries.length === 0 ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          height: 120, fontFamily: 'var(--font-data)', fontSize: '0.7rem',
+          color: 'var(--text-muted)', textAlign: 'center',
+        }}>
+          GeoIP requires MaxMind DB<br />Not available in current deployment
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {entries.map((entry) => (
           <div key={entry.country} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: '1rem', flexShrink: 0 }}>{entry.flag}</span>
@@ -80,7 +82,8 @@ export function GeoDistribution({ data = MOCK_GEO }: GeoDistributionProps) {
             </span>
           </div>
         ))}
-      </div>
+        </div>
+      )}
     </GlassPanel>
   );
 }

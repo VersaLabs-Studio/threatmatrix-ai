@@ -11,7 +11,7 @@
 //  • HeatmapLayer     — traffic density
 // ═══════════════════════════════════════════════════════
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { DeckGL } from 'deck.gl';
 import { ScatterplotLayer, ArcLayer } from '@deck.gl/layers';
 import { HeatmapLayer } from '@deck.gl/aggregation-layers';
@@ -57,6 +57,34 @@ interface ThreatMapProps {
 
 export function ThreatMap({ recentFlows = [], loading = false }: ThreatMapProps) {
   const [hovered, setHovered] = useState<GeoFlow | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isReady, setIsReady] = useState(false);
+
+  // Wait for container to have valid dimensions before rendering Deck.gl
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const checkDimensions = () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect && rect.width > 0 && rect.height > 0) {
+        setIsReady(true);
+      }
+    };
+    
+    checkDimensions();
+    
+    // Poll for a few seconds until dimensions are valid
+    const interval = setInterval(checkDimensions, 100);
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      setIsReady(true); // Force render even if dimensions not detected
+    }, 2000);
+    
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, []);
 
   // Merge live flows with seed flows; cap at 200 for performance
   const flows: GeoFlow[] = useMemo(() => {
@@ -126,9 +154,19 @@ export function ThreatMap({ recentFlows = [], loading = false }: ThreatMapProps)
   const anomalyCount = flows.filter(f => f.isAnomaly).length;
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+    <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
       {loading ? (
         <div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: 'var(--radius-md)' }} />
+      ) : !isReady ? (
+        <div style={{
+          width: '100%', height: '100%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: '0.75rem', color: '#00f0ff',
+          letterSpacing: '0.1em',
+        }}>
+          INITIALIZING MAP…
+        </div>
       ) : (
         <DeckGL
           initialViewState={INITIAL_VIEW_STATE}

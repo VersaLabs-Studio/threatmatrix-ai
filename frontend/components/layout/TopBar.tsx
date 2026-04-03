@@ -134,14 +134,21 @@ export function TopBar() {
             {currentTime}
           </span>
 
-          {/* LLM Token Budget */}
+          {/* System Status */}
           <div
             className="btn-aether"
-            style={{ padding: '6px 12px', borderRadius: 'var(--radius-pill)', gap: 8 }}
-            title="LLM API Budget (Last 24h)"
+            style={{ padding: '6px 12px', borderRadius: 'var(--radius-pill)', gap: 8, display: 'flex', alignItems: 'center' }}
+            title="System Status"
           >
-            <span style={{ color: 'var(--cyan)', fontWeight: 700 }}>$142.38</span>
-            <span style={{ opacity: 0.5 }}>/ $250</span>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: 'var(--safe)',
+              boxShadow: '0 0 8px var(--safe)',
+              flexShrink: 0,
+            }} />
+            <span style={{ color: 'var(--text-secondary)', fontWeight: 500, fontSize: 'var(--text-xs)' }}>
+              System Operational
+            </span>
           </div>
 
           {/* Language toggle */}

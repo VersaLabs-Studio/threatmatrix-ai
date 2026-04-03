@@ -74,6 +74,6 @@ export const NAV_ITEMS = [
 ] as const;
 
 // ── API base URL ───────────────────────────────────────
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
-export const WS_BASE_URL  = process.env.NEXT_PUBLIC_WS_URL  ?? 'ws://localhost:8000';
-export const APP_VERSION  = 'v0.5.0';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://187.124.45.161:8000';
+export const WS_BASE_URL  = process.env.NEXT_PUBLIC_WS_URL  ?? 'ws://187.124.45.161:8000';
+export const APP_VERSION  = 'v0.6.0';

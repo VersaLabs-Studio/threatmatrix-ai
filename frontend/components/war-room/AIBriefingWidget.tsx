@@ -19,13 +19,37 @@ interface BriefingResponse {
   anomaly_count: number;
 }
 
-// Static mock for demonstration
-const MOCK_BRIEFING =
-  'In the last hour, your network processed 46,832 flows across 12 active hosts. ' +
-  'Three anomalous patterns were detected: a high-volume UDP flood from 45.33.32.156 ' +
-  '(confidence: 94%), suspicious DNS tunneling behavior from 10.0.1.23 (confidence: 87%), ' +
-  'and periodic beaconing to 104.21.55.12 consistent with C2 communication (confidence: 81%). ' +
-  'Immediate investigation of the UDP flood is recommended.';
+// No mock data — briefing is generated via LLM API
+
+/** Format briefing text with basic markdown-like styling */
+function formatBriefingText(text: string): React.ReactNode {
+  // Split by lines and apply styling
+  const lines = text.split('\n');
+  return lines.map((line, i) => {
+    // Bold text: **text**
+    const boldRegex = /\*\*(.*?)\*\*/g;
+    if (boldRegex.test(line)) {
+      const parts = line.split(boldRegex);
+      return (
+        <div key={i} style={{ marginBottom: line.trim() === '' ? 8 : 0 }}>
+          {parts.map((part, j) =>
+            j % 2 === 1 ? (
+              <strong key={j} style={{ color: 'var(--cyan)', fontWeight: 600 }}>{part}</strong>
+            ) : (
+              <span key={j}>{part}</span>
+            )
+          )}
+        </div>
+      );
+    }
+    // Empty lines
+    if (line.trim() === '') {
+      return <div key={i} style={{ height: 8 }} />;
+    }
+    // Regular text
+    return <div key={i}>{line}</div>;
+  });
+}
 
 /** Reveals text character-by-character at `speed` ms per char */
 function useTypewriter(text: string, speed = 18) {
@@ -40,6 +64,7 @@ function useTypewriter(text: string, speed = 18) {
       setDisplayed('');
     }
   }, [text]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (idxRef.current >= textRef.current.length) return;
@@ -55,53 +80,115 @@ function useTypewriter(text: string, speed = 18) {
 }
 
 export function AIBriefingWidget() {
-  const [briefing, setBriefing]   = useState<BriefingResponse | null>(null);
   const [briefingText, setBriefingText] = useState('');
-
-  const fetchBriefing = async () => {
-    try {
-      const { data } = await api.get<BriefingResponse>('/api/v1/llm/briefing');
-      if (data) {
-        setBriefing(data);
-        setBriefingText(data.text);
-      } else {
-        // Generate briefing via LLM chat
-        generateBriefing();
-      }
-    } catch {
-      generateBriefing();
-    }
-  };
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const generateBriefing = async () => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
+    console.log('[AIBriefing] Starting briefing generation, token:', token ? 'present' : 'missing');
+    setLoading(true);
+    setError(null);
     try {
+      const requestBody = {
+        messages: [{ role: 'user', content: 'Generate a brief threat briefing summarizing the current security posture, active threats, and recommended actions. Be concise and actionable.' }],
+        task_type: 'daily_briefing',
+        max_tokens: 512,
+      };
+      console.log('[AIBriefing] Request:', { url: `${API_BASE_URL}/api/v1/llm/chat`, body: requestBody });
+      
       const res = await fetch(`${API_BASE_URL}/api/v1/llm/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: 'Generate a brief threat briefing summarizing the current security posture, active threats, and recommended actions. Be concise and actionable.' }],
-          task_type: 'daily_briefing',
-          max_tokens: 512,
-        }),
+        body: JSON.stringify(requestBody),
       });
-      const data = await res.json();
-      if (data.content) {
-        setBriefingText(data.content);
-      } else {
-        setBriefingText(MOCK_BRIEFING);
+      
+      console.log('[AIBriefing] Response status:', res.status, res.statusText);
+      console.log('[AIBriefing] Response headers:', Object.fromEntries(res.headers.entries()));
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[AIBriefing] Error response:', errorText);
+        throw new Error(`HTTP ${res.status}: ${res.statusText} - ${errorText.substring(0, 200)}`);
       }
-    } catch {
-      setBriefingText(MOCK_BRIEFING);
+      
+      const contentType = res.headers.get('content-type') || '';
+      console.log('[AIBriefing] Content-Type:', contentType);
+      let content = '';
+      
+      if (contentType.includes('text/event-stream')) {
+        // Handle SSE streaming response
+        const text = await res.text();
+        console.log('[AIBriefing] SSE response (first 500 chars):', text.substring(0, 500));
+        
+        // Parse SSE format: "data: {...}\n\ndata: [DONE]\n\n"
+        const lines = text.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+            console.log('[AIBriefing] SSE data:', data.substring(0, 100));
+            if (data === '[DONE]') break;
+            try {
+              const parsed = JSON.parse(data);
+              console.log('[AIBriefing] Parsed SSE keys:', Object.keys(parsed));
+              // Our backend format: { token: "..." }
+              if (parsed.token) {
+                content += parsed.token;
+              } else if (parsed.choices?.[0]?.delta?.content) {
+                content += parsed.choices[0].delta.content;
+              } else if (parsed.content) {
+                content += parsed.content;
+              } else if (parsed.choices?.[0]?.message?.content) {
+                content += parsed.choices[0].message.content;
+              } else {
+                console.warn('[AIBriefing] Unknown SSE format:', parsed);
+              }
+            } catch (e) {
+              console.warn('[AIBriefing] Failed to parse SSE line:', line, e);
+            }
+          }
+        }
+      } else {
+        // Handle regular JSON response
+        const data = await res.json();
+        console.log('[AIBriefing] JSON response:', JSON.stringify(data, null, 2).substring(0, 500));
+        
+        if (data.content) {
+          content = data.content;
+        } else if (data.choices?.[0]?.message?.content) {
+          content = data.choices[0].message.content;
+        } else if (data.choices?.[0]?.delta?.content) {
+          content = data.choices[0].delta.content;
+        } else if (data.message?.content) {
+          content = data.message.content;
+        } else if (typeof data === 'string') {
+          content = data;
+        } else {
+          console.warn('[AIBriefing] Unknown response format:', data);
+        }
+      }
+      
+      console.log('[AIBriefing] Extracted content:', content ? `${content.substring(0, 100)}...` : 'EMPTY');
+      
+      if (content) {
+        setBriefingText(content);
+      } else {
+        setError('No briefing content returned');
+      }
+    } catch (e) {
+      console.error('[AIBriefing] Failed to generate briefing:', e);
+      setError(e instanceof Error ? e.message : 'Failed to generate briefing');
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    void fetchBriefing();
-    const interval = setInterval(fetchBriefing, REFRESH_INTERVALS.briefing);
+    void generateBriefing();
+    const interval = setInterval(generateBriefing, REFRESH_INTERVALS.briefing);
     return () => clearInterval(interval);
   }, []);
 
@@ -109,11 +196,9 @@ export function AIBriefingWidget() {
 
   return (
     <GlassPanel
-      tilt
-      refract
       icon="🤖"
       title="AI BRIEFING"
-      badge={briefing ? `${briefing.threat_count} threats detected` : 'Live'}
+      badge={loading ? 'Generating...' : 'Complete'}
       style={{ position: 'relative', overflow: 'hidden' }}
     >
       {/* Subtle cyan glow top border */}
@@ -122,36 +207,86 @@ export function AIBriefingWidget() {
           position: 'absolute',
           top: 0, left: '10%', right: '10%',
           height: 1,
-          background: 'linear-gradient(90deg, transparent, var(--spotlight-color), transparent)',
-          opacity: 0.8,
+          background: 'linear-gradient(90deg, transparent, var(--cyan), transparent)',
+          opacity: 0.6,
         }}
       />
 
-      <p
-        style={{
-          fontFamily: 'var(--font-data)',
-          fontSize: 'var(--text-sm)',
-          color: 'var(--text-secondary)',
-          lineHeight: 1.8,
-          margin: 0,
-          minHeight: '3.5rem',
-        }}
-      >
-        {displayed || ''}
-        {!isDone && (
-          <span
+      {loading && !briefingText ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          minHeight: '4rem',
+        }}>
+          <span style={{
+            fontFamily: 'var(--font-data)',
+            fontSize: 'var(--text-sm)',
+            color: 'var(--text-muted)',
+          }}>
+            Generating threat briefing...
+          </span>
+        </div>
+      ) : error && !briefingText ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          minHeight: '4rem',
+        }}>
+          <span style={{
+            fontFamily: 'var(--font-data)',
+            fontSize: 'var(--text-sm)',
+            color: 'var(--critical)',
+          }}>
+            {error}
+          </span>
+          <button
+            onClick={generateBriefing}
             style={{
-              display: 'inline-block',
-              width: 2,
-              height: '1em',
-              background: 'var(--cyan)',
-              marginLeft: 2,
-              verticalAlign: 'text-bottom',
-              animation: 'blink-cursor 1s step-end infinite',
+              background: 'transparent',
+              border: '1px solid var(--cyan)',
+              color: 'var(--cyan)',
+              padding: '4px 12px',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-data)',
+              fontSize: 'var(--text-xs)',
+              marginLeft: 12,
+              borderRadius: 4,
             }}
-          />
-        )}
-      </p>
+          >
+            Retry
+          </button>
+        </div>
+      ) : briefingText ? (
+        <div style={{
+          maxHeight: 350,
+          overflowY: 'auto',
+          paddingRight: 12,
+        }}>
+          <div
+            style={{
+              fontFamily: 'var(--font-data)',
+              fontSize: '0.62rem',
+              color: 'var(--text-secondary)',
+              lineHeight: 1.65,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+          >
+            {formatBriefingText(briefingText)}
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          minHeight: '4rem',
+        }}>
+          <span style={{
+            fontFamily: 'var(--font-data)',
+            fontSize: 'var(--text-sm)',
+            color: 'var(--text-muted)',
+          }}>
+            Waiting for briefing...
+          </span>
+        </div>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-3)' }}>
         <Link

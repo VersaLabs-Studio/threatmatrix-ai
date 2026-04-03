@@ -149,6 +149,8 @@ export interface FlowStatsResponse {
   total_flows: number;
   anomaly_count: number;
   anomaly_percentage: number;
+  total_bytes: string;
+  total_packets: number;
   protocol_distribution: Record<string, { count: number; percentage: number }>;
   top_source_ips: Array<Record<string, unknown>>;
   top_dest_ips: Array<Record<string, unknown>>;

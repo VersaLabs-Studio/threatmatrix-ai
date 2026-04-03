@@ -16,17 +16,9 @@ interface TopTalkersProps {
   loading?: boolean;
 }
 
-// Mock data for demonstration
-const MOCK_TALKERS: TopTalker[] = [
-  { ip: '10.0.1.5',      bytes_total: 45_200_000, flow_count: 342, is_anomalous: true  },
-  { ip: '10.0.1.12',     bytes_total: 28_500_000, flow_count: 218, is_anomalous: false },
-  { ip: '45.33.32.156',  bytes_total: 18_700_000, flow_count: 94,  is_anomalous: true  },
-  { ip: '192.168.1.100', bytes_total: 12_400_000, flow_count: 156, is_anomalous: false },
-  { ip: '104.21.55.12',  bytes_total: 9_100_000,  flow_count: 67,  is_anomalous: true  },
-];
-
+// No mock data — uses real API data from /api/v1/flows/top-talkers
 export function TopTalkers({ data, loading }: TopTalkersProps) {
-  const talkers = data.length > 0 ? data : MOCK_TALKERS;
+  const talkers = data.length > 0 ? data : [];
   const maxBytes = Math.max(...talkers.map((t) => t.bytes_total));
 
   return (
