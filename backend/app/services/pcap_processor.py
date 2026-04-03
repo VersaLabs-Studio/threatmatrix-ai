@@ -645,16 +645,103 @@ class PcapProcessor:
         # Detect port scans: src_ip hitting 10+ different ports
         for src_ip, ports in src_port_map.items():
             if len(ports) >= 10:
+                # Score scales with port count: 10 ports → 0.55, 100+ ports → 0.70
+                score = min(0.55 + (len(ports) / 1000), 0.70)
                 for f in flows:
                     if f.get("src_ip") == src_ip and f.get("dst_port") in ports:
                         if not f.get("is_anomaly"):
                             f["label"] = "probe"
                             f["category"] = "port_scan"
+                            f["anomaly_score"] = score
+                            f["is_anomaly"] = True
+                            f["severity"] = "medium" if score < 0.65 else "high"
                             anomalies.append(f)
                 logger.info(
-                    "[PCAP] Heuristic: port scan from %s (%d ports)",
-                    src_ip, len(ports),
+                    "[PCAP] Heuristic: port scan from %s (%d ports, score=%.2f)",
+                    src_ip, len(ports), score,
                 )
+
+        # Detect DDoS: 8+ different sources hitting same TCP target (exclude DNS/UDP)
+        for target, sources in dst_source_map.items():
+            if len(sources) >= 8 and ":53" not in target:
+                # Score scales with source count: 8 sources → 0.75, 30+ → 0.90
+                score = min(0.75 + (len(sources) / 100), 0.92)
+                for f in flows:
+                    flow_target = f"{f.get('dst_ip')}:{f.get('dst_port')}"
+                    if flow_target == target and not f.get("is_anomaly"):
+                        f["label"] = "dos"
+                        f["category"] = "ddos"
+                        f["anomaly_score"] = score
+                        f["is_anomaly"] = True
+                        f["severity"] = "high" if score < 0.85 else "critical"
+                        anomalies.append(f)
+                logger.info(
+                    "[PCAP] Heuristic: DDoS against %s (%d sources, score=%.2f)",
+                    target, len(sources), score,
+                )
+
+        # Detect brute force: 10+ SSH/FTP attempts from same source
+        for src_ip, count in src_ssh_count.items():
+            if count >= 10:
+                # Score scales with attempt count: 10 → 0.55, 50+ → 0.70
+                score = min(0.55 + (count / 200), 0.72)
+                for f in flows:
+                    if (f.get("src_ip") == src_ip and
+                        f.get("service") in ("ssh", "ftp", "telnet") and
+                        not f.get("is_anomaly")):
+                        f["label"] = "r2l"
+                        f["category"] = "brute_force"
+                        f["anomaly_score"] = score
+                        f["is_anomaly"] = True
+                        f["severity"] = "medium" if score < 0.65 else "high"
+                        anomalies.append(f)
+                logger.info(
+                    "[PCAP] Heuristic: brute force from %s (%d attempts, score=%.2f)",
+                    src_ip, count, score,
+                )
+
+        # Detect SYN flood: 30+ S0 flagged flows from same source
+        for src_ip, count in s0_count_by_src.items():
+            if count >= 30:
+                # Score scales with S0 count: 30 → 0.75, 100+ → 0.90
+                score = min(0.75 + (count / 250), 0.92)
+                for f in flows:
+                    if (f.get("src_ip") == src_ip and
+                        f.get("flag") == "S0" and
+                        not f.get("is_anomaly")):
+                        f["label"] = "dos"
+                        f["category"] = "syn_flood"
+                        f["anomaly_score"] = score
+                        f["is_anomaly"] = True
+                        f["severity"] = "high" if score < 0.85 else "critical"
+                        anomalies.append(f)
+                logger.info(
+                    "[PCAP] Heuristic: SYN flood from %s (%d S0 flows, score=%.2f)",
+                    src_ip, count, score,
+                )
+
+        # Detect DNS tunneling: 8+ sources querying port 53
+        dns_sources = set()
+        for f in flows:
+            if f.get("dst_port") == 53 and f.get("protocol_type") == "udp":
+                dns_sources.add(f.get("src_ip", ""))
+        if len(dns_sources) >= 8:
+            # Score scales with source count: 8 → 0.55, 20+ → 0.68
+            score = min(0.55 + (len(dns_sources) / 100), 0.68)
+            for f in flows:
+                if (f.get("dst_port") == 53 and
+                    f.get("protocol_type") == "udp" and
+                    not f.get("is_anomaly")):
+                    f["label"] = "probe"
+                    f["category"] = "dns_tunnel"
+                    f["anomaly_score"] = score
+                    f["is_anomaly"] = True
+                    f["severity"] = "medium"
+                    anomalies.append(f)
+            logger.info(
+                "[PCAP] Heuristic: DNS tunneling (%d sources, score=%.2f)",
+                len(dns_sources), score,
+            )
 
         # Detect DDoS: 8+ different sources hitting same TCP target (exclude DNS/UDP)
         for target, sources in dst_source_map.items():
