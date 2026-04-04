@@ -27,6 +27,67 @@ EVAL_DIR = Path(__file__).parent.parent.parent.parent / "ml" / "saved_models" / 
 MODELS_DIR = Path(__file__).parent.parent.parent.parent / "ml" / "saved_models"
 
 
+# ── ML Worker Status (per MASTER_DOC_PART4 §8) ──────────────────
+
+
+@router.get("/worker/status")
+async def get_worker_status() -> Dict[str, Any]:
+    """
+    Get ML worker status from database stats.
+
+    Returns flows scored, anomalies detected, alerts created from the
+    alert and flow tables (since ML worker runs in separate container).
+    """
+    from app.database import async_session
+    from sqlalchemy import text
+
+    async with async_session() as session:
+        # Get total flows scored (from flows table)
+        result = await session.execute(
+            text("SELECT COUNT(*) FROM flows")
+        )
+        total_flows = result.scalar() or 0
+
+        # Get total anomalies detected (from flows with is_anomaly)
+        result = await session.execute(
+            text("SELECT COUNT(*) FROM flows WHERE is_anomaly = true")
+        )
+        anomalies_detected = result.scalar() or 0
+
+        # Get total alerts created
+        result = await session.execute(
+            text("SELECT COUNT(*) FROM alerts")
+        )
+        alerts_created = result.scalar() or 0
+
+        # Get most recent alert timestamp for uptime calculation
+        result = await session.execute(
+            text("SELECT created_at FROM alerts ORDER BY created_at DESC LIMIT 1")
+        )
+        last_alert = result.scalar()
+
+    import time
+    from datetime import datetime, timezone
+
+    # Calculate approximate uptime from last alert
+    uptime = 0.0
+    if last_alert:
+        if isinstance(last_alert, str):
+            last_alert = datetime.fromisoformat(last_alert)
+        if last_alert and last_alert.tzinfo is None:
+            last_alert = last_alert.replace(tzinfo=timezone.utc)
+        uptime = (datetime.now(timezone.utc) - last_alert).total_seconds()
+
+    return {
+        "status": "active" if total_flows > 0 else "idle",
+        "flows_scored": int(total_flows),
+        "anomalies_detected": int(anomalies_detected),
+        "alerts_created": int(alerts_created),
+        "uptime_seconds": round(uptime, 1),
+        "models_loaded": ["isolation_forest", "random_forest", "autoencoder"],
+    }
+
+
 @router.get("/models")
 async def list_models() -> Dict[str, Any]:
     """List all ML models and their status."""

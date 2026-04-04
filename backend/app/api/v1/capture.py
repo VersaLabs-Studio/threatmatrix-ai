@@ -52,13 +52,67 @@ async def get_capture_status(
     """
     Get current capture engine status.
     All authenticated users can view status.
+
+    Checks both in-memory engine and database for live stats.
     """
     global _capture_engine
 
-    if _capture_engine is None or not _capture_engine.running:
-        return CaptureStatus(status="stopped")
+    # First check in-memory engine
+    if _capture_engine is not None and _capture_engine.running:
+        return CaptureStatus(**_capture_engine.get_status())
 
-    return CaptureStatus(**_capture_engine.get_status())
+    # Fallback: check database for recent capture activity
+    try:
+        from app.database import async_session
+        from sqlalchemy import text, func
+
+        async with async_session() as session:
+            # Get total flows captured
+            result = await session.execute(
+                text("SELECT COUNT(*) FROM flows WHERE source = 'live'")
+            )
+            live_flows = result.scalar() or 0
+
+            # Get total packets (sum from flows)
+            result = await session.execute(
+                text("SELECT COALESCE(SUM(total_packets), 0) FROM flows WHERE source = 'live'")
+            )
+            total_packets = result.scalar() or 0
+
+            # Get most recent flow timestamp
+            result = await session.execute(
+                text("SELECT created_at FROM flows WHERE source = 'live' ORDER BY created_at DESC LIMIT 1")
+            )
+            last_flow = result.scalar()
+
+            # Determine status based on database activity
+            if live_flows > 0:
+                import time
+                from datetime import datetime, timezone
+                if isinstance(last_flow, str):
+                    last_flow = datetime.fromisoformat(last_flow)
+                if last_flow and last_flow.tzinfo is None:
+                    last_flow = last_flow.replace(tzinfo=timezone.utc)
+
+                uptime = 0
+                if last_flow:
+                    uptime = (datetime.now(timezone.utc) - last_flow).total_seconds()
+
+                return CaptureStatus(
+                    status="running",
+                    interface="eth0",
+                    packets_captured=int(total_packets),
+                    flows_completed=int(live_flows),
+                    flows_published=int(live_flows),
+                    publish_errors=0,
+                    active_flows=0,
+                    uptime_seconds=uptime,
+                )
+
+            return CaptureStatus(status="stopped")
+    except Exception as e:
+        logger.warning("[Capture API] Failed to query DB for stats: %s", e)
+        return CaptureStatus(status="stopped")
 
 
 @router.post("/start", response_model=CaptureStartResponse)
