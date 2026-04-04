@@ -63,41 +63,23 @@ async def get_capture_status(
 
     # Fallback: check database for recent capture activity
     try:
-        from app.database import async_session
-        from sqlalchemy import text, func
+        from app.database import engine
+        from sqlalchemy import text
 
-        async with async_session() as session:
-            # Get total flows captured
-            result = await session.execute(
-                text("SELECT COUNT(*) FROM flows WHERE source = 'live'")
+        async with engine.connect() as conn:
+            # Get total flows captured (table is network_flows, not flows)
+            result = await conn.execute(
+                text("SELECT COUNT(*) FROM network_flows WHERE source = 'live'")
             )
             live_flows = result.scalar() or 0
 
             # Get total packets (sum from flows)
-            result = await session.execute(
-                text("SELECT COALESCE(SUM(total_packets), 0) FROM flows WHERE source = 'live'")
+            result = await conn.execute(
+                text("SELECT COALESCE(SUM(total_packets), 0) FROM network_flows WHERE source = 'live'")
             )
             total_packets = result.scalar() or 0
 
-            # Get most recent flow timestamp
-            result = await session.execute(
-                text("SELECT created_at FROM flows WHERE source = 'live' ORDER BY created_at DESC LIMIT 1")
-            )
-            last_flow = result.scalar()
-
-            # Determine status based on database activity
             if live_flows > 0:
-                import time
-                from datetime import datetime, timezone
-                if isinstance(last_flow, str):
-                    last_flow = datetime.fromisoformat(last_flow)
-                if last_flow and last_flow.tzinfo is None:
-                    last_flow = last_flow.replace(tzinfo=timezone.utc)
-
-                uptime = 0
-                if last_flow:
-                    uptime = (datetime.now(timezone.utc) - last_flow).total_seconds()
-
                 return CaptureStatus(
                     status="running",
                     interface="eth0",
@@ -106,7 +88,7 @@ async def get_capture_status(
                     flows_published=int(live_flows),
                     publish_errors=0,
                     active_flows=0,
-                    uptime_seconds=uptime,
+                    uptime_seconds=0.0,
                 )
 
             return CaptureStatus(status="stopped")

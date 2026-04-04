@@ -19,35 +19,39 @@ settings = get_settings()
 async def _check_database_health(request: Request) -> dict:
     """Check PostgreSQL database health with actual ping."""
     try:
-        from app.database import async_session
+        from app.database import engine
         from sqlalchemy import text
 
         start = time.monotonic()
-        async with async_session() as session:
-            result = await session.execute(text("SELECT 1"))
+        async with engine.connect() as conn:
+            result = await conn.execute(text("SELECT 1"))
             await result.fetchone()
         latency_ms = (time.monotonic() - start) * 1000
         return {"status": "healthy", "latency_ms": round(latency_ms, 2)}
     except Exception as e:
-        return {"status": "unhealthy", "error": str(e)}
+        error_str = str(e)
+        # Don't expose full error details in production
+        if "connection" in error_str.lower() or "connect" in error_str.lower():
+            return {"status": "unhealthy", "error": "Connection failed"}
+        return {"status": "unhealthy", "error": "Query failed"}
 
 
 async def _check_capture_engine_health(request: Request) -> dict:
     """Check capture engine health via database stats."""
     try:
-        from app.database import async_session
+        from app.database import engine
         from sqlalchemy import text
 
-        async with async_session() as session:
-            # Get total live flows
-            result = await session.execute(
-                text("SELECT COUNT(*) FROM flows WHERE source = 'live'")
+        async with engine.connect() as conn:
+            # Get total live flows (table is network_flows, not flows)
+            result = await conn.execute(
+                text("SELECT COUNT(*) FROM network_flows WHERE source = 'live'")
             )
             live_flows = result.scalar() or 0
 
             # Get total packets
-            result = await session.execute(
-                text("SELECT COALESCE(SUM(total_packets), 0) FROM flows WHERE source = 'live'")
+            result = await conn.execute(
+                text("SELECT COALESCE(SUM(total_packets), 0) FROM network_flows WHERE source = 'live'")
             )
             total_packets = result.scalar() or 0
 
@@ -65,24 +69,24 @@ async def _check_capture_engine_health(request: Request) -> dict:
 async def _check_ml_worker_health(request: Request) -> dict:
     """Check ML worker health via database stats."""
     try:
-        from app.database import async_session
+        from app.database import engine
         from sqlalchemy import text
 
-        async with async_session() as session:
-            # Get total flows scored (flows with anomaly_score)
-            result = await session.execute(
-                text("SELECT COUNT(*) FROM flows WHERE anomaly_score IS NOT NULL")
+        async with engine.connect() as conn:
+            # Get total flows scored (table is network_flows, not flows)
+            result = await conn.execute(
+                text("SELECT COUNT(*) FROM network_flows WHERE anomaly_score IS NOT NULL")
             )
             flows_scored = result.scalar() or 0
 
             # Get anomalies detected
-            result = await session.execute(
-                text("SELECT COUNT(*) FROM flows WHERE is_anomaly = true")
+            result = await conn.execute(
+                text("SELECT COUNT(*) FROM network_flows WHERE is_anomaly = true")
             )
             anomalies = result.scalar() or 0
 
             # Get alerts created
-            result = await session.execute(
+            result = await conn.execute(
                 text("SELECT COUNT(*) FROM alerts")
             )
             alerts = result.scalar() or 0

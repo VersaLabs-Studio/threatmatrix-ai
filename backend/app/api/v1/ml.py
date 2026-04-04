@@ -38,30 +38,30 @@ async def get_worker_status() -> Dict[str, Any]:
     Returns flows scored, anomalies detected, alerts created from the
     alert and flow tables (since ML worker runs in separate container).
     """
-    from app.database import async_session
+    from app.database import engine
     from sqlalchemy import text
 
-    async with async_session() as session:
-        # Get total flows scored (from flows table)
-        result = await session.execute(
-            text("SELECT COUNT(*) FROM flows")
+    async with engine.connect() as conn:
+        # Get total flows scored (table is network_flows, not flows)
+        result = await conn.execute(
+            text("SELECT COUNT(*) FROM network_flows")
         )
         total_flows = result.scalar() or 0
 
-        # Get total anomalies detected (from flows with is_anomaly)
-        result = await session.execute(
-            text("SELECT COUNT(*) FROM flows WHERE is_anomaly = true")
+        # Get total anomalies detected (from network_flows with is_anomaly)
+        result = await conn.execute(
+            text("SELECT COUNT(*) FROM network_flows WHERE is_anomaly = true")
         )
         anomalies_detected = result.scalar() or 0
 
         # Get total alerts created
-        result = await session.execute(
+        result = await conn.execute(
             text("SELECT COUNT(*) FROM alerts")
         )
         alerts_created = result.scalar() or 0
 
         # Get most recent alert timestamp for uptime calculation
-        result = await session.execute(
+        result = await conn.execute(
             text("SELECT created_at FROM alerts ORDER BY created_at DESC LIMIT 1")
         )
         last_alert = result.scalar()
