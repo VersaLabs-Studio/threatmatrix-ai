@@ -163,3 +163,73 @@ async def get_budget():
     """Token usage and budget status (Redis-persisted)."""
     gateway = get_gateway()
     return await gateway.get_budget_status_async()
+
+
+@router.get("/briefing/cached")
+async def get_cached_briefing():
+    """
+    Get cached AI briefing from Redis.
+    Returns cached briefing if available, otherwise triggers generation.
+    Cache TTL: 5 minutes.
+    """
+    from app.redis import redis_manager
+    import time
+
+    CACHE_KEY = "warroom:briefing"
+    CACHE_TTL = 300  # 5 minutes
+
+    try:
+        # Try to get cached briefing
+        cached = await redis_manager.get(CACHE_KEY)
+        if cached:
+            data = json.loads(cached)
+            return {
+                "briefing": data.get("text", ""),
+                "generated_at": data.get("generated_at", ""),
+                "cached": True,
+                "ttl_remaining": CACHE_TTL - (int(time.time()) - data.get("timestamp", 0)),
+            }
+    except Exception as e:
+        logger.warning(f"[LLM] Failed to get cached briefing: {e}")
+
+    # No cache available — generate new briefing
+    gateway = get_gateway()
+    briefing_request = BriefingRequest()
+    result = await gateway.generate_briefing(briefing_request.model_dump())
+
+    briefing_text = result.get("content", "")
+    generated_at = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+
+    # Cache the briefing
+    try:
+        cache_data = json.dumps({
+            "text": briefing_text,
+            "generated_at": generated_at,
+            "timestamp": int(time.time()),
+        })
+        await redis_manager.set(CACHE_KEY, cache_data, ex=CACHE_TTL)
+    except Exception as e:
+        logger.warning(f"[LLM] Failed to cache briefing: {e}")
+
+    return {
+        "briefing": briefing_text,
+        "generated_at": generated_at,
+        "cached": False,
+        "model": result.get("model", ""),
+        "tokens": {
+            "input": result.get("tokens_in", 0),
+            "output": result.get("tokens_out", 0),
+        },
+    }
+
+
+@router.post("/briefing/invalidate")
+async def invalidate_cached_briefing():
+    """Invalidate cached briefing to force regeneration."""
+    from app.redis import redis_manager
+
+    try:
+        await redis_manager.delete("warroom:briefing")
+        return {"status": "invalidated", "message": "Cached briefing cleared"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to invalidate cache: {e}")

@@ -114,6 +114,10 @@ export default function WarRoomPage() {
   console.log('[WarRoom] Stats:', stats);
   console.log('[WarRoom] Capture status:', captureStatus);
   console.log('[WarRoom] Alert stats:', alertStats);
+  console.log('[WarRoom] Alerts from API:', alerts?.length, 'total:', alertTotal);
+  console.log('[WarRoom] WebSocket connected:', wsConnected);
+  console.log('[WarRoom] Last alert event:', lastAlertEvent);
+  console.log('[WarRoom] Last anomaly event:', lastAnomalyEvent);
   
   // Calculate packets per second from total packets over 1 hour interval
   const pps = totalPackets > 0 ? Math.round(totalPackets / 3600) : 0;
@@ -192,7 +196,7 @@ export default function WarRoomPage() {
         {/* ── Row 2: Full-width Threat Map ──────────────── */}
         <div
           className="glass-panel-static"
-          style={{ display: 'flex', flexDirection: 'column', height: 420 }}
+          style={{ display: 'flex', flexDirection: 'column', height: 560 }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 'var(--space-2)', padding: '0 var(--space-4)' }}>
             <span style={{ fontSize: '1rem' }}>🌐</span>

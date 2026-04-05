@@ -83,122 +83,66 @@ export function AIBriefingWidget() {
   const [briefingText, setBriefingText] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCached, setIsCached] = useState(false);
 
-  const generateBriefing = async () => {
+  const fetchBriefing = async () => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
-    console.log('[AIBriefing] Starting briefing generation, token:', token ? 'present' : 'missing');
+    console.log('[AIBriefing] Fetching briefing, token:', token ? 'present' : 'missing');
     setLoading(true);
     setError(null);
     try {
-      const requestBody = {
-        messages: [{ role: 'user', content: 'Generate a brief threat briefing summarizing the current security posture, active threats, and recommended actions. Be concise and actionable.' }],
-        task_type: 'daily_briefing',
-        max_tokens: 512,
-      };
-      console.log('[AIBriefing] Request:', { url: `${API_BASE_URL}/api/v1/llm/chat`, body: requestBody });
-      
-      const res = await fetch(`${API_BASE_URL}/api/v1/llm/chat`, {
-        method: 'POST',
+      // First try to get cached briefing (fast)
+      const res = await fetch(`${API_BASE_URL}/api/v1/llm/briefing/cached`, {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(requestBody),
       });
-      
-      console.log('[AIBriefing] Response status:', res.status, res.statusText);
-      console.log('[AIBriefing] Response headers:', Object.fromEntries(res.headers.entries()));
-      
+
+      console.log('[AIBriefing] Response status:', res.status);
+
       if (!res.ok) {
         const errorText = await res.text();
         console.error('[AIBriefing] Error response:', errorText);
-        throw new Error(`HTTP ${res.status}: ${res.statusText} - ${errorText.substring(0, 200)}`);
+        throw new Error(`HTTP ${res.status}: ${errorText.substring(0, 200)}`);
       }
-      
-      const contentType = res.headers.get('content-type') || '';
-      console.log('[AIBriefing] Content-Type:', contentType);
-      let content = '';
-      
-      if (contentType.includes('text/event-stream')) {
-        // Handle SSE streaming response
-        const text = await res.text();
-        console.log('[AIBriefing] SSE response (first 500 chars):', text.substring(0, 500));
-        
-        // Parse SSE format: "data: {...}\n\ndata: [DONE]\n\n"
-        const lines = text.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim();
-            console.log('[AIBriefing] SSE data:', data.substring(0, 100));
-            if (data === '[DONE]') break;
-            try {
-              const parsed = JSON.parse(data);
-              console.log('[AIBriefing] Parsed SSE keys:', Object.keys(parsed));
-              // Our backend format: { token: "..." }
-              if (parsed.token) {
-                content += parsed.token;
-              } else if (parsed.choices?.[0]?.delta?.content) {
-                content += parsed.choices[0].delta.content;
-              } else if (parsed.content) {
-                content += parsed.content;
-              } else if (parsed.choices?.[0]?.message?.content) {
-                content += parsed.choices[0].message.content;
-              } else {
-                console.warn('[AIBriefing] Unknown SSE format:', parsed);
-              }
-            } catch (e) {
-              console.warn('[AIBriefing] Failed to parse SSE line:', line, e);
-            }
-          }
-        }
-      } else {
-        // Handle regular JSON response
-        const data = await res.json();
-        console.log('[AIBriefing] JSON response:', JSON.stringify(data, null, 2).substring(0, 500));
-        
-        if (data.content) {
-          content = data.content;
-        } else if (data.choices?.[0]?.message?.content) {
-          content = data.choices[0].message.content;
-        } else if (data.choices?.[0]?.delta?.content) {
-          content = data.choices[0].delta.content;
-        } else if (data.message?.content) {
-          content = data.message.content;
-        } else if (typeof data === 'string') {
-          content = data;
-        } else {
-          console.warn('[AIBriefing] Unknown response format:', data);
-        }
-      }
-      
-      console.log('[AIBriefing] Extracted content:', content ? `${content.substring(0, 100)}...` : 'EMPTY');
-      
-      if (content) {
-        setBriefingText(content);
+
+      const data = await res.json();
+      console.log('[AIBriefing] Cached:', data.cached, 'Content length:', data.briefing?.length);
+
+      if (data.briefing) {
+        setBriefingText(data.briefing);
+        setIsCached(data.cached);
       } else {
         setError('No briefing content returned');
       }
     } catch (e) {
-      console.error('[AIBriefing] Failed to generate briefing:', e);
-      setError(e instanceof Error ? e.message : 'Failed to generate briefing');
+      console.error('[AIBriefing] Failed to fetch briefing:', e);
+      setError(e instanceof Error ? e.message : 'Failed to fetch briefing');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    void generateBriefing();
-    const interval = setInterval(generateBriefing, REFRESH_INTERVALS.briefing);
+    void fetchBriefing();
+    // Refresh every 5 minutes (cached briefings expire after 5 min)
+    const interval = setInterval(fetchBriefing, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
+  // Always call useTypewriter (hooks can't be conditional)
   const { displayed, isDone } = useTypewriter(briefingText);
+  // Override for cached briefings to show instantly
+  const finalDisplayed = isCached ? briefingText : displayed;
+  const finalIsDone = isCached ? true : isDone;
 
   return (
     <GlassPanel
       icon="🤖"
       title="AI BRIEFING"
-      badge={loading ? 'Generating...' : 'Complete'}
+      badge={loading ? 'Loading...' : isCached ? 'Cached' : 'Generated'}
       style={{ position: 'relative', overflow: 'hidden' }}
     >
       {/* Subtle cyan glow top border */}
@@ -238,7 +182,7 @@ export function AIBriefingWidget() {
             {error}
           </span>
           <button
-            onClick={generateBriefing}
+            onClick={fetchBriefing}
             style={{
               background: 'transparent',
               border: '1px solid var(--cyan)',
@@ -270,7 +214,7 @@ export function AIBriefingWidget() {
               wordBreak: 'break-word',
             }}
           >
-            {formatBriefingText(briefingText)}
+            {formatBriefingText(finalDisplayed)}
           </div>
         </div>
       ) : (

@@ -68,8 +68,11 @@ export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFee
   // Fetch alerts from API (for DEV_MODE where WebSocket doesn't work)
   const fetchAlerts = useCallback(async () => {
     try {
-      const { data } = await api.get<{ items: ApiAlertItem[]; total: number }>('/api/v1/alerts/?limit=20&page=1');
+      const { data, error } = await api.get<{ items: ApiAlertItem[]; total: number }>('/api/v1/alerts/?limit=20&page=1');
+      console.log('[LiveAlertFeed] API response:', { data, error });
+      console.log('[LiveAlertFeed] Items count:', data?.items?.length);
       if (data?.items) {
+        console.log('[LiveAlertFeed] First item:', data.items[0]);
         const transformed: AlertFeedItem[] = data.items.map((a) => ({
           id: a.id,
           severity: a.severity,
@@ -81,6 +84,7 @@ export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFee
         }));
         setApiAlerts(data.items);
         setAlerts(transformed);
+        console.log('[LiveAlertFeed] Transformed alerts:', transformed.length);
       }
     } catch (e) {
       console.error('[LiveAlertFeed] Failed to fetch alerts:', e);
