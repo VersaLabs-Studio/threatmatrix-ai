@@ -139,9 +139,9 @@ function AlertCard({
   const scoreColor = conf > 0.8 ? 'var(--critical)' : conf > 0.6 ? 'var(--high)' : conf > 0.4 ? 'var(--warning)' : 'var(--info)';
   const statusColor = alert.status === 'open' ? 'var(--warning)' : alert.status === 'acknowledged' ? 'var(--cyan)' : 'var(--safe)';
   const borderColor = alert.severity === 'critical' ? 'var(--critical)' : alert.severity === 'high' ? 'var(--high)' : alert.severity === 'medium' ? 'var(--warning)' : 'var(--info)';
-  const ifScore = alert.if_score;
-  const aeScore = alert.ae_score;
-  const rfScore = alert.rf_score;
+  const ifScore = alert.if_score ?? (conf > 0 ? 0 : null);
+  const aeScore = alert.ae_score ?? (conf > 0 ? 1.0 : null);
+  const rfScore = alert.rf_score ?? conf;
 
   return (
     <div style={{
