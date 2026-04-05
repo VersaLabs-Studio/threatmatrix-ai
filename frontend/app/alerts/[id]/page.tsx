@@ -206,17 +206,17 @@ export default function AlertDetailPage() {
             />
             <MLScoreCard
               title="Isolation Forest"
-              value={alert.if_score !== undefined ? alert.if_score.toFixed(4) : 'N/A'}
+              value={alert.if_score != null ? alert.if_score.toFixed(4) : 'N/A'}
               description="Unsupervised anomaly detection"
             />
             <MLScoreCard
               title="Autoencoder"
-              value={alert.ae_score !== undefined ? alert.ae_score.toFixed(4) : 'N/A'}
+              value={alert.ae_score != null ? alert.ae_score.toFixed(4) : 'N/A'}
               description="Reconstruction error"
             />
             <MLScoreCard
               title="Random Forest"
-              value={alert.rf_label ? `${alert.rf_label.toUpperCase()} (${((alert.rf_confidence || 0) * 100).toFixed(1)}%)` : 'N/A'}
+              value={alert.rf_score != null ? `${(alert.rf_score * 100).toFixed(1)}%` : 'N/A'}
               description="Supervised classification"
             />
             <MLScoreCard
