@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert
@@ -142,11 +142,13 @@ async def get_alert_by_id(
     alert_id: str,
 ) -> dict[str, Any] | None:
     """
-    Get a single alert by human-readable alert_id.
+    Get a single alert by UUID id or human-readable alert_id.
     
     Returns alert details or None if not found.
     """
-    query = select(Alert).where(Alert.alert_id == alert_id)
+    query = select(Alert).where(
+        or_(Alert.id == alert_id, Alert.alert_id == alert_id)
+    )
     result = await db.execute(query)
     alert = result.scalar_one_or_none()
     

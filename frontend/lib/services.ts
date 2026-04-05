@@ -37,6 +37,7 @@ export const alertService = {
     const params: Record<string, string | number | undefined> = {};
     if (filters?.severity && filters.severity !== 'all') params.severity = filters.severity;
     if (filters?.status && filters.status !== 'all') params.status = filters.status;
+    if (filters?.category && filters.category !== 'all') params.category = filters.category;
     if (filters?.page) params.page = filters.page;
     if (filters?.limit) params.limit = filters.limit;
 

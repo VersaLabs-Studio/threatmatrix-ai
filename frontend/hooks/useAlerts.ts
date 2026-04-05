@@ -13,6 +13,7 @@ import type { AlertResponse } from '@/lib/types';
 interface AlertFilters {
   severity?: Severity | 'all';
   status?: AlertStatus | 'all';
+  category?: string;
   page?: number;
   limit?: number;
 }
@@ -34,12 +35,13 @@ export function useAlerts(filters: AlertFilters = {}): UseAlertsReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState<string | null>(null);
 
-  const { severity = 'all', status = 'all', page = 1, limit = 50 } = filters;
+  const { severity = 'all', status = 'all', category = 'all', page = 1, limit = 50 } = filters;
 
   const fetchAlerts = useCallback(async () => {
     const filters: any = { page, limit };
     if (severity !== 'all') filters.severity = severity;
     if (status !== 'all') filters.status = status;
+    if (category !== 'all') filters.category = category;
 
     const { data, error: err } = await alertService.list(filters);
     if (err) {
@@ -50,7 +52,7 @@ export function useAlerts(filters: AlertFilters = {}): UseAlertsReturn {
       setError(null);
     }
     setLoading(false);
-  }, [severity, status, page, limit]);
+  }, [severity, status, category, page, limit]);
 
   useEffect(() => {
     // Initial fetch (deferred to avoid synchronous setState in effect)

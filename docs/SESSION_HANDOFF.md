@@ -1,11 +1,11 @@
 # ThreatMatrix AI — Session Handoff Document
 
-> **Last Updated:** 2026-04-03 18:35 UTC+3
+> **Last Updated:** 2026-04-05 16:10 UTC+3
 > **Purpose:** Complete context transfer for new chat session
 > **Project:** ThreatMatrix AI — AI-Powered Network Anomaly Detection System
-> **Current Phase:** Week 6 Day 2 (Day 19) — E2E Real Traffic Walkthrough
-> **Paused At:** Phase 0 & Phase 1 COMPLETE — War Room Enterprise UI fully overhauled
-> **Next Session Resumes:** Phase 2 — Fresh Attack → Alert Detection (E2E Walkthrough Step 2)
+> **Current Phase:** Week 6 Day 4 (Day 19) — Phase 2 Refinement COMPLETE
+> **Paused At:** Phase 2 Refinement complete, remaining tasks identified
+> **Next Session Resumes:** Phase 3 — Alert Console + AI Analyst E2E Testing
 
 ---
 
@@ -13,20 +13,22 @@
 
 ThreatMatrix AI is an enterprise-grade, AI-powered cybersecurity platform. It's a **senior project (CS bachelor's)** with an 8-week window (Feb 24 → Apr 20, 2026) and a 4-person team. The lead architect handles ~60% of codebase — backend, ML, LLM, capture engine.
 
-**🎉 PHASE 0 & PHASE 1 COMPLETE — War Room Enterprise UI Overhaul Done.**
+**🎉 PHASE 2 COMPLETE — E2E Attack Detection + Refinements Done.**
 
-**Current Version: v0.6.0** (1 week ahead of schedule)
+**Current Version: v0.6.1** (1 week ahead of schedule)
 
-### System Status (Verified April 3, 2026 — Day 19 Final)
+### System Status (Verified April 5, 2026 — Day 19 Final)
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| Capture Engine | ✅ Live (10+ days) | 63 features per flow, 12,739+ packets captured |
-| ML Worker | ✅ Live | **67,800+ flows scored**, 214 anomalies, 214 alerts |
+| Capture Engine | ✅ Live (12+ days) | 21.7M+ packets, 1.65M+ flows |
+| ML Worker | ✅ Live | **1.65M+ flows scored**, 3K+ anomalies, 6K+ alerts |
 | Alert Engine | ✅ Enhanced | UUID alerts + IOC correlation + LLM auto-narrative |
-| LLM Gateway | ✅ Enhanced | 3 OpenRouter models, streaming SSE, AI Briefing working |
-| Frontend | ✅ **v0.6.0 Enterprise UI** | **Full War Room overhaul, 4 new component cards** |
-| API Endpoints | ✅ 46/46 (100%) | All services operational |
+| LLM Gateway | ✅ Enhanced | 3 OpenRouter models, SSE streaming, **briefing caching** |
+| Frontend | ✅ **v0.6.1 Enterprise UI** | War Room overhaul, AI Briefing caching, 560px ThreatMap |
+| API Endpoints | ✅ All operational | Health, capture, ML status all green |
+| Database | ✅ Healthy | PostgreSQL healthy |
+| Redis | ✅ Healthy | **Standalone master** (security incident resolved) |
 
 ### Model Performance
 
@@ -41,55 +43,47 @@ ThreatMatrix AI is an enterprise-grade, AI-powered cybersecurity platform. It's 
 
 ## 🔄 WHAT CHANGED IN THIS SESSION
 
-### Phase 0: VPS Preparation ✅
-- Restarted ML Worker, Capture Engine, Backend containers
-- Verified all 5 Docker containers running
-- Confirmed health endpoint: API healthy, Redis healthy, ML models loaded
+### Phase 2: E2E Attack Simulation ✅
+- **nmap port scan** executed from local machine → VPS
+- **Alert detection confirmed** — category "port_scan", severity MEDIUM, confidence 52%
+- **LLM narratives generated** for all alerts
+- **Total alerts increased** from 1,220 to 2,912 (+1,692)
 
-### Phase 1: War Room Frontend Refactor ✅
-- **Fixed WebSocket URL** → `ws://187.124.45.161:8000`
-- **Fixed Metric Cards** → Now use API data (stats.total_flows, stats.total_packets)
-- **Fixed Anomaly Rate** → Correctly calculates from alert stats (by_severity)
-- **Fixed AI Briefing** → SSE parsing for `{token: "..."}` format, full content display
-- **Removed all mock data** → LiveAlertFeed, TopTalkers, GeoDistribution use real API data
+### Phase 2.5: Backend API Refinements ✅
+- **Health endpoint** — Now queries actual DB stats (was hardcoded "idle/pending")
+- **Capture status** — Fixed table name `network_flows`, queries live stats
+- **ML Worker status** — New endpoint `GET /api/v1/ml/worker/status`
+- **All endpoints green** — API healthy, DB healthy, Redis healthy, capture active, ML active
 
-### Phase 1.5: War Room Enterprise UI Overhaul ✅
-- **CSS Design System** → Reduced glow effects, enhanced glassmorphism
-- **MetricCard** → Enterprise-grade with accent line, cleaner typography
-- **LiveAlertFeed** → Richer detail with severity icons, IP addresses, relative time
-- **AIBriefingWidget** → Full content display (350px scrollable), markdown formatting
-- **TopBar** → "System Operational" badge instead of hardcoded budget
-- **SystemStatusCard** (NEW) → Real-time backend monitoring (API, PostgreSQL, Redis, Capture, ML)
-- **ProtocolCard** (NEW) → Enterprise protocol distribution with flow counts, percentage bars
-- **TrafficTimelineCard** (NEW) → 60-minute traffic timeline with bar chart
-- **ThreatLevelCard** (NEW) → Threat level with alert breakdown by severity
+### Phase 2.6: Frontend Refinements ✅
+- **AI Briefing Caching** — 5-min TTL in Redis, loads instantly on subsequent visits
+- **ThreatMap height** — Increased from 420px to 560px
+- **AIBriefingWidget** — Complete rewrite for reliable rendering
+- **Debug logging** — Added to War Room page and LiveAlertFeed
+
+### 🔴 Security Incident Resolved ✅
+- **Issue:** Redis was configured as read-only replica of external master (175.24.232.83:22032)
+- **Root Cause:** Publicly exposed Redis port (0.0.0.0:6379) was compromised
+- **Fix:** Deleted poisoned volume, recreated Redis as standalone master
+- **Status:** `role:master` confirmed, all writes working
 
 ### New Files Created
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `frontend/components/war-room/SystemStatusCard.tsx` | ~200 | Real-time backend component monitoring |
-| `frontend/components/war-room/ProtocolCard.tsx` | ~150 | Enterprise protocol distribution |
-| `frontend/components/war-room/TrafficTimelineCard.tsx` | ~120 | Traffic timeline with bar chart |
-| `frontend/components/war-room/ThreatLevelCard.tsx` | ~140 | Threat level with alert breakdown |
-| `plans/E2E_WALKTHROUGH_PLAN.md` | ~400 | E2E walkthrough plan with 10 steps |
-| `plans/E2E_WALKTHROUGH_DIAGRAM.md` | ~100 | Architecture diagrams |
+| File | Purpose |
+|------|---------|
+| `docs/PHASE2_E2E_ATTACK_SIMULATION_REPORT.md` | Phase 2 attack results |
+| `docs/PHASE2_REFINEMENT_SUMMARY.md` | Refinement summary |
+| `plans/PHASE2_ATTACK_SIMULATION_PLAN.md` | Attack simulation plan |
+| `plans/PHASE2_EXECUTION_CHECKLIST.md` | Step-by-step commands |
+| `plans/PHASE2_FINAL_REFINEMENT_PLAN.md` | Refinement plan |
 
 ### Key Fixes Applied
 
-1. **API data mapping** — Alert stats returns `{by_severity: {...}, total}` not flat severity counts
-2. **SSE parsing** — Backend uses `{token: "..."}` format, not OpenRouter `{choices: [...]}`
-3. **ThreatMap layout** — Changed from `minHeight: 400` to `height: 420` with `minHeight: 0` on child
-4. **TypeScript types** — Updated `FlowStatsResponse` to include `total_packets`, `total_bytes`
-
-### Current War Room Layout
-```
-Row 1: [PACKETS/SEC] [ACTIVE FLOWS] [ANOMALY RATE] [THREATS 24H] [ML MODELS]
-Row 2: [LIVE THREAT MAP - Full Width, 420px height]
-Row 3: [AI BRIEFING (2/3)] | [SYSTEM STATUS (1/3)]
-Row 4: [LIVE ALERT FEED] [TOP TALKERS] [GEO DISTRIBUTION]
-Row 5: [PROTOCOL DISTRIBUTION] [TRAFFIC TIMELINE] [THREAT LEVEL]
-```
+1. **Table name mismatch** — Changed `flows` to `network_flows` in all queries
+2. **Database connection** — Uses `engine.connect()` instead of `async_session`
+3. **Health check** — Uses `asyncpg` directly for DB ping
+4. **Redis caching** — Direct Redis connection for briefing cache
+5. **Typewriter speed** — 2ms/char with 10-char chunks for long briefings
 
 ---
 
@@ -102,33 +96,25 @@ Row 5: [PROTOCOL DISTRIBUTION] [TRAFFIC TIMELINE] [THREAT LEVEL]
 | Next.js 16 build error | 🟡 | npm run dev works; production build fails (pre-existing) |
 | GeoDistribution static | 🟢 | Requires GeoIP database on VPS (not available) |
 | No SSL/HTTPS | 🟡 | Week 8 task per PART5 |
+| **Redis security** | 🔴 **RESOLVED** | Was compromised, now standalone master |
 
 ---
 
 ## 📋 NEXT SESSION TASKS
 
-### Phase 2: Fresh Attack → Alert Detection (Step 2)
-1. Run nmap port scan from local machine: `nmap -sS -p 1-1024 187.124.45.161`
-2. Record T0 (attack start) and T1 (alert appearance)
-3. Verify alert appears within 60 seconds
-4. Verify alert category = "port_scan", severity ≥ MEDIUM
-
-### Phase 3: Alert Console with AI Narrative (Step 3)
+### Phase 3: Alert Console + AI Analyst E2E Testing
 1. Navigate to /alerts page
-2. Open alert from Phase 2
+2. Open alert from Phase 2 attack
 3. Verify AI narrative field is populated
-4. Assess narrative quality
+4. Navigate to /ai-analyst page
+5. Send query about the attack
+6. Verify streaming response, technical accuracy
 
-### Phase 4: AI Analyst Coherent Response (Step 4)
-1. Navigate to /ai-analyst page
-2. Send query about the attack
-3. Verify streaming response, technical accuracy
-
-### Phase 5-8: Remaining E2E Steps
-- ML Ops metrics display
-- Reports PDF generation
-- Intel Hub IOC data
-- Admin audit log
+### Remaining Phase 2 Tasks
+1. **Detection Latency Logging** — Add timestamps to ML worker
+2. **WebSocket Connection Fix** — Debug DEV_MODE connection issues
+3. **Diverse Attack Simulation** — Test DDoS, brute force, DNS tunnel
+4. **Redis Security Hardening** — Bind to 127.0.0.1 only in docker-compose.yml
 
 ### Phase 9: Frontend Component Audit & Polish
 - Audit all 10 pages for UI/UX issues
@@ -167,6 +153,8 @@ Row 5: [PROTOCOL DISTRIBUTION] [TRAFFIC TIMELINE] [THREAT LEVEL]
 | **Master Doc Part 5** | `docs/master-documentation/MASTER_DOC_PART5_TIMELINE.md` | Demo Script §8.1, Task assignments |
 | **E2E Walkthrough Plan** | `plans/E2E_WALKTHROUGH_PLAN.md` | 10-step walkthrough plan |
 | **Day 19 Worklog** | `docs/worklog/DAY_19_APR01.md` | Attack simulation, PCAP demo |
+| **Phase 2 Report** | `docs/PHASE2_E2E_ATTACK_SIMULATION_REPORT.md` | Attack results |
+| **Refinement Summary** | `docs/PHASE2_REFINEMENT_SUMMARY.md` | All fixes applied |
 
 ---
 
@@ -187,11 +175,12 @@ Row 5: [PROTOCOL DISTRIBUTION] [TRAFFIC TIMELINE] [THREAT LEVEL]
 | **Day 16** | **PCAP Processor, ml_models, ML Ops Endpoints** | ✅ |
 | **Day 17** | **CICIDS2017, PDF Reports, Audit, RBAC, LLM Budget** | ✅ |
 | **Day 18** | **Frontend Overhaul: 10/10 pages, 36 endpoints** | ✅ |
-| **Day 19** | **✅ Attack sim (5/5), PCAP demo (5/5), War Room UI overhaul** | ✅ Phase 0-1 |
+| **Day 19** | **✅ Attack sim, PCAP demo, War Room UI, API fixes, Redis security** | ✅ v0.6.1 |
 
 ---
 
-_**End of Session Handoff — Day 19 Phase 0-1 COMPLETE**_
-_v0.6.0 achieved — 1 week ahead of master timeline ✅_
-_War Room Enterprise UI: 4 new component cards, full refactor, all mock data removed_
-_Next: Phase 2 — Fresh Attack → Alert Detection (E2E Walkthrough Step 2)_
+_**End of Session Handoff — Day 19 Phase 2 COMPLETE**_
+_v0.6.1 achieved — 1 week ahead of master timeline ✅_
+_War Room: AI Briefing caching, 560px ThreatMap, all API endpoints green_
+_Redis security incident resolved — standalone master confirmed_
+_Next: Phase 3 — Alert Console + AI Analyst E2E Testing_
