@@ -172,23 +172,28 @@ async def get_cached_briefing():
     Returns cached briefing if available, otherwise triggers generation.
     Cache TTL: 5 minutes.
     """
-    from app.redis import redis_manager
     import time
+    import redis.asyncio as aioredis
 
     CACHE_KEY = "warroom:briefing"
     CACHE_TTL = 300  # 5 minutes
+    REDIS_URL = "redis://redis:6379"
 
+    # Try to get cached briefing
     try:
-        # Try to get cached briefing
-        cached = await redis_manager.get(CACHE_KEY)
+        r = aioredis.from_url(REDIS_URL, decode_responses=True)
+        cached = await r.get(CACHE_KEY)
         if cached:
             data = json.loads(cached)
+            ttl = await r.ttl(CACHE_KEY)
+            await r.close()
             return {
                 "briefing": data.get("text", ""),
                 "generated_at": data.get("generated_at", ""),
                 "cached": True,
-                "ttl_remaining": CACHE_TTL - (int(time.time()) - data.get("timestamp", 0)),
+                "ttl_remaining": ttl,
             }
+        await r.close()
     except Exception as e:
         logger.warning(f"[LLM] Failed to get cached briefing: {e}")
 
@@ -202,12 +207,15 @@ async def get_cached_briefing():
 
     # Cache the briefing
     try:
+        r = aioredis.from_url(REDIS_URL, decode_responses=True)
         cache_data = json.dumps({
             "text": briefing_text,
             "generated_at": generated_at,
             "timestamp": int(time.time()),
         })
-        await redis_manager.set(CACHE_KEY, cache_data, ex=CACHE_TTL)
+        await r.setex(CACHE_KEY, CACHE_TTL, cache_data)
+        await r.close()
+        logger.info(f"[LLM] Cached briefing ({len(briefing_text)} chars) for {CACHE_TTL}s")
     except Exception as e:
         logger.warning(f"[LLM] Failed to cache briefing: {e}")
 
