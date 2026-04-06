@@ -7,8 +7,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Zap, MapPin, Clock, Bot, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Shield, Zap, MapPin, Clock, Bot, ArrowRight, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { useAlerts } from '@/hooks/useAlerts';
+import { api } from '@/lib/api';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatTime, formatIP } from '@/lib/utils';
 import type { AlertResponse } from '@/lib/types';
@@ -142,6 +143,19 @@ function AlertCard({
   const ifScore = alert.if_score ?? (conf > 0 ? 0 : null);
   const aeScore = alert.ae_score ?? (conf > 0 ? 1.0 : null);
   const rfScore = alert.rf_score ?? conf;
+  const [updating, setUpdating] = useState(false);
+  const [localStatus, setLocalStatus] = useState(alert.status);
+
+  const handleStatusUpdate = async (newStatus: AlertStatus) => {
+    setUpdating(true);
+    const { error: err } = await api.patch(`/api/v1/alerts/${alert.alert_id}/status`, {
+      new_status: newStatus,
+    });
+    if (!err) {
+      setLocalStatus(newStatus);
+    }
+    setUpdating(false);
+  };
 
   return (
     <div style={{
@@ -249,12 +263,12 @@ function AlertCard({
           <span style={{
             fontFamily: 'var(--font-data)',
             fontSize: '0.6rem',
-            color: statusColor,
+            color: localStatus === 'open' ? 'var(--warning)' : localStatus === 'acknowledged' ? 'var(--cyan)' : 'var(--safe)',
             textTransform: 'uppercase',
             letterSpacing: '0.08em',
             fontWeight: 700,
           }}>
-            {alert.status}
+            {localStatus}
           </span>
           <button
             onClick={(e) => { e.stopPropagation(); onViewDetail(); }}
@@ -381,6 +395,64 @@ function AlertCard({
           )}
         </div>
       </div>
+
+      {/* ── Action Bar ──────────────────────────────── */}
+      {localStatus === 'open' && (
+        <div style={{
+          display: 'flex',
+          gap: 8,
+          padding: '12px var(--space-4)',
+          borderTop: '1px solid var(--border)',
+          background: 'var(--bg-tertiary)',
+        }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleStatusUpdate('acknowledged'); }}
+            disabled={updating}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 14px',
+              borderRadius: 'var(--radius-sm)',
+              background: 'rgba(0,240,255,0.1)',
+              color: 'var(--cyan)',
+              border: '1px solid var(--border-active)',
+              cursor: updating ? 'not-allowed' : 'pointer',
+              fontFamily: 'var(--font-data)',
+              fontSize: '0.6rem',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              opacity: updating ? 0.5 : 1,
+            }}
+          >
+            <CheckCircle size={12} /> Acknowledge
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleStatusUpdate('resolved'); }}
+            disabled={updating}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 14px',
+              borderRadius: 'var(--radius-sm)',
+              background: 'rgba(255,255,255,0.03)',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border)',
+              cursor: updating ? 'not-allowed' : 'pointer',
+              fontFamily: 'var(--font-data)',
+              fontSize: '0.6rem',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              opacity: updating ? 0.5 : 1,
+            }}
+          >
+            <XCircle size={12} /> False Positive
+          </button>
+        </div>
+      )}
     </div>
   );
 }

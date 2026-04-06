@@ -44,13 +44,19 @@ export default function AlertDetailPage() {
   const handleStatusUpdate = async (newStatus: AlertStatus) => {
     if (!alert) return;
     setUpdating(true);
-    const { data, error: err } = await api.patch<AlertResponse>(`/api/v1/alerts/${alert.id}/status`, {
+    const { data, error: err } = await api.patch(`/api/v1/alerts/${alert.alert_id}/status`, {
       new_status: newStatus,
     });
     if (err) {
       setError(err);
-    } else if (data) {
-      setAlert(data);
+    } else {
+      // Refetch the alert to get updated data
+      const { data: refreshed, error: refetchErr } = await api.get<AlertResponse>(`/api/v1/alerts/${alertId}`);
+      if (refetchErr) {
+        setError(refetchErr);
+      } else if (refreshed) {
+        setAlert(refreshed);
+      }
     }
     setUpdating(false);
   };
