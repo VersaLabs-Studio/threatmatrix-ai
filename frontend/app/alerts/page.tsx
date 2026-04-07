@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Zap, MapPin, Clock, Bot, ArrowRight, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { Shield, Zap, MapPin, Clock, Bot, ArrowRight, AlertTriangle, CheckCircle, XCircle, Eye, Search, CheckSquare, Flag, RotateCcw } from 'lucide-react';
 import { useAlerts } from '@/hooks/useAlerts';
 import { api } from '@/lib/api';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -15,6 +15,40 @@ import { formatTime, formatIP } from '@/lib/utils';
 import type { AlertResponse } from '@/lib/types';
 import type { Severity, AlertStatus } from '@/lib/constants';
 import { AuthGuard } from '@/components/auth/AuthGuard';
+
+// Status transition config for list cards (compact buttons)
+const STATUS_TRANSITIONS: Record<string, { status: AlertStatus; label: string; bg: string; color: string; border: string }[]> = {
+  open: [
+    { status: 'acknowledged', label: 'Acknowledge', bg: 'rgba(0,240,255,0.1)', color: 'var(--cyan)', border: 'var(--border-active)' },
+    { status: 'investigating', label: 'Investigate', bg: 'rgba(168,85,247,0.1)', color: '#a855f7', border: 'rgba(168,85,247,0.3)' },
+    { status: 'resolved', label: 'Resolve', bg: 'rgba(34,197,94,0.1)', color: 'var(--safe)', border: 'rgba(34,197,94,0.3)' },
+    { status: 'false_positive', label: 'False Positive', bg: 'rgba(255,255,255,0.03)', color: 'var(--text-muted)', border: 'var(--border)' },
+  ],
+  acknowledged: [
+    { status: 'investigating', label: 'Investigate', bg: 'rgba(168,85,247,0.1)', color: '#a855f7', border: 'rgba(168,85,247,0.3)' },
+    { status: 'resolved', label: 'Resolve', bg: 'rgba(34,197,94,0.1)', color: 'var(--safe)', border: 'rgba(34,197,94,0.3)' },
+    { status: 'false_positive', label: 'False Positive', bg: 'rgba(255,255,255,0.03)', color: 'var(--text-muted)', border: 'var(--border)' },
+    { status: 'reopened', label: 'Reopen', bg: 'rgba(249,115,22,0.1)', color: '#f97316', border: 'rgba(249,115,22,0.3)' },
+  ],
+  investigating: [
+    { status: 'resolved', label: 'Resolve', bg: 'rgba(34,197,94,0.1)', color: 'var(--safe)', border: 'rgba(34,197,94,0.3)' },
+    { status: 'false_positive', label: 'False Positive', bg: 'rgba(255,255,255,0.03)', color: 'var(--text-muted)', border: 'var(--border)' },
+    { status: 'acknowledged', label: 'Back to Acknowledged', bg: 'rgba(0,240,255,0.1)', color: 'var(--cyan)', border: 'var(--border-active)' },
+    { status: 'reopened', label: 'Reopen', bg: 'rgba(249,115,22,0.1)', color: '#f97316', border: 'rgba(249,115,22,0.3)' },
+  ],
+  resolved: [
+    { status: 'reopened', label: 'Reopen', bg: 'rgba(249,115,22,0.1)', color: '#f97316', border: 'rgba(249,115,22,0.3)' },
+  ],
+  false_positive: [
+    { status: 'reopened', label: 'Reopen', bg: 'rgba(249,115,22,0.1)', color: '#f97316', border: 'rgba(249,115,22,0.3)' },
+  ],
+  reopened: [
+    { status: 'acknowledged', label: 'Acknowledge', bg: 'rgba(0,240,255,0.1)', color: 'var(--cyan)', border: 'var(--border-active)' },
+    { status: 'investigating', label: 'Investigate', bg: 'rgba(168,85,247,0.1)', color: '#a855f7', border: 'rgba(168,85,247,0.3)' },
+    { status: 'resolved', label: 'Resolve', bg: 'rgba(34,197,94,0.1)', color: 'var(--safe)', border: 'rgba(34,197,94,0.3)' },
+    { status: 'false_positive', label: 'False Positive', bg: 'rgba(255,255,255,0.03)', color: 'var(--text-muted)', border: 'var(--border)' },
+  ],
+};
 
 export default function AlertConsolePage() {
   const router = useRouter();
@@ -69,7 +103,7 @@ export default function AlertConsolePage() {
           />
           <FilterGroup
             label="STATUS"
-            options={['all', 'open', 'acknowledged', 'resolved']}
+            options={['all', 'open', 'acknowledged', 'investigating', 'resolved', 'false_positive', 'reopened']}
             current={statusFilter}
             onSelect={(v: string) => setStatusFilter(v as any)}
           />
@@ -396,61 +430,43 @@ function AlertCard({
         </div>
       </div>
 
-      {/* ── Action Bar ──────────────────────────────── */}
-      {localStatus === 'open' && (
+      {/* ── Action Bar — Dynamic Based on Status ──────── */}
+      {STATUS_TRANSITIONS[localStatus] && STATUS_TRANSITIONS[localStatus].length > 0 && (
         <div style={{
           display: 'flex',
-          gap: 8,
-          padding: '12px var(--space-4)',
+          gap: 6,
+          padding: '10px var(--space-4)',
           borderTop: '1px solid var(--border)',
           background: 'var(--bg-tertiary)',
+          flexWrap: 'wrap',
         }}>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleStatusUpdate('acknowledged'); }}
-            disabled={updating}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 14px',
-              borderRadius: 'var(--radius-sm)',
-              background: 'rgba(0,240,255,0.1)',
-              color: 'var(--cyan)',
-              border: '1px solid var(--border-active)',
-              cursor: updating ? 'not-allowed' : 'pointer',
-              fontFamily: 'var(--font-data)',
-              fontSize: '0.6rem',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              opacity: updating ? 0.5 : 1,
-            }}
-          >
-            <CheckCircle size={12} /> Acknowledge
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleStatusUpdate('resolved'); }}
-            disabled={updating}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 14px',
-              borderRadius: 'var(--radius-sm)',
-              background: 'rgba(255,255,255,0.03)',
-              color: 'var(--text-muted)',
-              border: '1px solid var(--border)',
-              cursor: updating ? 'not-allowed' : 'pointer',
-              fontFamily: 'var(--font-data)',
-              fontSize: '0.6rem',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              opacity: updating ? 0.5 : 1,
-            }}
-          >
-            <XCircle size={12} /> False Positive
-          </button>
+          {STATUS_TRANSITIONS[localStatus].map((t) => (
+            <button
+              key={t.status}
+              onClick={(e) => { e.stopPropagation(); handleStatusUpdate(t.status); }}
+              disabled={updating}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '5px 12px',
+                borderRadius: 'var(--radius-sm)',
+                background: t.bg,
+                color: t.color,
+                border: `1px solid ${t.border}`,
+                cursor: updating ? 'not-allowed' : 'pointer',
+                fontFamily: 'var(--font-data)',
+                fontSize: '0.58rem',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                opacity: updating ? 0.5 : 1,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
       )}
     </div>

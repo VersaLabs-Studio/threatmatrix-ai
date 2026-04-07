@@ -34,21 +34,23 @@ SEVERITY_ORDER = {
     "info": 4,
 }
 
-# ── Valid Status Transitions ───────────────────────────────────────
+# ── Valid Status Transitions (flexible, demo-ready) ─────────────
 VALID_TRANSITIONS = {
-    "open": ["acknowledged"],
-    "acknowledged": ["investigating"],
-    "investigating": ["resolved", "false_positive"],
-    "resolved": [],
-    "false_positive": [],
+    "open": ["acknowledged", "investigating", "resolved", "false_positive"],
+    "acknowledged": ["investigating", "resolved", "false_positive", "reopened"],
+    "investigating": ["resolved", "false_positive", "acknowledged", "reopened"],
+    "resolved": ["reopened"],
+    "false_positive": ["reopened"],
+    "reopened": ["acknowledged", "investigating", "resolved", "false_positive"],
 }
 
 # ── Role Permissions for Status Transitions ────────────────────────
 STATUS_PERMISSIONS = {
     "acknowledged": ["admin", "soc_manager", "analyst"],
     "investigating": ["admin", "soc_manager", "analyst"],
-    "resolved": ["admin", "soc_manager"],
+    "resolved": ["admin", "soc_manager", "analyst"],
     "false_positive": ["admin", "soc_manager", "analyst"],
+    "reopened": ["admin", "soc_manager", "analyst"],
 }
 
 
@@ -150,9 +152,13 @@ async def get_alert_by_id(
     
     Returns alert details or None if not found.
     """
-    query = select(Alert).where(
-        or_(Alert.id == alert_id, Alert.alert_id == alert_id)
-    )
+    # Try parsing as UUID first to avoid PostgreSQL type mismatch
+    try:
+        uuid_id = UUID(alert_id)
+        query = select(Alert).where(or_(Alert.id == uuid_id, Alert.alert_id == alert_id))
+    except ValueError:
+        # Not a UUID, search by human-readable alert_id only
+        query = select(Alert).where(Alert.alert_id == alert_id)
     result = await db.execute(query)
     alert = result.scalar_one_or_none()
     
@@ -285,9 +291,15 @@ async def update_alert_status(
     Update alert lifecycle status.
     
     Validates status transition and user permissions.
+    Accepts both UUID and human-readable alert_id.
     """
-    # Get alert
-    query = select(Alert).where(Alert.alert_id == alert_id)
+    # Get alert - try UUID first to avoid type mismatch
+    try:
+        uuid_id = UUID(alert_id)
+        query = select(Alert).where(or_(Alert.id == uuid_id, Alert.alert_id == alert_id))
+    except ValueError:
+        query = select(Alert).where(Alert.alert_id == alert_id)
+    
     result = await db.execute(query)
     alert = result.scalar_one_or_none()
     
@@ -316,13 +328,16 @@ async def update_alert_status(
         "updated_at": datetime.now(timezone.utc),
     }
     
-    if new_status == "resolved" or new_status == "false_positive":
+    if new_status in ("resolved", "false_positive"):
         update_data["resolved_at"] = datetime.now(timezone.utc)
         update_data["resolved_by"] = user_id
-        if resolution_note:
-            update_data["resolution_note"] = resolution_note
     
-    stmt = update(Alert).where(Alert.alert_id == alert_id).values(**update_data)
+    # Accept resolution_note for any status change that warrants it
+    if resolution_note and new_status in ("resolved", "false_positive", "reopened"):
+        update_data["resolution_note"] = resolution_note
+    
+    # Use the alert's alert_id for the WHERE clause to handle UUID inputs
+    stmt = update(Alert).where(Alert.alert_id == alert.alert_id).values(**update_data)
     await db.execute(stmt)
     await db.commit()
     

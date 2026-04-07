@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Shield, Clock, MapPin, Zap, User, CheckCircle, AlertTriangle, Bot, Copy, ExternalLink, Activity, Network, Hash } from 'lucide-react';
+import { ArrowLeft, Shield, Clock, MapPin, Zap, User, CheckCircle, AlertTriangle, Bot, Copy, ExternalLink, Activity, Network, Hash, Eye, RotateCcw, X, CheckSquare, Flag, Search } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 import { formatTime, formatIP } from '@/lib/utils';
@@ -15,6 +15,43 @@ import { api } from '@/lib/api';
 import type { AlertResponse } from '@/lib/types';
 import type { AlertStatus } from '@/lib/constants';
 import { AuthGuard } from '@/components/auth/AuthGuard';
+
+// Status transition config
+const STATUS_TRANSITIONS: Record<string, { status: AlertStatus; label: string; icon: React.ReactNode; variant: 'cyan' | 'warning' | 'safe' | 'muted' }[]> = {
+  open: [
+    { status: 'acknowledged', label: 'ACKNOWLEDGE', icon: <Eye size={14} />, variant: 'cyan' },
+    { status: 'investigating', label: 'INVESTIGATE', icon: <Search size={14} />, variant: 'warning' },
+    { status: 'resolved', label: 'RESOLVE', icon: <CheckSquare size={14} />, variant: 'safe' },
+    { status: 'false_positive', label: 'FALSE POSITIVE', icon: <Flag size={14} />, variant: 'muted' },
+  ],
+  acknowledged: [
+    { status: 'investigating', label: 'INVESTIGATE', icon: <Search size={14} />, variant: 'warning' },
+    { status: 'resolved', label: 'RESOLVE', icon: <CheckSquare size={14} />, variant: 'safe' },
+    { status: 'false_positive', label: 'FALSE POSITIVE', icon: <Flag size={14} />, variant: 'muted' },
+    { status: 'reopened', label: 'REOPEN', icon: <RotateCcw size={14} />, variant: 'cyan' },
+  ],
+  investigating: [
+    { status: 'resolved', label: 'RESOLVE', icon: <CheckSquare size={14} />, variant: 'safe' },
+    { status: 'false_positive', label: 'FALSE POSITIVE', icon: <Flag size={14} />, variant: 'muted' },
+    { status: 'acknowledged', label: 'BACK TO ACKNOWLEDGED', icon: <ArrowLeft size={14} />, variant: 'cyan' },
+    { status: 'reopened', label: 'REOPEN', icon: <RotateCcw size={14} />, variant: 'cyan' },
+  ],
+  resolved: [
+    { status: 'reopened', label: 'REOPEN', icon: <RotateCcw size={14} />, variant: 'cyan' },
+  ],
+  false_positive: [
+    { status: 'reopened', label: 'REOPEN', icon: <RotateCcw size={14} />, variant: 'cyan' },
+  ],
+  reopened: [
+    { status: 'acknowledged', label: 'ACKNOWLEDGE', icon: <Eye size={14} />, variant: 'cyan' },
+    { status: 'investigating', label: 'INVESTIGATE', icon: <Search size={14} />, variant: 'warning' },
+    { status: 'resolved', label: 'RESOLVE', icon: <CheckSquare size={14} />, variant: 'safe' },
+    { status: 'false_positive', label: 'FALSE POSITIVE', icon: <Flag size={14} />, variant: 'muted' },
+  ],
+};
+
+// Statuses that require resolution notes
+const NEEDS_NOTE = new Set(['resolved', 'false_positive', 'reopened']);
 
 export default function AlertDetailPage() {
   const params = useParams();
@@ -25,6 +62,9 @@ export default function AlertDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<AlertStatus | null>(null);
+  const [resolutionNote, setResolutionNote] = useState('');
 
   useEffect(() => {
     if (!alertId) return;
@@ -41,11 +81,13 @@ export default function AlertDetailPage() {
     void fetchAlert();
   }, [alertId]);
 
-  const handleStatusUpdate = async (newStatus: AlertStatus) => {
+  const handleStatusUpdate = async (newStatus: AlertStatus, note?: string) => {
     if (!alert) return;
     setUpdating(true);
+    setShowNoteModal(false);
     const { data, error: err } = await api.patch(`/api/v1/alerts/${alert.alert_id}/status`, {
       new_status: newStatus,
+      resolution_note: note || undefined,
     });
     if (err) {
       setError(err);
@@ -58,7 +100,18 @@ export default function AlertDetailPage() {
         setAlert(refreshed);
       }
     }
+    setPendingStatus(null);
+    setResolutionNote('');
     setUpdating(false);
+  };
+
+  const initiateStatusChange = (newStatus: AlertStatus) => {
+    if (NEEDS_NOTE.has(newStatus)) {
+      setPendingStatus(newStatus);
+      setShowNoteModal(true);
+    } else {
+      handleStatusUpdate(newStatus);
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -387,40 +440,172 @@ export default function AlertDetailPage() {
           )}
         </GlassPanel>
 
-        {/* Action Footer */}
-        <div
-          style={{
-            padding: 'var(--space-4)',
-            background: 'var(--bg-secondary)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border)',
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
+        {/* Action Footer — Dynamic Buttons Based on Status */}
+        <div style={{
+          padding: 'var(--space-4)',
+          background: 'var(--bg-secondary)',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-3)',
+        }}>
+          <div style={{
+            fontFamily: 'var(--font-data)',
+            fontSize: '0.6rem',
+            color: 'var(--text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            Status: <span style={{
+              color: alert.status === 'open' ? 'var(--warning)' : alert.status === 'acknowledged' ? 'var(--cyan)' : alert.status === 'investigating' ? '#a855f7' : alert.status === 'resolved' ? 'var(--safe)' : alert.status === 'reopened' ? '#f97316' : 'var(--text-muted)',
+              fontWeight: 700,
+            }}>
+              {alert.status.toUpperCase()}
+            </span>
+          </div>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
             gap: 'var(--space-3)',
-          }}
-        >
-          <ActionButton
-            icon={<CheckCircle size={16} />}
-            label="ACKNOWLEDGE"
-            onClick={() => handleStatusUpdate('acknowledged')}
-            variant="cyan"
-            disabled={alert.status === 'acknowledged' || updating}
-          />
-          <ActionButton
-            icon={<AlertTriangle size={16} />}
-            label="MARK FALSE POSITIVE"
-            onClick={() => handleStatusUpdate('resolved')}
-            variant="muted"
-            disabled={updating}
-          />
-          <ActionButton
-            icon={<User size={16} />}
-            label="ASSIGN TO ME"
-            onClick={() => {}}
-            variant="tertiary"
-            disabled={updating}
-          />
+          }}>
+            {(STATUS_TRANSITIONS[alert.status] || []).map((t) => (
+              <ActionButton
+                key={t.status}
+                icon={t.icon}
+                label={t.label}
+                onClick={() => initiateStatusChange(t.status)}
+                variant={t.variant}
+                disabled={updating}
+              />
+            ))}
+          </div>
         </div>
+
+        {/* Resolution Note Modal */}
+        {showNoteModal && pendingStatus && (
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}>
+            <div style={{
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: 'var(--space-5)',
+              width: 480,
+              maxWidth: '90vw',
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 16,
+              }}>
+                <h3 style={{
+                  fontFamily: 'var(--font-data)',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  color: 'var(--cyan)',
+                  margin: 0,
+                  letterSpacing: '0.05em',
+                }}>
+                  Resolution Note
+                </h3>
+                <button
+                  onClick={() => { setShowNoteModal(false); setPendingStatus(null); setResolutionNote(''); }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: 4,
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-data)',
+                fontSize: '0.7rem',
+                color: 'var(--text-secondary)',
+                marginBottom: 12,
+              }}>
+                Transitioning to <strong style={{ color: 'var(--cyan)' }}>{pendingStatus?.replace('_', ' ').toUpperCase()}</strong>. Add a note below:
+              </div>
+              <textarea
+                value={resolutionNote}
+                onChange={(e) => setResolutionNote(e.target.value)}
+                placeholder="Describe why this status change was made..."
+                style={{
+                  width: '100%',
+                  minHeight: 100,
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: 'var(--space-3)',
+                  fontFamily: 'var(--font-data)',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-primary)',
+                  resize: 'vertical',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                onFocus={(e) => { e.target.style.borderColor = 'var(--cyan)'; }}
+                onBlur={(e) => { e.target.style.borderColor = 'var(--border)'; }}
+              />
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8,
+                marginTop: 16,
+              }}>
+                <button
+                  onClick={() => { setShowNoteModal(false); setPendingStatus(null); setResolutionNote(''); }}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--bg-tertiary)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-data)',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleStatusUpdate(pendingStatus!, resolutionNote)}
+                  disabled={updating}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--cyan)',
+                    color: 'var(--bg-dark)',
+                    border: 'none',
+                    cursor: updating ? 'not-allowed' : 'pointer',
+                    fontFamily: 'var(--font-data)',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    opacity: updating ? 0.5 : 1,
+                  }}
+                >
+                  {updating ? 'Updating...' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AuthGuard>
   );
@@ -477,7 +662,27 @@ function ActionButton({ icon, label, onClick, variant, disabled }: {
   variant?: string;
   disabled?: boolean;
 }) {
-  const isCyan = variant === 'cyan';
+  const bgMap: Record<string, string> = {
+    cyan: 'var(--cyan)',
+    muted: 'var(--bg-tertiary)',
+    warning: 'rgba(245,158,11,0.15)',
+    safe: 'rgba(34,197,94,0.15)',
+    tertiary: 'rgba(255,255,255,0.05)',
+  };
+  const colorMap: Record<string, string> = {
+    cyan: 'var(--bg-dark)',
+    muted: 'var(--text-primary)',
+    warning: 'var(--warning)',
+    safe: 'var(--safe)',
+    tertiary: 'var(--text-primary)',
+  };
+  const borderMap: Record<string, string> = {
+    cyan: 'none',
+    muted: '1px solid var(--border)',
+    warning: '1px solid rgba(245,158,11,0.3)',
+    safe: '1px solid rgba(34,197,94,0.3)',
+    tertiary: '1px solid var(--border)',
+  };
   return (
     <button
       onClick={onClick}
@@ -486,17 +691,20 @@ function ActionButton({ icon, label, onClick, variant, disabled }: {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        padding: '12px',
+        gap: 6,
+        padding: '8px 16px',
         borderRadius: 'var(--radius-sm)',
         fontFamily: 'var(--font-data)',
-        fontSize: '0.7rem',
+        fontSize: '0.65rem',
         fontWeight: 700,
+        letterSpacing: '0.05em',
         cursor: disabled ? 'not-allowed' : 'pointer',
-        background: isCyan ? 'var(--cyan)' : variant === 'muted' ? 'var(--bg-tertiary)' : 'rgba(255,255,255,0.05)',
-        color: isCyan ? 'var(--bg-dark)' : 'var(--text-primary)',
-        border: variant === 'tertiary' ? '1px solid var(--border)' : 'none',
+        background: bgMap[variant || 'muted'] || bgMap.muted,
+        color: colorMap[variant || 'muted'] || colorMap.muted,
+        border: borderMap[variant || 'muted'] || borderMap.muted,
         opacity: disabled ? 0.5 : 1,
+        transition: 'all 0.15s ease',
+        textTransform: 'uppercase',
       }}
     >
       {icon} {label}
