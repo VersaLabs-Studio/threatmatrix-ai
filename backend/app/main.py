@@ -5,8 +5,9 @@ Application factory with middleware, CORS, and API router mounting.
 
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.api.v1 import router as api_v1_router
@@ -196,6 +197,30 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # ── Fallback CORS Handler (ensures all responses have CORS headers) ─
+    @app.middleware("http")
+    async def ensure_cors_headers(request: Request, call_next):
+        """Explicitly add CORS headers to all responses, especially for PATCH/PUT/DELETE preflight."""
+        # Handle preflight OPTIONS requests explicitly
+        if request.method == "OPTIONS":
+            origin = request.headers.get("origin", "")
+            allowed = origin in settings.CORS_ORIGINS
+            if allowed:
+                response = JSONResponse(status_code=200, content=None)
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+                response.headers["Access-Control-Allow-Headers"] = request.headers.get("access-control-request-headers", "*")
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                response.headers["Access-Control-Max-Age"] = "600"
+                return response
+
+        response = await call_next(request)
+        origin = request.headers.get("origin", "")
+        if origin in settings.CORS_ORIGINS and "access-control-allow-origin" not in response.headers:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
 
     # ── API Routes ───────────────────────────────────────────
     app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)
