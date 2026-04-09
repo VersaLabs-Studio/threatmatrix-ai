@@ -170,7 +170,11 @@ export function useWebSocket(): UseWebSocketReturn {
   useEffect(() => {
     // Connect using stored token (if available)
     const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
-    if (token) wsClient.connect(token);
+    // In DEV_MODE, use a placeholder token if none exists
+    const devToken = token || (process.env.NODE_ENV === 'development' ? 'dev_mode_token' : null);
+    console.log('[WS] Token check:', devToken ? `connecting with token` : 'NO TOKEN - WebSocket will not connect');
+    if (devToken) wsClient.connect(devToken);
+    else console.log('[WS] Skipping WebSocket connect - no token available');
 
     // Subscribe to all channels (will be sent once WS is open)
     console.log('[WS] Setting up WebSocket subscriptions...');
