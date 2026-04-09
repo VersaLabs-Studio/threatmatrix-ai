@@ -937,6 +937,315 @@ select:focus-visible {
 
 /* ── Action Button Hover (QuickActions) ────────────────────────── */
 .action-button:hover {
-  border-color: var(--cyan) !important;
-  color: var(--cyan) !important;
+  /* ... existing styles ... */
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   AI Analyst — Markdown Content Styling
+   ═══════════════════════════════════════════════════════════════════ */
+
+.md-root {
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.md-root p {
+  margin-bottom: 0.6em;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.md-root h1, .md-root h2, .md-root h3, .md-root h4 {
+  color: var(--cyan);
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+
+.md-root h1 { font-size: 1.1em; }
+.md-root h2 { font-size: 1.05em; }
+.md-root h3 { font-size: 1em; }
+
+.md-root ul, .md-root ol {
+  margin-left: 1.5em;
+  margin-bottom: 0.6em;
+  padding-left: 0.5em;
+}
+
+.md-root li {
+  margin-bottom: 0.25em;
+  color: var(--text-primary);
+}
+
+.md-root table {
+  border-collapse: collapse;
+  margin: 0.75em 0;
+  width: 100%;
+  font-size: 0.85em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.md-root thead {
+  background: var(--bg-primary);
+  border-bottom: 2px solid var(--cyan-dim);
+}
+
+.md-root th {
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  text-align: left;
+  background: var(--bg-primary);
+  color: var(--cyan);
+  font-weight: 600;
+  font-size: 0.9em;
+}
+
+.md-root td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+  color: var(--text-primary);
+}
+
+.md-root tbody tr:nth-child(even) {
+  background: rgba(0, 240, 255, 0.04);
+}
+
+.md-root tbody tr:hover {
+  background: rgba(0, 240, 255, 0.08);
+}
+
+.md-root code {
+  background: var(--bg-primary);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: var(--font-data);
+  font-size: 0.85em;
+  color: var(--cyan);
+  border: 1px solid var(--border);
+}
+
+.md-root pre {
+  background: var(--bg-primary);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  margin-bottom: 0.8em;
+  border: 1px solid var(--border);
+}
+
+.md-root pre code {
+  background: none;
+  padding: 0;
+  border: none;
+  color: var(--cyan);
+  font-size: 1em;
+}
+
+.md-root blockquote {
+  border-left: 3px solid var(--cyan);
+  padding-left: var(--space-3);
+  margin: 0.75em 0;
+  color: var(--text-secondary);
+  font-style: italic;
+  background: rgba(0, 240, 255, 0.03);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.md-root strong {
+  color: var(--cyan);
+  font-weight: 600;
+}
+
+.md-root hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.2em 0;
+}
+
+.md-root em {
+  color: var(--text-secondary);
+}
+
+@keyframes spin-loader {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.ai-spin {
+  animation: spin-loader 1s linear infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   AI Analyst — Layout Classes
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ai-analyst-layout {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 140px);
+  gap: 8px;
+}
+
+.ai-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.ai-budget {
+  font-family: var(--font-data);
+  font-size: 0.6rem;
+  color: var(--text-secondary);
+  text-align: right;
+  padding: 4px 8px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  min-width: 120px;
+}
+
+.ai-chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.2);
+  min-height: 0;
+}
+
+.ai-chat-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scroll-behavior: smooth;
+  min-height: 0;
+}
+
+.ai-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-family: var(--font-data);
+  font-size: var(--text-sm);
+  text-align: center;
+  opacity: 0.7;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-input-area {
+  padding: 8px 12px;
+  border-top: 1px solid var(--cyan-dim);
+  background: var(--bg-secondary);
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.ai-textarea {
+  flex: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-family: var(--font-data);
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  outline: none;
+  resize: none;
+  min-height: 45px;
+  line-height: 1.5;
+  transition: all 0.2s ease;
+}
+
+.ai-textarea:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px var(--cyan-dim);
+}
+
+.ai-send-btn {
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--cyan), var(--cyan-dim));
+  color: var(--bg-dark);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-data);
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 240, 255, 0.25);
+  height: fit-content;
+}
+
+.ai-send-btn:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.ai-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 0 4px;
+  height: 90px;
+  flex-shrink: 0;
+}
+
+.ai-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--font-data);
+  font-size: 0.55rem;
+  text-align: center;
+  transition: all 0.2s ease;
+  height: 100%;
+  width: 100%;
+}
+
+.ai-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-action-btn span {
+  font-weight: 600;
+  font-size: 0.6rem;
+  line-height: 1.1;
+}
+
+
