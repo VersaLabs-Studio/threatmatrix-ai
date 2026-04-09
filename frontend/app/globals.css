@@ -289,17 +289,29 @@ a:hover {
   }
 }
 
-/* Data counter tick-up */
-@keyframes count-up {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+ /* Fade in — for message appearance */
+ @keyframes fadeIn {
+   from {
+     opacity: 0;
+     transform: translateY(8px);
+   }
+   to {
+     opacity: 1;
+     transform: translateY(0);
+   }
+ }
+
+ /* Data counter tick-up */
+ @keyframes count-up {
+   from {
+     opacity: 0;
+     transform: translateY(8px);
+   }
+   to {
+     opacity: 1;
+     transform: translateY(0);
+   }
+ }
 
 /* Haptic button press/card interaction */
 @keyframes haptic-press {
