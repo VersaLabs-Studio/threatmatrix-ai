@@ -1,18 +1,19 @@
 'use client';
 
 // ═══════════════════════════════════════════════════════
-// ThreatMatrix AI — Alert Console Page (v0.6.3)
+// ThreatMatrix AI — Alert Console Page (v0.6.4)
 // Enterprise incident triage with expanded row details
+// WS-first: Uses WebSocket events instead of HTTP polling
 // ═══════════════════════════════════════════════════════
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Shield, Zap, MapPin, Clock, Bot, ArrowRight, AlertTriangle, CheckCircle, XCircle, Eye, Search, CheckSquare, Flag, RotateCcw } from 'lucide-react';
-import { useAlerts } from '@/hooks/useAlerts';
+import { useAlertsFromWS } from '@/hooks/useAlertsFromWS';
 import { api } from '@/lib/api';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatTime, formatIP } from '@/lib/utils';
-import type { AlertResponse } from '@/lib/types';
+import type { AlertResponse } from '@/hooks/useAlertsFromWS';
 import type { Severity, AlertStatus } from '@/lib/constants';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 
@@ -56,12 +57,9 @@ export default function AlertConsolePage() {
   const [statusFilter, setStatusFilter] = useState<AlertStatus | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
-  const { alerts, total, loading } = useAlerts({
-    severity: severityFilter,
-    status: statusFilter,
-    category: categoryFilter,
-    limit: 100,
-  });
+  const { alerts, total, loading } = useAlertsFromWS();
+  
+  console.log('[AlertsPage] alerts:', alerts?.length, 'total:', total, 'loading:', loading);
 
   return (
     <AuthGuard>
