@@ -79,9 +79,38 @@ async def chat(request: ChatRequest):
     """Send message, get AI response (streaming SSE)."""
     gateway = get_gateway()
     from app.services.llm_gateway import TaskType
+    from app.database import async_session
+    from app.services import alert_service
 
     task = TaskType(request.task_type) if request.task_type in TaskType.__members__.values() else TaskType.CHAT
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
+
+    # Intercept context for generic quick actions that need system state
+    if messages:
+        last_content = messages[-1]["content"].lower()
+        needs_context = any(keyword in last_content for keyword in [
+            "recent anomalies", "top threat", "alert statistics", "model performance", "daily briefing"
+        ])
+        
+        if needs_context:
+            try:
+                async with async_session() as session:
+                    context_str = "\n\n--- AUTO-INJECTED SYSTEM CONTEXT ---\n"
+                    
+                    if "recent anomalies" in last_content or "top threat" in last_content:
+                        alerts_data = await alert_service.get_alerts(session, limit=5, page=1)
+                        alerts = alerts_data.get("items", [])
+                        context_str += "Recent Anomalies (Top 5):\n"
+                        for a in alerts:
+                            context_str += f"- [{str(a.get('severity')).upper()}] {a.get('alert_id')} | Category: {a.get('category')} | Source: {a.get('source_ip')} -> Dest: {a.get('dest_ip')} | Composite Score: {a.get('composite_score', 'N/A')} | ML Confidence: {a.get('confidence')} | Isolation Forest: {a.get('if_score', 'N/A')} | Random Forest: {a.get('ml_model', 'N/A')} ({a.get('rf_score', 'N/A')}) | Autoencoder: {a.get('ae_score', 'N/A')}\n"
+                            
+                    if "alert statistics" in last_content or "model performance" in last_content or "daily briefing" in last_content:
+                        stats = await alert_service.get_alert_stats(session, time_range="24h")
+                        context_str += f"\n24h Alert Statistics:\nTotal: {stats.get('total')}\nBy Severity: {stats.get('by_severity')}\nBy Status: {stats.get('by_status')}\nBy Category: {stats.get('by_category')}\n"
+                    
+                    messages[-1]["content"] += context_str
+            except Exception as e:
+                logger.error("[LLM] Failed to inject system context: %s", e)
 
     if request.stream:
         async def stream_response():

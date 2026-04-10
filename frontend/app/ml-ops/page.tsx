@@ -11,9 +11,11 @@ import { mlService } from '@/lib/services';
 import { GlassPanel } from '@/components/shared/GlassPanel';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { api } from '@/lib/api';
-import { Brain, Activity, Zap, Target, CheckCircle, Clock, RefreshCw } from 'lucide-react';
-import type { MLComparisonResponse } from '@/lib/types';
+import { Brain, Activity, Zap, Target, CheckCircle, Clock, RefreshCw, Grid3X3 } from 'lucide-react';
+import type { MLComparisonResponse, MLConfusionMatrixResponse } from '@/lib/types';
 import { API_BASE_URL } from '@/lib/constants';
+import { ConfusionMatrix } from '@/components/ml/ConfusionMatrix';
+import { Modal } from '@/components/shared/Modal';
 
 interface TrainingHistoryEntry {
   id: string;
@@ -52,6 +54,8 @@ export default function MLOpsPage() {
   const [retraining, setRetraining] = useState(false);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [retrainStatus, setRetrainStatus] = useState<string | null>(null);
+  const [selectedMatrix, setSelectedMatrix] = useState<MLConfusionMatrixResponse | null>(null);
+  const [showMatrixModal, setShowMatrixModal] = useState(false);
 
   useEffect(() => {
     mlService.getComparison().then(({ data }) => {
@@ -116,12 +120,24 @@ export default function MLOpsPage() {
     }
   };
 
+  const handleViewMatrix = async (modelName: string) => {
+    try {
+      const { data } = await mlService.getConfusionMatrix(modelName);
+      if (data) {
+        setSelectedMatrix(data);
+        setShowMatrixModal(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch confusion matrix:', error);
+    }
+  };
+
   // Build comparison data for chart
   const chartData = comparison?.models.map(m => ({
     name: MODEL_DISPLAY_NAMES[m.model] || m.model.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-    Accuracy: (m.accuracy * 100).toFixed(1),
-    'F1 Score': (m.f1_score * 100).toFixed(1),
-    'AUC-ROC': (m.auc_roc * 100).toFixed(1),
+    Accuracy: ((m?.accuracy ?? 0) * 100).toFixed(1),
+    'F1 Score': ((m?.f1_score ?? 0) * 100).toFixed(1),
+    'AUC-ROC': ((m?.auc_roc ?? 0) * 100).toFixed(1),
   })) ?? [];
 
   return (
@@ -199,7 +215,7 @@ export default function MLOpsPage() {
                       <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>Accuracy</span>
                     </div>
                     <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 700 }}>
-                      {(model.eval_results.accuracy * 100).toFixed(1)}%
+                      {((model.eval_results?.accuracy ?? 0) * 100).toFixed(1)}%
                     </span>
                   </div>
                   <div style={{ textAlign: 'center' }}>
@@ -208,7 +224,7 @@ export default function MLOpsPage() {
                       <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>F1</span>
                     </div>
                     <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 700 }}>
-                      {model.eval_results.f1_score.toFixed(4)}
+                      {(model.eval_results?.f1_score ?? 0).toFixed(4)}
                     </span>
                   </div>
                   <div style={{ textAlign: 'center' }}>
@@ -217,10 +233,38 @@ export default function MLOpsPage() {
                       <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>AUC</span>
                     </div>
                     <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 700 }}>
-                      {model.eval_results.auc_roc.toFixed(4)}
+                      {(model.eval_results?.auc_roc ?? 0).toFixed(4)}
                     </span>
                   </div>
                 </div>
+
+                {/* View Matrix Button */}
+                {model.trained && (
+                  <button
+                    onClick={() => void handleViewMatrix(model.name)}
+                    style={{
+                      marginTop: 'var(--space-3)',
+                      width: '100%',
+                      padding: '6px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'rgba(0, 240, 255, 0.05)',
+                      border: '1px solid rgba(0, 240, 255, 0.2)',
+                      color: 'var(--cyan)',
+                      fontSize: '0.65rem',
+                      fontFamily: 'var(--font-data)',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 4,
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <Grid3X3 size={12} />
+                    VIEW CONFUSION MATRIX
+                  </button>
+                )}
               </GlassPanel>
             );
           })}
@@ -368,6 +412,35 @@ export default function MLOpsPage() {
             </div>
           </div>
         </GlassPanel>
+
+        {/* Confusion Matrix Modal */}
+        {showMatrixModal && selectedMatrix && (
+          <Modal
+            isOpen={showMatrixModal}
+            onClose={() => setShowMatrixModal(false)}
+            title={`${MODEL_DISPLAY_NAMES[selectedMatrix.model] || selectedMatrix.model} — Confusion Matrix`}
+          >
+            <div style={{ padding: 'var(--space-4)' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 'var(--space-4)' }}>
+                Comparing predicted labels against actual ground truth (N={selectedMatrix.n_samples} samples). 
+                Diagonal values represent correct classifications.
+              </p>
+              <ConfusionMatrix 
+                matrix={selectedMatrix.confusion_matrix} 
+                classNames={selectedMatrix.class_names} 
+              />
+              <div style={{ marginTop: 'var(--space-6)', display: 'flex', justifyContent: 'flex-end' }}>
+                <button 
+                  onClick={() => setShowMatrixModal(false)}
+                  className="btn-aether"
+                  style={{ padding: '8px 24px' }}
+                >
+                  CLOSE
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
       </div>
     </AuthGuard>
   );

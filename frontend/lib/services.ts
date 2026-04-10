@@ -15,6 +15,7 @@ import type {
   FlowStatsResponse,
   MLModelsResponse,
   MLComparisonResponse,
+  MLConfusionMatrixResponse,
 } from './types';
 
 // Re-export types for convenience
@@ -178,5 +179,10 @@ export const mlService = {
       '/api/v1/ml/predict',
       { flow_id: flowId }
     );
+  },
+
+  /** Get confusion matrix for a specific model */
+  async getConfusionMatrix(modelType: string) {
+    return api.get<MLConfusionMatrixResponse>(`/api/v1/ml/models/${modelType}/confusion-matrix`);
   },
 };

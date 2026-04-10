@@ -259,6 +259,13 @@ export interface MLComparisonResponse {
   best_f1: string;
 }
 
+export interface MLConfusionMatrixResponse {
+  model: string;
+  confusion_matrix: number[][];
+  class_names: string[];
+  n_samples: number;
+}
+
 // ── System Health Types ────────────────────────────────
 
 export type SystemStatus = 'healthy' | 'degraded' | 'unhealthy';

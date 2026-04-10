@@ -62,8 +62,8 @@ export function NotificationToast({ toasts, onDismiss }: NotificationToastProps)
         width: 400,
       }}
     >
-      {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} onDismiss={onDismiss} />
+      {toasts.map((toast, idx) => (
+        <ToastItem key={toast.id ? `${toast.id}-${idx}` : `toast-${idx}`} toast={toast} onDismiss={onDismiss} />
       ))}
     </div>
   );
@@ -71,11 +71,12 @@ export function NotificationToast({ toasts, onDismiss }: NotificationToastProps)
 
 function ToastItem({ toast, onDismiss }: { toast: EnhancedToast; onDismiss: (id: string) => void }) {
   const router = useRouter();
-  const color = SEVERITY_COLORS[toast.severity];
-  const Icon = SEVERITY_ICONS[toast.severity];
-  const duration = SEVERITY_DURATION[toast.severity];
-  const isCritical = toast.severity === 'critical';
-  const isHigh = toast.severity === 'high';
+  const normalizedSeverity = (toast.severity?.toLowerCase() || 'info') as Severity;
+  const color = SEVERITY_COLORS[normalizedSeverity] || SEVERITY_COLORS['info'];
+  const Icon = SEVERITY_ICONS[normalizedSeverity] || Info;
+  const duration = SEVERITY_DURATION[normalizedSeverity] || 5000;
+  const isCritical = normalizedSeverity === 'critical';
+  const isHigh = normalizedSeverity === 'high';
 
   useEffect(() => {
     const timer = setTimeout(() => onDismiss(toast.id), duration);

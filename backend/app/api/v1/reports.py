@@ -447,3 +447,42 @@ async def download_report(report_id: str):
         "generated_at": data.get("generated_at"),
         "format": data.get("format", "json"),
     }
+
+
+@router.get("/threat-summary")
+async def get_latest_threat_summary(
+    current_user: User = Depends(require_role(["admin", "analyst"])),
+):
+    """
+    Get the latest generated daily_summary report as PDF.
+    Per CHECKLIST item 10: /api/v1/reports/threat-summary
+    """
+    async with async_session() as session:
+        result = await session.execute(
+            text(
+                "SELECT value FROM system_config "
+                "WHERE key LIKE 'report:%' AND value->>'report_type' = 'daily_summary' "
+                "ORDER BY updated_at DESC LIMIT 1"
+            )
+        )
+        row = result.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="No daily summary report found. Please generate one first.")
+
+    try:
+        data = row[0] if isinstance(row[0], dict) else json.loads(row[0])
+    except (json.JSONDecodeError, TypeError):
+        raise HTTPException(status_code=500, detail="Malformed report data in database")
+
+    # Serve PDF if available
+    if data.get("format") == "pdf" and data.get("pdf_path"):
+        pdf_path = Path(data["pdf_path"])
+        if pdf_path.exists():
+            return FileResponse(
+                path=str(pdf_path),
+                media_type="application/pdf",
+                filename=f"ThreatMatrix_Summary_{data.get('id')}.pdf",
+            )
+
+    raise HTTPException(status_code=404, detail="Latest summary report is not available in PDF format")
