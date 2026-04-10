@@ -255,7 +255,7 @@ class MLWorker:
             detected_score = 0.72
 
         # ─── Generic high-volume anomaly ──────────────────────────
-        elif f_count >= 80 and f_dst_host_count >= 50:
+        elif f_count >= 150 and f_dst_host_count >= 50:
             detected_attack = "dos"
             detected_severity = "high"
             detected_score = 0.68
@@ -282,10 +282,12 @@ class MLWorker:
             is_anomaly = result["is_anomaly"]
             label = rf_label
 
-        # Suppress LOW severity — only alert on MEDIUM+ to avoid
-        # false positives from the AE/IF domain gap noise floor (~0.44)
-        if severity == "low":
-            is_anomaly = False
+        # Suppress false positives: if no heuristic matched AND RF says
+        # normal, this is just AE/IF noise floor (~0.44) drifting above
+        # the MEDIUM threshold. Not a real attack.
+        if not detected_attack and not rf_is_anomaly:
+            if severity in ("low", "medium"):
+                is_anomaly = False
 
         # Update result dict for downstream (alerts, websocket, DB)
         result["composite_score"] = composite_score
