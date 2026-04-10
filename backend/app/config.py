@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # ── Application ──────────────────────────────────────────────
     APP_NAME: str = "ThreatMatrix AI"
-    APP_VERSION: str = "v0.6.4"
+    APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
     DEV_MODE: bool = Field(
         default=True,

@@ -59,21 +59,12 @@ export interface AnomalyDetectedEvent {
   timestamp: string;
 }
 
-interface FlowStats {
-  total_packets: number;
-  total_flows: number;
-  anomaly_count: number;
-}
-
 interface UseWebSocketReturn {
   isConnected: boolean;
   lastFlowEvent: FlowEvent | null;
   lastAlertEvent: AlertEvent | null;
   lastAnomalyEvent: AnomalyDetectedEvent | null;
   systemStatus: SystemStatusEvent | null;
-  flowEvents: FlowEvent[];
-  alertEvents: AlertEvent[];
-  flowStats: FlowStats;
   subscribe: (channels: string[]) => void;
   unsubscribe: (channels: string[]) => void;
   reconnect: () => void;
@@ -85,9 +76,6 @@ export function useWebSocket(): UseWebSocketReturn {
   const [lastAlertEvent, setLastAlertEvent] = useState<AlertEvent | null>(null);
   const [lastAnomalyEvent, setLastAnomalyEvent] = useState<AnomalyDetectedEvent | null>(null);
   const [systemStatus, setSystemStatus]     = useState<SystemStatusEvent | null>(null);
-  const [flowEvents, setFlowEvents]         = useState<FlowEvent[]>([]);
-  const [alertEvents, setAlertEvents]       = useState<AlertEvent[]>([]);
-  const [flowStats, setFlowStats]           = useState<FlowStats>({ total_packets: 0, total_flows: 0, anomaly_count: 0 });
 
   // Track unsubscribe functions per channel
   const unsubFunctionsRef = useRef<Map<string, () => void>>(new Map());
@@ -105,36 +93,9 @@ export function useWebSocket(): UseWebSocketReturn {
       let unsubFn: (() => void) | undefined;
 
       if (channel === WS_CHANNELS.FLOWS) {
-        unsubFn = wsClient.subscribe(WS_CHANNELS.FLOWS, (d) => {
-          const flow = d as FlowEvent;
-          console.log('[WS] Flow event received:', { flowId: flow.id, src_ip: flow.src_ip, is_anomaly: flow.is_anomaly });
-          setLastFlowEvent(flow);
-          setFlowEvents((prev) => {
-            const updated = [flow, ...prev].slice(0, 1000);
-            console.log('[WS] Flow events accumulated:', updated.length);
-            return updated;
-          });
-          setFlowStats((prev) => {
-            const next = {
-              total_packets: prev.total_packets + 1,
-              total_flows: prev.total_flows + 1,
-              anomaly_count: prev.anomaly_count + (flow.is_anomaly ? 1 : 0),
-            };
-            console.log('[WS] Flow stats updated:', next);
-            return next;
-          });
-        });
+        unsubFn = wsClient.subscribe(WS_CHANNELS.FLOWS, (d) => setLastFlowEvent(d as FlowEvent));
       } else if (channel === WS_CHANNELS.ALERTS) {
-        unsubFn = wsClient.subscribe(WS_CHANNELS.ALERTS, (d) => {
-          const alert = d as AlertEvent;
-          console.log('[WS] Alert event received:', { alertId: alert.id, severity: alert.severity, category: alert.category });
-          setLastAlertEvent(alert);
-          setAlertEvents((prev) => {
-            const updated = [alert, ...prev].slice(0, 500);
-            console.log('[WS] Alert events accumulated:', updated.length);
-            return updated;
-          });
-        });
+        unsubFn = wsClient.subscribe(WS_CHANNELS.ALERTS, (d) => setLastAlertEvent(d as AlertEvent));
       } else if (channel === WS_CHANNELS.SYSTEM) {
         unsubFn = wsClient.subscribe(WS_CHANNELS.SYSTEM, (d) => {
           setSystemStatus(d as SystemStatusEvent);
@@ -173,45 +134,13 @@ export function useWebSocket(): UseWebSocketReturn {
     if (token) wsClient.connect(token);
 
     // Subscribe to all channels (will be sent once WS is open)
-    console.log('[WS] Setting up WebSocket subscriptions...');
-    const unsubFlows  = wsClient.subscribe(WS_CHANNELS.FLOWS,  (d) => {
-      const flow = d as FlowEvent;
-      console.log('[WS] Flow event received:', { flowId: flow.id, src_ip: flow.src_ip, is_anomaly: flow.is_anomaly });
-      setLastFlowEvent(flow);
-      setFlowEvents((prev) => {
-        const updated = [flow, ...prev].slice(0, 1000);
-        console.log('[WS] Flow events accumulated:', updated.length);
-        return updated;
-      });
-      setFlowStats((prev) => {
-        const next = {
-          total_packets: prev.total_packets + 1,
-          total_flows: prev.total_flows + 1,
-          anomaly_count: prev.anomaly_count + (flow.is_anomaly ? 1 : 0),
-        };
-        console.log('[WS] Flow stats updated:', next);
-        return next;
-      });
-    });
-    const unsubAlerts = wsClient.subscribe(WS_CHANNELS.ALERTS, (d) => {
-      const alert = d as AlertEvent;
-      console.log('[WS] Alert event received:', { alertId: alert.id, severity: alert.severity, category: alert.category });
-      setLastAlertEvent(alert);
-      setAlertEvents((prev) => {
-        const updated = [alert, ...prev].slice(0, 500);
-        console.log('[WS] Alert events accumulated:', updated.length);
-        return updated;
-      });
-    });
+    const unsubFlows  = wsClient.subscribe(WS_CHANNELS.FLOWS,  (d) => setLastFlowEvent(d as FlowEvent));
+    const unsubAlerts = wsClient.subscribe(WS_CHANNELS.ALERTS, (d) => setLastAlertEvent(d as AlertEvent));
     const unsubSystem = wsClient.subscribe(WS_CHANNELS.SYSTEM, (d) => {
-      console.log('[WS] System status event received:', d);
       setSystemStatus(d as SystemStatusEvent);
       checkConnection();
     });
-    const unsubML     = wsClient.subscribe(WS_CHANNELS.ML,     (d) => {
-      console.log('[WS] ML anomaly event received:', d);
-      setLastAnomalyEvent(d as AnomalyDetectedEvent);
-    });
+    const unsubML     = wsClient.subscribe(WS_CHANNELS.ML,     (d) => setLastAnomalyEvent(d as AnomalyDetectedEvent));
 
     // Store unsubscribe functions for dynamic unsubscribe support
     unsubFunctionsRef.current.set(WS_CHANNELS.FLOWS, unsubFlows);
@@ -242,5 +171,5 @@ export function useWebSocket(): UseWebSocketReturn {
     };
   }, [checkConnection]);
 
-  return { isConnected, lastFlowEvent, lastAlertEvent, lastAnomalyEvent, systemStatus, flowEvents, alertEvents, flowStats, subscribe, unsubscribe, reconnect };
+  return { isConnected, lastFlowEvent, lastAlertEvent, lastAnomalyEvent, systemStatus, subscribe, unsubscribe, reconnect };
 }

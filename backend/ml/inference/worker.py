@@ -20,7 +20,6 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -142,8 +141,7 @@ class MLWorker:
 
     async def _process_message(self, data: str) -> None:
         """Process a single flow message from Redis."""
-        t_flow_received = time.time()
-        logger.info("[Worker] Flow received at %.4f", t_flow_received)
+        start = time.time()
 
         # Parse flow
         msg = json.loads(data)
@@ -153,7 +151,6 @@ class MLWorker:
         flow_data = msg.get("payload", {})
         features = flow_data.get("features", {})
         flow_id = flow_data.get("id")
-        logger.info("[Worker] Processing flow_id=%s, src_ip=%s", flow_id, flow_data.get("src_ip"))
 
         if not features:
             return
@@ -174,11 +171,6 @@ class MLWorker:
         composite_score = result["composite_score"]
         is_anomaly = result["is_anomaly"]
         severity = result["severity"]
-
-        t_scored = time.time()
-        if_time_ms = (t_scored - t_flow_received) * 1000
-        logger.info("[Worker] Flow scored in %.1fms: score=%.3f, is_anomaly=%s, severity=%s",
-                    if_time_ms, composite_score, is_anomaly, severity)
 
         self.stats["flows_scored"] += 1
 
@@ -204,7 +196,7 @@ class MLWorker:
         # If anomalous, publish alert
         if is_anomaly and severity in ("critical", "high", "medium"):
             self.stats["anomalies_detected"] += 1
-            await self._create_alert(flow_data, result, t_flow_received, t_scored)
+            await self._create_alert(flow_data, result)
 
         # Publish anomaly_detected to ml:live for WebSocket broadcasting
         # (per MASTER_DOC_PART2 §5.2: ml:live → anomaly_detected)
@@ -230,7 +222,7 @@ class MLWorker:
             )
 
         # Stats
-        elapsed_ms = (time.time() - t_flow_received) * 1000
+        elapsed_ms = (time.time() - start) * 1000
         self.stats["avg_inference_ms"] = (
             (self.stats["avg_inference_ms"] * (self.stats["flows_scored"] - 1) + elapsed_ms)
             / self.stats["flows_scored"]
@@ -245,13 +237,8 @@ class MLWorker:
                 self.stats["avg_inference_ms"],
             )
 
-    async def _create_alert(self, flow_data: Dict, result: Dict, t_flow_received: float, t_scored: float) -> None:
+    async def _create_alert(self, flow_data: Dict, result: Dict) -> None:
         """Create and publish an alert for an anomalous flow."""
-        t_alert_created = time.time()
-        latency_ms = (t_alert_created - t_flow_received) * 1000
-        inference_ms = (t_scored - t_flow_received) * 1000
-        publish_time_ms = (t_alert_created - t_scored) * 1000
-
         alert = {
             "event": "new_alert",
             "payload": {
@@ -279,25 +266,12 @@ class MLWorker:
         self.stats["alerts_created"] += 1
 
         logger.info(
-            "[Worker] Alert created in %.1fms (inference:%.1fms, publish:%.1fms)",
-            latency_ms, inference_ms, publish_time_ms,
+            "[Worker] ALERT: %s — %s (score=%.2f, agreement=%s)",
+            result["severity"].upper(),
+            result["label"],
+            result["composite_score"],
+            result["model_agreement"],
         )
-
-        # Publish latency metrics to Redis ml:metrics channel
-        try:
-            metrics_payload = {
-                "event": "latency",
-                "payload": {
-                    "flow_id": flow_data.get("id"),
-                    "latency_ms": round(latency_ms, 2),
-                    "inference_ms": round(inference_ms, 2),
-                    "publish_ms": round(publish_time_ms, 2),
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                },
-            }
-            await self._publisher.publish("ml:metrics", json.dumps(metrics_payload))
-        except Exception as e:
-            logger.warning("[Worker] Failed to publish latency metrics: %s", e)
 
     async def _cleanup(self) -> None:
         """Clean up connections."""

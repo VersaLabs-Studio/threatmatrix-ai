@@ -1,17 +1,17 @@
 'use client';
 
 // ═══════════════════════════════════════════════════════
-// ThreatMatrix AI — War Room (v0.6.4)
+// ThreatMatrix AI — War Room (v0.6.0)
 // The primary operational command view.
 // Deck.gl ThreatMap loaded dynamically (browser-only WebGL)
-// WS-first: Metrics now use WebSocket events instead of HTTP polling
+// Fixed: Metrics now use API data instead of WebSocket (DEV_MODE compatible)
 // ═══════════════════════════════════════════════════
 
 import dynamic from 'next/dynamic';
 import { useState, useEffect, useCallback } from 'react';
 import { useWebSocket }      from '@/hooks/useWebSocket';
-import { useFlowsFromWS }    from '@/hooks/useFlowsFromWS';
-import { useAlertsFromWS }   from '@/hooks/useAlertsFromWS';
+import { useFlows }          from '@/hooks/useFlows';
+import { useAlerts }         from '@/hooks/useAlerts';
 import { useMLModels }       from '@/hooks/useMLModels';
 import { api }               from '@/lib/api';
 import { MetricCard }        from '@/components/war-room/MetricCard';
@@ -60,9 +60,9 @@ interface CaptureStatus {
 }
 
 export default function WarRoomPage() {
-  const { lastAlertEvent, lastAnomalyEvent, isConnected: wsConnected, flowStats } = useWebSocket();
-  const { stats, protocols, topTalkers, loading: flowsLoading } = useFlowsFromWS();
-  const { alerts, total: alertTotal, loading: alertsLoading } = useAlertsFromWS();
+  const { lastAlertEvent, lastAnomalyEvent, isConnected: wsConnected } = useWebSocket();
+  const { stats, protocols, topTalkers, loading: flowsLoading } = useFlows({ time_range: '1h' });
+  const { alerts, total: alertTotal, loading: alertsLoading } = useAlerts({ limit: 100 });
   const { trainedCount, loading: mlLoading } = useMLModels();
 
   // Alert stats for accurate threat level computation
@@ -94,23 +94,27 @@ export default function WarRoomPage() {
     }
   }, []);
 
-  // Initial fetch on mount only (no polling)
   useEffect(() => {
-    void fetchAlertStats();
-    void fetchCaptureStatus();
+    fetchAlertStats();
+    fetchCaptureStatus();
+    const alertInterval = setInterval(fetchAlertStats, 10000);
+    const captureInterval = setInterval(fetchCaptureStatus, 5000);
+    return () => {
+      clearInterval(alertInterval);
+      clearInterval(captureInterval);
+    };
   }, [fetchAlertStats, fetchCaptureStatus]);
 
-  // Derive live metric values from WebSocket flow stats
-  const totalPackets = flowStats?.total_packets ?? 0;
-  const totalFlows = flowStats?.total_flows ?? captureStatus?.flows_completed ?? 0;
-  const anomalyCount = flowStats?.anomaly_count ?? 0;
+  // Derive live metric values from API data (not WebSocket)
+  const totalPackets = stats?.total_packets ?? 0;
+  const totalFlows = stats?.total_flows ?? captureStatus?.flows_completed ?? 0;
+  const anomalyCount = stats?.anomaly_count ?? 0;
   
   // Debug logging
-  console.log('[WarRoom] Stats from WS:', stats);
-  console.log('[WarRoom] Flow stats (WS):', flowStats);
+  console.log('[WarRoom] Stats:', stats);
   console.log('[WarRoom] Capture status:', captureStatus);
   console.log('[WarRoom] Alert stats:', alertStats);
-  console.log('[WarRoom] Alerts from WS:', alerts?.length, 'total:', alertTotal);
+  console.log('[WarRoom] Alerts from API:', alerts?.length, 'total:', alertTotal);
   console.log('[WarRoom] WebSocket connected:', wsConnected);
   console.log('[WarRoom] Last alert event:', lastAlertEvent);
   console.log('[WarRoom] Last anomaly event:', lastAnomalyEvent);
