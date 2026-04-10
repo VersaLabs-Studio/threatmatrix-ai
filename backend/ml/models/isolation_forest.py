@@ -99,23 +99,26 @@ class IsolationForestModel:
         """
         Compute anomaly scores (0.0 = very normal, 1.0 = very anomalous).
 
+        Uses sigmoid normalization centered at the sklearn decision boundary
+        (decision_function == 0). This works correctly for single-sample
+        inference, unlike min-max normalization which collapses to 0.0
+        when batch size is 1.
+
         Returns:
-            Normalized anomaly scores array.
+            Normalized anomaly scores array in [0, 1].
         """
         if not self._is_fitted:
             raise RuntimeError("Model not trained. Call train() first.")
 
-        # decision_function: lower = more anomalous
+        # decision_function: negative = anomalous, positive = normal
+        # The boundary is at 0 (set by contamination parameter)
         raw_scores = self.model.decision_function(X)
-        # Normalize to [0, 1] where 1 = most anomalous
-        # Negate so higher = more anomalous, then min-max scale
-        negated = -raw_scores
-        min_val = negated.min()
-        max_val = negated.max()
-        if max_val - min_val == 0:
-            return np.zeros(len(X))
-        normalized = (negated - min_val) / (max_val - min_val)
-        return normalized
+
+        # Sigmoid centered at 0: anomalous (negative) → high score,
+        # normal (positive) → low score. Scale factor 5.0 gives
+        # good spread across [0, 1] for typical score ranges.
+        anomaly_scores = 1.0 / (1.0 + np.exp(raw_scores * 5.0))
+        return np.clip(anomaly_scores, 0.0, 1.0)
 
     def save(self, path: Optional[Path] = None) -> Path:
         """Save trained model to disk."""

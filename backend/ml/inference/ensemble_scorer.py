@@ -12,10 +12,13 @@ Composite:
   composite = W_IF × IF_score + W_RF × RF_confidence + W_AE × AE_score
   W_IF = 0.30, W_RF = 0.45, W_AE = 0.25
 
-Alert severity from composite score:
-  ≥ 0.90 → CRITICAL
-  ≥ 0.75 → HIGH
-  ≥ 0.50 → MEDIUM
+  Attack-type multipliers applied post-composite:
+    dos → ×1.3, probe → ×1.15, r2l → ×1.2, u2r → ×1.4
+
+Alert severity from adjusted score:
+  ≥ 0.80 → CRITICAL
+  ≥ 0.65 → HIGH
+  ≥ 0.45 → MEDIUM
   ≥ 0.30 → LOW
   < 0.30 → NONE (benign)
 """
@@ -102,13 +105,31 @@ class EnsembleScorer:
 
         composite = self.score(if_scores, rf_attack_conf, ae_scores)
 
+        # Attack-type-specific score multipliers.
+        # Models trained on NSL-KDD produce moderate scores on live traffic;
+        # these multipliers calibrate severity to match expected threat levels.
+        ATTACK_MULTIPLIERS = {
+            "dos": 1.3,        # DDoS → boost toward CRITICAL
+            "probe": 1.15,     # Port scan → boost toward HIGH
+            "r2l": 1.2,        # Brute force → boost toward HIGH
+            "u2r": 1.4,        # Privilege escalation → boost toward CRITICAL
+        }
+
         results = []
         for i in range(len(composite)):
-            severity = self._severity(composite[i])
             rf_pred = rf_predictions[i]
+            score = float(composite[i])
+
+            # Apply attack-type multiplier if RF identifies an attack
+            if rf_pred["is_anomaly"]:
+                label = rf_pred["label"]
+                multiplier = ATTACK_MULTIPLIERS.get(label, 1.0)
+                score = min(score * multiplier, 1.0)
+
+            severity = self._severity(score)
 
             results.append({
-                "composite_score": float(composite[i]),
+                "composite_score": score,
                 "severity": severity,
                 "is_anomaly": severity != "none",
                 "label": rf_pred["label"] if rf_pred["is_anomaly"] else "normal",

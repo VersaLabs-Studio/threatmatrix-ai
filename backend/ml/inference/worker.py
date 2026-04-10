@@ -252,18 +252,6 @@ class MLWorker:
                 self.ml_live_channel, json.dumps(anomaly_event)
             )
 
-        # Log per-model scores for anomalous flows
-        if is_anomaly:
-            logger.info(
-                "[Worker] Flow %s scores: IF=%.3f RF=%.3f AE=%.3f composite=%.3f severity=%s",
-                flow_id,
-                result["if_score"],
-                result["rf_confidence"],
-                result["ae_score"],
-                result["composite_score"],
-                severity,
-            )
-
         # Stats
         elapsed_ms = (time.time() - t_start) * 1000
         self.stats["avg_inference_ms"] = (

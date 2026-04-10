@@ -54,8 +54,8 @@ ENSEMBLE_WEIGHTS = {
 }
 
 ALERT_THRESHOLDS = {
-    "critical": 0.65,
-    "high":     0.55,
-    "medium":   0.45,
-    "low":      0.35,
+    "critical": 0.80,     # Severe attacks (DDoS, privilege escalation)
+    "high":     0.65,     # High-confidence known attacks
+    "medium":   0.45,     # Moderate anomalies
+    "low":      0.30,     # Slight deviations from normal
 }
