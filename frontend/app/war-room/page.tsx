@@ -31,22 +31,27 @@ import { AlertCounterBanner } from '@/components/war-room/AlertCounterBanner';
 import { formatPercent, shortNumber } from '@/lib/utils';
 import { AuthGuard }         from '@/components/auth/AuthGuard';
 
+function LoadingMap() {
+  const { t } = useTranslation();
+  return (
+    <div style={{
+      width: '100%', height: '100%',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: '"JetBrains Mono", monospace',
+      fontSize: '0.75rem', color: '#00f0ff',
+      letterSpacing: '0.1em',
+    }}>
+      {t('Shared.loadingThreatMap', 'Loading Threat Map...')}
+    </div>
+  );
+}
+
 // Dynamic import ensures Deck.gl never runs at SSR time
 const ThreatMap = dynamic(
   () => import('@/components/war-room/ThreatMap').then((m) => m.ThreatMap),
   {
     ssr: false,
-    loading: () => (
-      <div style={{
-        width: '100%', height: '100%',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: '"JetBrains Mono", monospace',
-        fontSize: '0.75rem', color: '#00f0ff',
-        letterSpacing: '0.1em',
-      }}>
-        {t('Shared.loadingThreatMap')}
-      </div>
-    ),
+    loading: LoadingMap,
   }
 );
 

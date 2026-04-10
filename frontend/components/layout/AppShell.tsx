@@ -114,7 +114,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Notification Toasts */}
-      <NotificationToast toasts={toasts} onDismiss={dismissToast} />
+      {/* <NotificationToast toasts={toasts} onDismiss={dismissToast} /> */}
 
       {/* Critical Alert Full-Screen Overlay */}
       <CriticalOverlay 

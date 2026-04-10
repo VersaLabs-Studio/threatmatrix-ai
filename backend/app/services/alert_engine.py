@@ -121,13 +121,13 @@ class AlertEngine:
                 INSERT INTO alerts (
                     id, alert_id, severity, title, description,
                     category, source_ip, dest_ip, confidence,
-                    status, ml_model, rf_label, flow_ids,
+                    status, ml_model, flow_ids,
                     composite_score, if_score, rf_score, ae_score,
                     created_at, updated_at
                 ) VALUES (
                     :id, :alert_id, :severity, :title, :description,
                     :category, :source_ip, :dest_ip, :confidence,
-                    'open', :ml_model, :rf_label, :flow_ids,
+                    'open', :ml_model, :flow_ids,
                     :composite_score, :if_score, :rf_score, :ae_score,
                     :created_at, :updated_at
                 )
@@ -144,7 +144,6 @@ class AlertEngine:
                 "dest_ip": payload.get("dest_ip"),
                 "confidence": payload.get("composite_score", 0.0),
                 "ml_model": "ensemble",
-                "rf_label": payload.get("rf_label", "unknown"),
                 "flow_ids": flow_ids,
                 "composite_score": payload.get("composite_score", 0.0),
                 "if_score": payload.get("if_score", 0.0),
