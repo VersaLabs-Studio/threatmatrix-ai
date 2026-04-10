@@ -199,8 +199,13 @@ class MLWorker:
         # The RF model always predicts "normal" for live VPS traffic
         # (NSL-KDD domain gap). Instead, use the NSL-KDD statistical
         # features that the capture engine computes per flow.
-        # These features (count, serror_rate, same_srv_rate etc.)
-        # genuinely differ between normal and attack traffic.
+        #
+        # KEY INSIGHT: On live VPS traffic, serror_rate=0.0 and
+        # diff_srv_rate=0.0 for ALL flows (normal and attack).
+        # The ONLY useful discriminators are:
+        #   - count (connections to same host in 2s window)
+        #   - service (destination port → service name)
+        # Therefore: SERVICE-SPECIFIC rules first, VOLUME fallback last.
         f_count = features.get("count", 0)
         f_srv_count = features.get("srv_count", 0)
         f_serror_rate = features.get("serror_rate", 0)
@@ -221,44 +226,56 @@ class MLWorker:
         detected_severity = None
         detected_score = None
 
-        # ─── DDoS / DoS: high count + same service + SYN errors ───
-        if (f_count >= 50 and f_same_srv_rate >= 0.8
-                and (f_serror_rate >= 0.3 or f_dst_host_serror_rate >= 0.3)):
-            detected_attack = "dos"
-            detected_severity = "critical"
-            detected_score = 0.88
+        # ═══ SERVICE-SPECIFIC RULES (check FIRST) ════════════════
 
-        elif f_count >= 100 and f_same_srv_rate >= 0.9:
-            detected_attack = "dos"
-            detected_severity = "critical"
-            detected_score = 0.85
-
-        # ─── Port Scan / Probe: many different services ───────────
-        elif (f_count >= 10 and f_diff_srv_rate >= 0.3
-              and f_same_srv_rate <= 0.7):
-            detected_attack = "probe"
-            detected_severity = "high"
-            detected_score = 0.75
-
-        elif (f_count >= 5 and f_serror_rate >= 0.5
-              and f_dst_host_serror_rate >= 0.3):
-            detected_attack = "probe"
-            detected_severity = "high"
-            detected_score = 0.70
-
-        # ─── SSH/FTP Brute Force: repeated same-service connections ─
-        elif (f_count >= 10 and f_service in ("ssh", "ftp", "telnet")
-              and f_same_srv_rate >= 0.9
-              and f_dst_host_same_src_port_rate >= 0.5):
+        # ─── 1. SSH/FTP/Telnet Brute Force → HIGH ────────────────
+        # SSH brute force targets port 22 specifically
+        if (f_count >= 10 and f_service in ("ssh", "ftp", "telnet")
+                and f_same_srv_rate >= 0.8):
             detected_attack = "r2l"
             detected_severity = "high"
             detected_score = 0.72
 
-        # ─── Generic high-volume anomaly ──────────────────────────
-        elif f_count >= 150 and f_dst_host_count >= 50:
+        # ─── 2. DNS Tunneling → MEDIUM ───────────────────────────
+        # DNS tunnel targets port 53 with high-entropy queries
+        elif f_count >= 5 and f_service == "dns":
+            detected_attack = "probe"
+            detected_severity = "medium"
+            detected_score = 0.60
+
+        # ─── 3. Port Scan → HIGH ─────────────────────────────────
+        # Port scans hit unknown ports → service="other"
+        # High count to "other" = scanning uncommon ports
+        elif f_count >= 30 and f_service == "other":
+            detected_attack = "probe"
+            detected_severity = "high"
+            detected_score = 0.75
+
+        # ═══ VOLUME-BASED RULES (fallback for known services) ════
+
+        # ─── 4. HTTP/HTTPS DDoS → CRITICAL ───────────────────────
+        # Massive volume to web services = DDoS
+        elif (f_count >= 80
+              and f_service in ("http", "https", "http-alt",
+                                "http-proxy", "https-alt")):
+            detected_attack = "dos"
+            detected_severity = "critical"
+            detected_score = 0.88
+
+        # ─── 5. SYN Error Flood → CRITICAL ───────────────────────
+        elif (f_count >= 50
+              and (f_serror_rate >= 0.3
+                   or f_dst_host_serror_rate >= 0.3)):
+            detected_attack = "dos"
+            detected_severity = "critical"
+            detected_score = 0.85
+
+        # ─── 6. Extreme volume (any service) → HIGH ──────────────
+        elif f_count >= 200:
             detected_attack = "dos"
             detected_severity = "high"
             detected_score = 0.68
+
 
         # Apply heuristic classification
         if detected_attack:
