@@ -193,17 +193,16 @@ class MLWorker:
 
         self.stats["flows_scored"] += 1
 
-        # Log per-flow latency breakdown for anomalies
+        # Log per-model scores for anomalous flows
         if is_anomaly:
             logger.info(
-                "[Worker] Flow %s latency: preprocess=%.1fms IF=%.1fms RF=%.1fms AE=%.1fms ensemble=%.1fms total=%.1fms",
+                "[Worker] Flow %s scores: IF=%.3f RF=%.3f AE=%.3f composite=%.3f severity=%s",
                 flow_id,
-                (t_preprocess - t_start) * 1000,
-                (t_if - t_preprocess) * 1000,
-                (t_rf - t_if) * 1000,
-                (t_ae - t_rf) * 1000,
-                (t_ensemble - t_ae) * 1000,
-                (t_ensemble - t_start) * 1000,
+                result["if_score"],
+                result["rf_confidence"],
+                result["ae_score"],
+                result["composite_score"],
+                severity,
             )
 
         # Publish scored flow to ml:scored channel
@@ -251,6 +250,18 @@ class MLWorker:
             }
             await self._publisher.publish(
                 self.ml_live_channel, json.dumps(anomaly_event)
+            )
+
+        # Log per-model scores for anomalous flows
+        if is_anomaly:
+            logger.info(
+                "[Worker] Flow %s scores: IF=%.3f RF=%.3f AE=%.3f composite=%.3f severity=%s",
+                flow_id,
+                result["if_score"],
+                result["rf_confidence"],
+                result["ae_score"],
+                result["composite_score"],
+                severity,
             )
 
         # Stats

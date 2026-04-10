@@ -54,8 +54,8 @@ ENSEMBLE_WEIGHTS = {
 }
 
 ALERT_THRESHOLDS = {
-    "critical": 0.90,
-    "high": 0.75,
-    "medium": 0.50,
-    "low": 0.30,
+    "critical": 0.65,
+    "high":     0.55,
+    "medium":   0.45,
+    "low":      0.35,
 }
