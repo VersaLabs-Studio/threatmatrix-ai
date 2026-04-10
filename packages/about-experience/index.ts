@@ -12,6 +12,12 @@ export { Preloader } from './components/Preloader';
 export { ScrollProgress } from './components/ScrollProgress';
 export { AnimatedCounter } from './components/AnimatedCounter';
 export { GlassCard } from './components/GlassCard';
+export { CanvasScrubSection } from './components/CanvasScrubSection';
+
+// Hooks
+export { useFrameSequence } from './engine/useFrameSequence';
+export { useCanvasScrollEngine } from './engine/CanvasScrollEngine';
+
 
 // Sections
 export { HeroSection } from './sections/HeroSection';
