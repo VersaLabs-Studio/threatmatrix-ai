@@ -88,8 +88,27 @@ services:
       DATABASE_URL: postgresql+asyncpg://threatmatrix:${DB_PASSWORD:-threatmatrix_dev}@localhost:5432/threatmatrix
       REDIS_URL: redis://localhost:6379
       CAPTURE_INTERFACE: ${CAPTURE_INTERFACE:-eth0}
-      CAPTURE_ACTIVE_TIMEOUT: "30"
-      CAPTURE_IDLE_TIMEOUT: "120"
+      CAPTURE_ACTIVE_TIMEOUT: "10"
+      CAPTURE_IDLE_TIMEOUT: "15"
+    volumes:
+      - ./pcaps:/app/pcaps
+    command: python -m capture.engine
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+
+  capture-lo:
+    build: ./backend
+    container_name: tm-capture-lo
+    network_mode: host
+    privileged: true
+    environment:
+      DATABASE_URL: postgresql+asyncpg://threatmatrix:${DB_PASSWORD:-threatmatrix_dev}@localhost:5432/threatmatrix
+      REDIS_URL: redis://localhost:6379
+      CAPTURE_INTERFACE: lo
+      CAPTURE_ACTIVE_TIMEOUT: "10"
+      CAPTURE_IDLE_TIMEOUT: "15"
     volumes:
       - ./pcaps:/app/pcaps
     command: python -m capture.engine

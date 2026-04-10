@@ -296,12 +296,12 @@ class FeatureExtractor:
         features["urg_count"] = flow.urg_count
 
         # ── Payload Features ──────────────────────────────────────
-        features["payload_entropy"] = round(self._shannon_entropy(flow.payload_bytes), 6)
+        features["payload_entropy"] = round(self._shannon_entropy(flow.payload_entropy_sample), 6)
         if flow.payload_sizes:
             features["mean_payload_size"] = round(float(np.mean(flow.payload_sizes)), 6)
         else:
             features["mean_payload_size"] = 0.0
-        features["has_payload"] = len(flow.payload_bytes) > 0
+        features["has_payload"] = flow.payload_total_size > 0
 
         # ── Derived Features ──────────────────────────────────────
         duration = max(flow.duration, 0.001)

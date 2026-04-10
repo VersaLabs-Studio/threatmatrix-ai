@@ -20,11 +20,11 @@ class CaptureConfig(BaseSettings):
 
     # Flow timeouts (seconds)
     active_timeout: float = Field(
-        default=30.0,
+        default=10.0,
         description="Flow active timeout — force completion after this duration"
     )
     idle_timeout: float = Field(
-        default=120.0,
+        default=15.0,
         description="Flow idle timeout — flush if no packets for this duration"
     )
 

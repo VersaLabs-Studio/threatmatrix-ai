@@ -88,13 +88,16 @@ class FlowBuffer:
     psh_count: int = 0
     urg_count: int = 0
 
-    # Inter-arrival times
+    # Inter-arrival times (capped at 50 entries for feature extraction)
     inter_arrival_times: List[float] = field(default_factory=list)
     last_packet_time: Optional[float] = None
+    _MAX_IAT_ENTRIES: int = 50
 
-    # Payload data
-    payload_bytes: bytes = b""
+    # Payload tracking (avoid expensive bytes concat)
+    payload_total_size: int = 0
     payload_sizes: List[int] = field(default_factory=list)
+    # Small sample for entropy calculation (first 256 bytes only)
+    payload_entropy_sample: bytes = b""
 
     @property
     def duration(self) -> float:
@@ -170,20 +173,25 @@ class FlowAggregator:
         # Update timestamps
         flow.last_seen = current_time
 
-        # Inter-arrival time
+        # Inter-arrival time (capped at 50 entries)
         if flow.last_packet_time is not None:
             iat = current_time - flow.last_packet_time
-            flow.inter_arrival_times.append(iat)
+            if len(flow.inter_arrival_times) < flow._MAX_IAT_ENTRIES:
+                flow.inter_arrival_times.append(iat)
         flow.last_packet_time = current_time
 
         # TCP flags
         if pkt.protocol == 6:  # TCP
             self._count_tcp_flags(flow, pkt.flags)
 
-        # Payload
+        # Payload tracking (no bytes concat — track size only + small entropy sample)
         if pkt.payload:
-            flow.payload_bytes += pkt.payload[:1024]  # Cap at 1KB per flow
+            flow.payload_total_size += len(pkt.payload)
             flow.payload_sizes.append(len(pkt.payload))
+            # Keep first 256 bytes for entropy calculation
+            if len(flow.payload_entropy_sample) < 256:
+                remaining = 256 - len(flow.payload_entropy_sample)
+                flow.payload_entropy_sample += pkt.payload[:remaining]
 
         # Check completion conditions
         if self._should_complete(flow, pkt):
