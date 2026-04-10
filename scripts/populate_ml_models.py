@@ -23,10 +23,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-# Ensure backend/ is on sys.path when running directly
-_backend_dir = Path(__file__).resolve().parent.parent / "backend"
-if str(_backend_dir) not in sys.path:
+# Ensure backend/ (host) or root (container) is on sys.path when running directly
+_script_dir = Path(__file__).resolve().parent
+_backend_dir = _script_dir.parent / "backend"
+_root_dir = _script_dir.parent
+
+if _backend_dir.exists():
     sys.path.insert(0, str(_backend_dir))
+else:
+    sys.path.insert(0, str(_root_dir))
 
 from sqlalchemy import text
 from app.database import async_session

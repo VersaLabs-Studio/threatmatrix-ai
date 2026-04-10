@@ -9,8 +9,13 @@ import sys
 import os
 
 # Add the backend directory to the path so we can import from app
-backend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'backend')
-sys.path.insert(0, backend_path)
+# Works for both host (../backend) and container (..) structures
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+backend_dir = os.path.join(parent_dir, 'backend')
+
+sys.path.insert(0, parent_dir)
+if os.path.exists(backend_dir):
+    sys.path.insert(0, backend_dir)
 
 from app.database import async_session
 from app.models.user import User
