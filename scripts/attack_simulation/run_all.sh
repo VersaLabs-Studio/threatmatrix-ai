@@ -69,7 +69,7 @@ echo -e "${GREEN}[+] API is reachable.${NC}"
 echo ""
 
 # Record initial state
-INITIAL_ALERTS=$(curl -s http://localhost:8000/api/v1/alerts/stats | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total_alerts',0))" 2>/dev/null || echo "0")
+INITIAL_ALERTS=$(curl -s http://localhost:8000/api/v1/alerts/stats | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total', d.get('total_alerts',0)))" 2>/dev/null || echo "0")
 INITIAL_FLOWS=$(curl -s http://localhost:8000/api/v1/flows/stats | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total_flows',0))" 2>/dev/null || echo "0")
 
 echo -e "${CYAN}[*] Initial state:${NC}"
@@ -153,7 +153,7 @@ echo ""
 # =============================================================================
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))
-FINAL_ALERTS=$(curl -s http://localhost:8000/api/v1/alerts/stats | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total_alerts',0))" 2>/dev/null || echo "0")
+FINAL_ALERTS=$(curl -s http://localhost:8000/api/v1/alerts/stats | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total', d.get('total_alerts',0)))" 2>/dev/null || echo "0")
 FINAL_FLOWS=$(curl -s http://localhost:8000/api/v1/flows/stats | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total_flows',0))" 2>/dev/null || echo "0")
 TOTAL_NEW_ALERTS=$((FINAL_ALERTS - INITIAL_ALERTS))
 TOTAL_NEW_FLOWS=$((FINAL_FLOWS - INITIAL_FLOWS))

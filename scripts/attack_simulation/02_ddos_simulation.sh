@@ -43,7 +43,7 @@ fi
 
 # Record pre-attack alert count
 echo -e "${YELLOW}[*] Recording pre-attack alert count...${NC}"
-PRE_COUNT=$(curl -s "${API_URL}/alerts/stats" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total_alerts',0))" 2>/dev/null || echo "0")
+PRE_COUNT=$(curl -s "${API_URL}/alerts/stats" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total', d.get('total_alerts',0)))" 2>/dev/null || echo "0")
 echo -e "    Pre-attack alert count: ${PRE_COUNT}"
 echo ""
 
@@ -62,7 +62,7 @@ echo ""
 # Poll for new alerts (DDoS may take longer to process due to flow aggregation)
 for i in $(seq 1 9); do
     sleep 5
-    CURRENT_COUNT=$(curl -s "${API_URL}/alerts/stats" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total_alerts',0))" 2>/dev/null || echo "0")
+    CURRENT_COUNT=$(curl -s "${API_URL}/alerts/stats" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total', d.get('total_alerts',0)))" 2>/dev/null || echo "0")
     NEW_ALERTS=$((CURRENT_COUNT - PRE_COUNT))
     echo -e "    [${i}/9] Current alerts: ${CURRENT_COUNT} (+${NEW_ALERTS} new)"
 

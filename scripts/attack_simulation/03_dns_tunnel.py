@@ -95,7 +95,7 @@ def get_alert_count():
             capture_output=True, text=True, timeout=10
         )
         data = json.loads(result.stdout)
-        return data.get("total_alerts", 0)
+        return data.get("total", data.get("total_alerts", 0))
     except Exception:
         return 0
 
