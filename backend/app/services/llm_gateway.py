@@ -38,44 +38,25 @@ class TaskType(str, Enum):
     QUICK_SUMMARY = "quick_summary"
 
 
+CASCADING_MODELS = [
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "minimax/minimax-m2.5:free",
+    "arcee-ai/trinity-large-preview:free",
+    "nvidia/nemotron-3-nano-30b-a3b:free",
+    "openai/gpt-oss-120b:free",
+    "z-ai/glm-4.5-air:free",
+    "nousresearch/hermes-3-llama-3.1-405b:free",
+    "openrouter/free",
+]
+
 # Task → Model routing (preserves PART4 §9.1 logic)
-# Verified-working OpenRouter models (March 25 2026):
-#   ✅ nvidia/nemotron-3-super-120b-a12b:free — 120B hybrid MoE, 12B active, best reasoning
-#   ✅ openai/gpt-oss-120b:free               — 117B MoE, 5.1B active, strong general
-#   ✅ stepfun/step-3.5-flash:free             — 196B MoE, 11B active, fastest
 TASK_MODEL_ROUTING: Dict[TaskType, List[str]] = {
-    TaskType.ALERT_ANALYSIS: [
-        "nvidia/nemotron-3-super-120b-a12b:free",
-        "mistralai/pixtral-12b:free",
-        "google/gemini-2.0-flash-exp:free",
-        "openrouter/free",
-    ],
-    TaskType.DAILY_BRIEFING: [
-        "nvidia/nemotron-3-super-120b-a12b:free",
-        "google/gemini-2.0-flash-exp:free",
-        "openrouter/free",
-    ],
-    TaskType.IP_INVESTIGATION: [
-        "nvidia/nemotron-3-super-120b-a12b:free",
-        "openai/gpt-oss-120b:free",
-        "mistralai/mistral-7b-instruct:free",
-        "openrouter/free",
-    ],
-    TaskType.CHAT: [
-        "openai/gpt-oss-120b:free",
-        "mistralai/mistral-7b-instruct:free",
-        "openrouter/free",
-    ],
-    TaskType.TRANSLATION: [
-        "google/gemini-2.0-flash-exp:free",
-        "stepfun/step-3.5-flash:free",
-        "openrouter/free",
-    ],
-    TaskType.QUICK_SUMMARY: [
-        "stepfun/step-3.5-flash:free",
-        "mistralai/mistral-7b-instruct:free",
-        "openrouter/free",
-    ],
+    TaskType.ALERT_ANALYSIS: CASCADING_MODELS,
+    TaskType.DAILY_BRIEFING: CASCADING_MODELS,
+    TaskType.IP_INVESTIGATION: CASCADING_MODELS,
+    TaskType.CHAT: CASCADING_MODELS,
+    TaskType.TRANSLATION: CASCADING_MODELS,
+    TaskType.QUICK_SUMMARY: CASCADING_MODELS,
 }
 
 # System prompt for ThreatMatrix AI context — Demo-optimized

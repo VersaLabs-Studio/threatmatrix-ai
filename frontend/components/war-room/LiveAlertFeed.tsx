@@ -177,7 +177,7 @@ export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFee
           
           return (
             <div
-              key={alert.id}
+              key={`${alert.id}-${idx}`}
               onClick={() => router.push('/alerts')}
               style={{
                 display: 'flex',
@@ -186,20 +186,28 @@ export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFee
                 padding: '8px 10px',
                 borderRadius: 'var(--radius-md)',
                 background: 'var(--bg-tertiary)',
-                border: `1px solid ${alert.isNew ? severityColor + '44' : 'var(--border)'}`,
+                borderTop: `1px solid ${alert.isNew ? severityColor + '44' : 'var(--border)'}`,
+                borderRight: `1px solid ${alert.isNew ? severityColor + '44' : 'var(--border)'}`,
+                borderBottom: `1px solid ${alert.isNew ? severityColor + '44' : 'var(--border)'}`,
                 borderLeft: `3px solid ${severityColor}`,
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
                 opacity: idx > 15 ? 0.5 : 1,
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--bg-elevated)';
-                e.currentTarget.style.borderColor = severityColor + '66';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'var(--bg-tertiary)';
-                e.currentTarget.style.borderColor = alert.isNew ? severityColor + '44' : 'var(--border)';
-              }}
+               onMouseEnter={(e) => {
+                 e.currentTarget.style.background = 'var(--bg-elevated)';
+                 e.currentTarget.style.borderTopColor = severityColor + '66';
+                 e.currentTarget.style.borderRightColor = severityColor + '66';
+                 e.currentTarget.style.borderBottomColor = severityColor + '66';
+                 e.currentTarget.style.borderLeftColor = severityColor + '66';
+               }}
+               onMouseLeave={(e) => {
+                 e.currentTarget.style.background = 'var(--bg-tertiary)';
+                 e.currentTarget.style.borderTopColor = alert.isNew ? severityColor + '44' : 'var(--border)';
+                 e.currentTarget.style.borderRightColor = alert.isNew ? severityColor + '44' : 'var(--border)';
+                 e.currentTarget.style.borderBottomColor = alert.isNew ? severityColor + '44' : 'var(--border)';
+                 e.currentTarget.style.borderLeftColor = severityColor;
+               }}
             >
               {/* Severity dot with pulse for critical */}
               <div style={{

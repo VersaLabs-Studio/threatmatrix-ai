@@ -153,12 +153,18 @@ export function ThreatMap({ recentFlows = [], loading = false }: ThreatMapProps)
 
   const [webglSupported, setWebglSupported] = useState<boolean | null>(null);
 
-  // Check for WebGL support
+  // Check for WebGL2 support (required for Deck.gl)
   useEffect(() => {
     try {
       const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-      setWebglSupported(!!gl);
+      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl') as WebGLRenderingContext | null;
+      if (gl) {
+        // Test if WebGL context is functional
+        gl.getParameter(gl.MAX_TEXTURE_SIZE);
+        setWebglSupported(true);
+      } else {
+        setWebglSupported(false);
+      }
     } catch (e) {
       setWebglSupported(false);
     }
