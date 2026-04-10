@@ -20,6 +20,7 @@ interface AlertFeedItem {
   severity: Severity;
   category: string;
   src_ip: string;
+  dst_ip?: string;
   timestamp: string;
   composite_score?: number;
   isNew?: boolean;
@@ -77,7 +78,8 @@ export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFee
           id: a.id,
           severity: a.severity,
           category: a.category || 'Unknown',
-          src_ip: a.source_ip || a.dest_ip || 'N/A',
+          src_ip: a.source_ip || 'N/A',
+          dst_ip: a.dest_ip || 'N/A',
           timestamp: a.created_at,
           composite_score: a.confidence,
           isNew: false,
@@ -91,10 +93,10 @@ export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFee
     }
   }, []);
 
-  // Initial fetch + polling
+  // Initial fetch + less frequent polling to avoid conflicts with WebSocket
   useEffect(() => {
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, 5000);
+    const interval = setInterval(fetchAlerts, 30000); // Poll every 30 seconds
     return () => clearInterval(interval);
   }, [fetchAlerts]);
 
@@ -106,6 +108,7 @@ export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFee
       severity:  lastAlertEvent.severity,
       category:  lastAlertEvent.category,
       src_ip:    lastAlertEvent.src_ip,
+      dst_ip:    lastAlertEvent.dst_ip,
       timestamp: lastAlertEvent.timestamp,
       composite_score: lastAlertEvent.composite_score,
       isNew:     true,
@@ -122,13 +125,16 @@ export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFee
   useEffect(() => {
     if (!lastAnomalyEvent) return;
     const score = lastAnomalyEvent.composite_score ?? lastAnomalyEvent.anomaly_score ?? 0;
-    const severity: Severity = score >= 0.90 ? 'critical' : score >= 0.75 ? 'high' : score >= 0.50 ? 'medium' : 'low';
+    // Only show high-severity anomalies in feed to reduce noise
+    if (score < 0.75) return;
+    const severity: Severity = score >= 0.90 ? 'critical' : 'high';
     const newItem: AlertFeedItem = {
       id:        `anomaly-${lastAnomalyEvent.flow_id}-${Date.now()}`,
       severity,
       category:  `ML: ${lastAnomalyEvent.label || 'Anomaly'}`,
       src_ip:    lastAnomalyEvent.src_ip,
-      timestamp: lastAnomalyEvent.timestamp,
+      dst_ip:    lastAnomalyEvent.dst_ip,
+      timestamp: lastAnomalyEvent.timestamp || new Date().toISOString(),
       composite_score: score,
       isNew:     true,
     };
@@ -268,6 +274,16 @@ export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFee
                     {alert.src_ip}
                   </span>
                   <span style={{ color: 'var(--text-muted)', fontSize: '0.5rem' }}>→</span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-data)',
+                      fontSize: '0.6rem',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    {alert.dst_ip || '?'}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.5rem' }}>•</span>
                   <span
                     style={{
                       fontFamily: 'var(--font-data)',

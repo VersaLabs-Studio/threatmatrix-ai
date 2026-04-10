@@ -60,10 +60,10 @@ export function useAlerts(filters: AlertFilters = {}): UseAlertsReturn {
       void fetchAlerts();
     }, 0);
 
-    // Auto-refresh every 5 seconds
+    // Auto-refresh every 60 seconds
     const interval = setInterval(() => {
       void fetchAlerts();
-    }, 5000);
+    }, 60000);
 
     return () => {
       clearTimeout(initialTimeout);

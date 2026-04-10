@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const addToast = useCallback((toast: Toast) => {
-    setToasts((prev) => [toast, ...prev].slice(0, 5));
+    setToasts((prev) => [toast, ...prev].slice(0, 3));
   }, []);
 
   const dismissToast = useCallback((id: string) => {
@@ -33,11 +33,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!lastAlertEvent) return;
     const severity = (lastAlertEvent.severity || 'medium') as Severity;
     const score = lastAlertEvent.composite_score ?? 0;
+    // Only process CRITICAL and HIGH severity alerts
+    if (severity !== 'critical' && severity !== 'high') return;
     const toast: Toast = {
       id: `toast-alert-${Date.now()}`,
       severity,
       title: lastAlertEvent.category?.toUpperCase() || 'ALERT',
-      message: `${(severity || 'medium').toUpperCase()} — Score: ${(score * 100).toFixed(0)}%`,
+      message: `${lastAlertEvent.src_ip || 'unknown'} → ${lastAlertEvent.dst_ip || 'unknown'} — Score: ${(score * 100).toFixed(0)}%`,
       alertId: lastAlertEvent.id,
       composite_score: score,
       src_ip: lastAlertEvent.src_ip,
@@ -56,19 +58,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [lastAlertEvent, addToast, playAlarm]);
 
-  // Create toasts from WebSocket anomaly events (MEDIUM+ severity only)
+  // Create toasts from WebSocket anomaly events (CRITICAL/HIGH severity only)
   useEffect(() => {
     if (!lastAnomalyEvent) return;
     const score = lastAnomalyEvent.composite_score ?? lastAnomalyEvent.anomaly_score ?? 0;
-    // Only show notifications for MEDIUM+ severity (score >= 0.50)
-    if (score < 0.50) return;
-    
+
     const severity: Severity = score >= 0.90 ? 'critical' : score >= 0.75 ? 'high' : score >= 0.50 ? 'medium' : 'low';
+    // Only show notifications for CRITICAL and HIGH severity
+    if (severity !== 'critical' && severity !== 'high') return;
     const toast: Toast = {
       id: `toast-anomaly-${Date.now()}`,
       severity,
       title: `ML ANOMALY: ${lastAnomalyEvent.label?.toUpperCase() || 'DETECTED'}`,
-      message: `${(severity || 'medium').toUpperCase()} — Score: ${(score * 100).toFixed(0)}%`,
+      message: `${lastAnomalyEvent.src_ip || 'unknown'} → ${lastAnomalyEvent.dst_ip || 'unknown'} — Score: ${(score * 100).toFixed(0)}%`,
       composite_score: score,
       if_score: lastAnomalyEvent.if_score,
       ae_score: lastAnomalyEvent.ae_score,

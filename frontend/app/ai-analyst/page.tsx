@@ -265,17 +265,11 @@ function AIAnalystContent() {
       api.get<any>(`/api/v1/alerts/${alertId}`).then(({ data }) => {
         if (data) {
           setAlertContext(data);
-          if (data.ai_narrative && !initialMessageSent) {
-            setInitialMessageSent(true);
-            sendMessage(
-              `Analyze alert #${alertId.slice(-8).toUpperCase()}. Category: ${data.category || 'Unknown'}. Severity: ${data.severity}. Source IP: ${data.source_ip || 'N/A'}. ML Score: ${((data.composite_score || 0) * 100).toFixed(0)}%. Provide a detailed threat analysis.`,
-              { alert_id: alertId }
-            );
-          }
+          // Auto-send removed to prevent rate limits — user must send query manually
         }
       });
     }
-  }, [alertId, alertContext, initialMessageSent, sendMessage]);
+  }, [alertId, alertContext]);
 
   const handleSend = async (msgOverride?: string) => {
     if (isStreaming) return;

@@ -97,32 +97,69 @@ async def chat(request: ChatRequest):
 
 @router.post("/analyze-alert/{alert_id}")
 async def analyze_alert(alert_id: str, request: Optional[AnalyzeAlertRequest] = None):
-    """Generate AI narrative for an alert."""
+    """
+    Generate AI narrative for an alert.
+    If no request body is provided, it fetches the alert from the database.
+    Persists the resulting narrative to the alerts table.
+    """
     gateway = get_gateway()
+    from app.database import async_session
+    from app.services import alert_service
+    from sqlalchemy import text
+    from datetime import datetime, timezone
 
-    # If no body, try to load alert from DB
-    if request:
+    # 1. Get alert data
+    if request and any(v for v in request.model_dump().values()):
         alert_data = request.model_dump()
     else:
         # Fetch from database
-        alert_data = {
-            "severity": "unknown",
-            "category": "unknown",
-            "source_ip": "unknown",
-            "dest_ip": "unknown",
-            "composite_score": 0.0,
-            "if_score": 0.0,
-            "rf_label": "unknown",
-            "rf_confidence": 0.0,
-            "ae_score": 0.0,
-            "model_agreement": "unknown",
-            "confidence": 0.0,
-        }
+        async with async_session() as session:
+            alert = await alert_service.get_alert_by_id(session, alert_id)
+            if not alert:
+                raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+            
+            alert_data = {
+                "severity": alert.get("severity", "medium"),
+                "category": alert.get("category", "anomaly"),
+                "source_ip": alert.get("source_ip", "unknown"),
+                "dest_ip": alert.get("dest_ip", "unknown"),
+                "composite_score": alert.get("composite_score", 0.0),
+                "if_score": alert.get("if_score", 0.0),
+                "rf_label": alert.get("ml_model", "unknown"), # Use ml_model as label fallback
+                "rf_confidence": alert.get("confidence", 0.0),
+                "ae_score": alert.get("ae_score", 0.0),
+                "model_agreement": "unknown",
+                "confidence": alert.get("confidence", 0.0),
+            }
 
+    # 2. Generate narrative
     result = await gateway.analyze_alert(alert_data)
+    narrative = result.get("content", "")
+
+    # 3. Persist to database if generated successfully
+    if narrative and not narrative.startswith("["):
+        try:
+            async with async_session() as session:
+                await session.execute(
+                    text(
+                        "UPDATE alerts "
+                        "SET ai_narrative = :narrative, updated_at = :now "
+                        "WHERE alert_id = :alert_id OR id::text = :alert_id"
+                    ),
+                    {
+                        "narrative": narrative,
+                        "alert_id": alert_id,
+                        "now": datetime.now(timezone.utc),
+                    },
+                )
+                await session.commit()
+                logger.info("[LLM] Persisted manual narrative for %s", alert_id)
+        except Exception as e:
+            logger.error("[LLM] Failed to persist narrative: %s", e)
+
     return {
         "alert_id": alert_id,
-        "narrative": result.get("content", ""),
+        "narrative": narrative,
         "model": result.get("model", ""),
         "tokens": {
             "input": result.get("tokens_in", 0),

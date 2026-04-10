@@ -54,7 +54,9 @@ export function formatTimestamp(iso: string): string {
 
 /** ISO string → relative: "2 min ago" */
 export function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+  const time = new Date(iso).getTime();
+  if (isNaN(time)) return 'now';
+  const diff = Date.now() - time;
   const s = Math.floor(diff / 1000);
   if (s < 60)  return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;

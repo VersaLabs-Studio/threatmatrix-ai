@@ -128,10 +128,10 @@ export function useFlows(filters: FlowFilters = {}): UseFlowsReturn {
       void fetchAll();
     }, 0);
 
-    // Auto-refresh every 3 seconds (per MASTER_DOC_PART3 §2.3)
+    // Auto-refresh every 30 seconds to reduce load
     const interval = setInterval(() => {
       void fetchAll();
-    }, 3000);
+    }, 30000);
 
     return () => {
       clearTimeout(initialTimeout);

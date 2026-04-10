@@ -80,7 +80,6 @@ export default function WarRoomPage() {
   const fetchAlertStats = useCallback(async () => {
     try {
       const { data } = await api.get<{ critical?: number; high?: number; medium?: number; low?: number; by_severity?: { critical: number; high: number; medium: number; low: number; info: number }; total: number }>('/api/v1/alerts/stats');
-      console.log('[WarRoom] Alert stats response:', data);
       if (data) setAlertStats(data);
     } catch (e) {
       console.error('[WarRoom] Failed to fetch alert stats:', e);
@@ -91,7 +90,6 @@ export default function WarRoomPage() {
   const fetchCaptureStatus = useCallback(async () => {
     try {
       const { data } = await api.get<CaptureStatus>('/api/v1/capture/status');
-      console.log('[WarRoom] Capture status response:', data);
       if (data) setCaptureStatus(data);
     } catch (e) {
       console.error('[WarRoom] Failed to fetch capture status:', e);
@@ -101,8 +99,8 @@ export default function WarRoomPage() {
   useEffect(() => {
     fetchAlertStats();
     fetchCaptureStatus();
-    const alertInterval = setInterval(fetchAlertStats, 10000);
-    const captureInterval = setInterval(fetchCaptureStatus, 5000);
+    const alertInterval = setInterval(fetchAlertStats, 120000); // 2 minutes
+    const captureInterval = setInterval(fetchCaptureStatus, 30000); // 30 seconds
     return () => {
       clearInterval(alertInterval);
       clearInterval(captureInterval);
@@ -113,15 +111,6 @@ export default function WarRoomPage() {
   const totalPackets = stats?.total_packets ?? 0;
   const totalFlows = stats?.total_flows ?? captureStatus?.flows_completed ?? 0;
   const anomalyCount = stats?.anomaly_count ?? 0;
-  
-  // Debug logging
-  console.log('[WarRoom] Stats:', stats);
-  console.log('[WarRoom] Capture status:', captureStatus);
-  console.log('[WarRoom] Alert stats:', alertStats);
-  console.log('[WarRoom] Alerts from API:', alerts?.length, 'total:', alertTotal);
-  console.log('[WarRoom] WebSocket connected:', wsConnected);
-  console.log('[WarRoom] Last alert event:', lastAlertEvent);
-  console.log('[WarRoom] Last anomaly event:', lastAnomalyEvent);
   
   // Calculate packets per second from total packets over 1 hour interval
   const pps = totalPackets > 0 ? Math.round(totalPackets / 3600) : 0;
@@ -136,8 +125,6 @@ export default function WarRoomPage() {
   const anomalyRate = totalFlows > 0 && totalAlerts > 0
     ? totalAlerts / totalFlows
     : 0;
-  
-  console.log('[WarRoom] Computed metrics:', { pps, flows, totalAlerts, anomalyRate });
 
   // Calculate threat level from ML alert distribution
   const sevCounts = alertStats?.by_severity ?? { critical: alertStats?.critical ?? 0, high: alertStats?.high ?? 0, medium: alertStats?.medium ?? 0, low: alertStats?.low ?? 0, info: alertStats?.info ?? 0 };

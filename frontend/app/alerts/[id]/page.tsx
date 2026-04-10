@@ -105,6 +105,35 @@ export default function AlertDetailPage() {
     setUpdating(false);
   };
 
+  const triggerAnalysis = async () => {
+    if (!alert || alert.ai_narrative) return;
+    
+    // Set a temporary narrative to show loading state
+    setAlert(prev => prev ? { ...prev, ai_narrative: '[AI Analyst is generating report...]' } : null);
+    
+    try {
+      const { data, error: err } = await api.post(`/api/v1/llm/analyze-alert/${alert.alert_id}`, {});
+      if (data && data.narrative) {
+        setAlert(prev => prev ? { ...prev, ai_narrative: data.narrative } : null);
+      } else if (err) {
+        setAlert(prev => prev ? { ...prev, ai_narrative: `[Generation failed: ${err}]` } : null);
+      }
+    } catch (e) {
+      setAlert(prev => prev ? { ...prev, ai_narrative: '[Error connecting to AI Gateway]' } : null);
+    }
+  };
+
+  // Trigger analysis on-demand when routing to the page
+  useEffect(() => {
+    if (alert && !alert.ai_narrative && !loading) {
+      // Delay slightly to ensure smooth UI transition
+      const timer = setTimeout(() => {
+        void triggerAnalysis();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [alert?.alert_id, alert?.ai_narrative, loading]);
+
   const initiateStatusChange = (newStatus: AlertStatus) => {
     if (NEEDS_NOTE.has(newStatus)) {
       setPendingStatus(newStatus);
