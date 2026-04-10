@@ -1,21 +1,15 @@
 #!/usr/bin/env python3
 """
-ThreatMatrix AI — Attack Simulation: Run Attacks Locally on VPS
-================================================================
+ThreatMatrix AI — Local Attack Simulation (VPS Internal)
+==========================================================
 
-This script is designed to run DIRECTLY on the VPS (localhost).
-It generates attack traffic that the capture engine monitors on eth0.
+Run DIRECTLY on the VPS to generate attack traffic captured by
+both eth0 and loopback capture engines.
 
-Unlike external attacks (from WSL), local attacks on the VPS will
-be immediately visible to the capture engine's sniffer.
-
-Usage:
-    python3 run_local_attacks.py [--target TARGET_IP]
-
-Run directly on the VPS:
-    ssh root@187.124.45.161
-    cd /home/threatmatrix/threatmatrix-ai
+Usage (on VPS):
     python3 scripts/attack_simulation/run_local_attacks.py
+    python3 scripts/attack_simulation/run_local_attacks.py --target 127.0.0.1
+    python3 scripts/attack_simulation/run_local_attacks.py --scenario 1
 """
 
 import subprocess
@@ -23,11 +17,9 @@ import json
 import time
 import sys
 import os
+import argparse
 
-# Configuration
 API_URL = "http://localhost:8000/api/v1"
-TARGET = sys.argv[1] if len(sys.argv) > 1 else "127.0.0.1"
-WAIT_AFTER_ATTACK = 120  # 2 minutes for ML processing at 11.3 pps
 
 # ANSI colors
 RED = "\033[0;31m"
@@ -37,208 +29,338 @@ YELLOW = "\033[1;33m"
 BOLD = "\033[1m"
 NC = "\033[0m"
 
+# Wait between attack and check — capture engine processes at ~40-80 pps,
+# flows timeout after 10s active / 15s idle, so 30s is enough.
+WAIT_AFTER_ATTACK = 30
 
-def get_alert_count():
-    """Get current alert count from the API."""
+
+def api_get(path):
+    """GET from ThreatMatrix API."""
     try:
         result = subprocess.run(
-            ["curl", "-s", f"{API_URL}/alerts/stats"],
+            ["curl", "-s", f"{API_URL}{path}"],
             capture_output=True, text=True, timeout=10
         )
-        data = json.loads(result.stdout)
-        return data.get("total", data.get("total_alerts", 0))
+        return json.loads(result.stdout)
     except Exception:
-        return 0
+        return {}
 
 
-def get_worker_stats():
-    """Get latest worker stats from docker logs."""
+def get_alert_stats():
+    """Get alert severity breakdown."""
+    return api_get("/alerts/stats")
+
+
+def get_severity_counts():
+    """Get severity breakdown as dict."""
+    stats = get_alert_stats()
+    return stats.get("by_severity", {})
+
+
+def print_header(title, color=CYAN):
+    """Print a formatted scenario header."""
+    print(f"\n{color}{BOLD}{'━' * 60}")
+    print(f"  {title}")
+    print(f"{'━' * 60}{NC}\n")
+
+
+def run_cmd(cmd, timeout=30, shell=True):
+    """Run a command, return (success, stdout)."""
     try:
-        result = subprocess.run(
-            ["docker", "compose", "logs", "--tail=3", "ml-worker"],
+        r = subprocess.run(
+            cmd, shell=shell, capture_output=True, text=True, timeout=timeout
+        )
+        return True, r.stdout
+    except subprocess.TimeoutExpired:
+        return True, "(timed out)"
+    except Exception as e:
+        return False, str(e)
+
+
+def wait_and_check(pre_stats, scenario_name, expected_sev, expected_cat):
+    """Wait for ML processing then check for new alerts."""
+    print(f"\n  {YELLOW}⏳ Waiting {WAIT_AFTER_ATTACK}s for capture→ML→alert pipeline...{NC}")
+    time.sleep(WAIT_AFTER_ATTACK)
+
+    post_stats = get_alert_stats()
+    pre_total = pre_stats.get("total", 0)
+    post_total = post_stats.get("total", 0)
+    new_alerts = post_total - pre_total
+
+    pre_sev = pre_stats.get("by_severity", {})
+    post_sev = post_stats.get("by_severity", {})
+
+    print(f"\n  {'─' * 50}")
+    print(f"  {BOLD}Results: {scenario_name}{NC}")
+    print(f"  Total alerts: {pre_total} → {post_total} (+{new_alerts})")
+    print(f"  Severity breakdown:")
+    for sev in ["critical", "high", "medium", "low"]:
+        pre_count = pre_sev.get(sev, 0)
+        post_count = post_sev.get(sev, 0)
+        delta = post_count - pre_count
+        marker = f" {GREEN}← +{delta} NEW{NC}" if delta > 0 else ""
+        print(f"    {sev.upper():10s}: {post_count:5d}{marker}")
+
+    # Check category
+    pre_cat = pre_stats.get("by_category", {})
+    post_cat = post_stats.get("by_category", {})
+    if expected_cat:
+        pre_cc = pre_cat.get(expected_cat, 0)
+        post_cc = post_cat.get(expected_cat, 0)
+        cat_delta = post_cc - pre_cc
+        print(f"  Category '{expected_cat}': {pre_cc} → {post_cc} (+{cat_delta})")
+
+    # Show latest worker logs for score visibility
+    try:
+        r = subprocess.run(
+            ["docker", "compose", "logs", "--tail=5", "ml-worker"],
             capture_output=True, text=True, timeout=10,
             cwd="/home/threatmatrix/threatmatrix-ai"
         )
-        return result.stdout.strip()
+        lines = [l for l in r.stdout.strip().split("\n") if "ALERT:" in l or "scores:" in l]
+        if lines:
+            print(f"\n  {BOLD}Latest ML Worker Output:{NC}")
+            for line in lines[-3:]:
+                # Clean up container prefix
+                clean = line.split("|", 1)[-1].strip() if "|" in line else line.strip()
+                print(f"    {clean}")
     except Exception:
-        return "N/A"
-
-
-def run_attack(name, cmd, duration):
-    """Run an attack command and return success status."""
-    print(f"\n{YELLOW}[*] Running: {name}{NC}")
-    print(f"    Command: {cmd}")
-    try:
-        result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, timeout=duration + 10
-        )
-        print(f"    Completed")
-        return True
-    except subprocess.TimeoutExpired:
-        print(f"    Timed out after {duration}s")
-        return True
-    except Exception as e:
-        print(f"    {RED}Failed: {e}{NC}")
-        return False
-
-
-def check_detection(name, pre_count, post_count, expected_severity, expected_category):
-    """Check if an attack was detected."""
-    new_alerts = post_count - pre_count
-    print(f"\n    Pre-attack alerts:  {pre_count}")
-    print(f"    Post-attack alerts: {post_count}")
-    print(f"    New alerts:         {new_alerts}")
+        pass
 
     if new_alerts > 0:
-        print(f"\n  {GREEN}[+] DETECTED! {new_alerts} new alert(s){NC}")
-        # Fetch latest alerts to check severity/category
-        try:
-            result = subprocess.run(
-                ["curl", "-s", f"{API_URL}/alerts/?limit={new_alerts}"],
-                capture_output=True, text=True, timeout=10
-            )
-            data = json.loads(result.stdout)
-            alerts = data if isinstance(data, list) else data.get("items", data.get("alerts", []))
-            for a in alerts[:3]:
-                sev = a.get("severity", "?").upper()
-                cat = a.get("category", "?")
-                conf = a.get("confidence", 0)
-                print(f"    [{sev}] {cat} — Confidence: {conf:.0%}")
-                narrative = a.get("ai_narrative", "")
-                if narrative:
-                    print(f"    AI: {narrative[:100]}...")
-        except Exception:
-            pass
-        return True
+        # Check if expected severity was hit
+        expected_delta = post_sev.get(expected_sev, 0) - pre_sev.get(expected_sev, 0)
+        if expected_delta > 0:
+            print(f"\n  {GREEN}✅ PASS — {new_alerts} alert(s), {expected_sev.upper()} severity detected{NC}")
+            return "PASS"
+        else:
+            # Got alerts but different severity — still useful
+            gained_sevs = [s for s in ["critical", "high", "medium", "low"]
+                          if post_sev.get(s, 0) > pre_sev.get(s, 0)]
+            print(f"\n  {YELLOW}⚠ PARTIAL — {new_alerts} alert(s) as {', '.join(s.upper() for s in gained_sevs)}"
+                  f" (expected {expected_sev.upper()}){NC}")
+            return "PARTIAL"
     else:
-        print(f"\n  {YELLOW}[!] Not detected yet — may need more time for ML processing{NC}")
-        return False
+        print(f"\n  {RED}✗ NOT DETECTED — 0 new alerts{NC}")
+        return "FAIL"
 
 
-def main():
-    print(f"""{BOLD}{CYAN}
-╔══════════════════════════════════════════════════════════════╗
-║  ThreatMatrix AI — Local Attack Simulation                  ║
-║  Target: {TARGET:<48s} ║
-║  Wait time: {WAIT_AFTER_ATTACK}s (for capture engine at 11.3 pps)        ║
-╚══════════════════════════════════════════════════════════════╝{NC}
-""")
+# ══════════════════════════════════════════════════════════════
+# Attack Scenarios
+# ══════════════════════════════════════════════════════════════
 
-    # Check API is reachable
-    try:
-        subprocess.run(
-            ["curl", "-s", "--connect-timeout", "5", f"{API_URL}/system/health"],
-            capture_output=True, text=True, timeout=10
-        )
-    except Exception:
-        print(f"{RED}[ERROR] Cannot reach API at {API_URL}{NC}")
-        sys.exit(1)
+def scenario_port_scan(target):
+    """Scenario 1: Nmap SYN scan → expect HIGH/CRITICAL probe alerts."""
+    print_header("Scenario 1: Port Scan (nmap SYN scan)", CYAN)
+    print(f"  Target: {target}")
+    print(f"  Expected: HIGH severity, category=port_scan")
 
-    # Check tools
-    tools_ok = True
-    for tool in ["nmap", "hping3", "curl"]:
-        try:
-            subprocess.run(["which", tool], capture_output=True, timeout=5)
-        except Exception:
-            print(f"{YELLOW}[!] {tool} not found — install with: apt install {tool}{NC}")
-            if tool in ("nmap", "hping3"):
-                tools_ok = False
+    pre = get_alert_stats()
+    print(f"  Pre-attack alerts: {pre.get('total', 0)}")
 
-    if not tools_ok:
-        print(f"{RED}[ERROR] Missing required tools. Install with: apt install nmap hping3{NC}")
-        sys.exit(1)
+    # Full SYN scan of well-known ports
+    print(f"\n  {YELLOW}[*] Running: nmap -sS -p 1-1024 {target} -T4{NC}")
+    run_cmd(f"nmap -sS -p 1-1024 {target} --max-retries 1 -T4", timeout=60)
 
-    results = []
+    # Additional aggressive scan for more flow diversity
+    print(f"  {YELLOW}[*] Running: nmap -sS -p 1-100 {target} -T5 --max-retries 3{NC}")
+    run_cmd(f"nmap -sS -p 1-100 {target} --max-retries 3 -T5", timeout=30)
 
-    # ── Scenario 1: Port Scan ──────────────────────────────
-    print(f"\n{BOLD}{CYAN}━━━ Scenario 1/5: Port Scan ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{NC}")
-    pre = get_alert_count()
-    run_attack("Nmap SYN Scan", f"sudo nmap -sS -p 1-1024 {TARGET} --max-retries 1 -T4 2>&1", 30)
-    print(f"{YELLOW}[*] Waiting {WAIT_AFTER_ATTACK}s for ML processing...{NC}")
-    time.sleep(WAIT_AFTER_ATTACK)
-    post = get_alert_count()
-    if check_detection("Port Scan", pre, post, "high", "port_scan"):
-        results.append("Port Scan: PASS")
-    else:
-        results.append("Port Scan: INCONCLUSIVE")
-    print(f"{YELLOW}[*] Worker stats:{NC}")
-    print(get_worker_stats())
+    return wait_and_check(pre, "Port Scan", "high", "port_scan")
 
-    # ── Scenario 2: DDoS SYN Flood ─────────────────────────
-    print(f"\n{BOLD}{RED}━━━ Scenario 2/5: DDoS SYN Flood ━━━━━━━━━━━━━━━━━━━━━━━━━━━{NC}")
-    pre = get_alert_count()
-    run_attack("DDoS Flood", f"sudo timeout 10 hping3 -S --flood -p 80 {TARGET} 2>&1 || true", 15)
-    print(f"{YELLOW}[*] Waiting {WAIT_AFTER_ATTACK}s for ML processing...{NC}")
-    time.sleep(WAIT_AFTER_ATTACK)
-    post = get_alert_count()
-    if check_detection("DDoS", pre, post, "critical", "ddos"):
-        results.append("DDoS: PASS")
-    else:
-        results.append("DDoS: INCONCLUSIVE")
-    print(f"{YELLOW}[*] Worker stats:{NC}")
-    print(get_worker_stats())
 
-    # ── Scenario 3: Brute Force (raw TCP) ──────────────────
-    print(f"\n{BOLD}{YELLOW}━━━ Scenario 3/5: SSH Brute Force ━━━━━━━━━━━━━━━━━━━━━━━━━━{NC}")
-    pre = get_alert_count()
-    print(f"{YELLOW}[*] Sending 50 rapid connection attempts to {TARGET}:22...{NC}")
-    for i in range(50):
-        try:
-            subprocess.run(
-                f"timeout 1 bash -c 'echo  > /dev/tcp/{TARGET}/22' 2>/dev/null || true",
-                shell=True, timeout=2
-            )
-        except Exception:
-            pass
-        time.sleep(0.05)
-    print(f"{YELLOW}[*] Waiting {WAIT_AFTER_ATTACK}s for ML processing...{NC}")
-    time.sleep(WAIT_AFTER_ATTACK)
-    post = get_alert_count()
-    if check_detection("Brute Force", pre, post, "high", "unauthorized_access"):
-        results.append("Brute Force: PASS")
-    else:
-        results.append("Brute Force: INCONCLUSIVE")
-    print(f"{YELLOW}[*] Worker stats:{NC}")
-    print(get_worker_stats())
+def scenario_ddos(target):
+    """Scenario 2: DDoS SYN flood → expect CRITICAL dos alerts."""
+    print_header("Scenario 2: DDoS SYN Flood (hping3)", RED)
+    print(f"  Target: {target}:80")
+    print(f"  Expected: CRITICAL severity, category=ddos")
 
-    # ── Scenario 4: Normal Traffic ─────────────────────────
-    print(f"\n{BOLD}{GREEN}━━━ Scenario 4/4: Normal Traffic (False Positive Check) ━━━━{NC}")
-    pre = get_alert_count()
+    pre = get_alert_stats()
+    print(f"  Pre-attack alerts: {pre.get('total', 0)}")
+
+    # SYN flood for 10 seconds
+    print(f"\n  {YELLOW}[*] Running: hping3 -S --flood -p 80 {target} (10s){NC}")
+    run_cmd(f"timeout 10 hping3 -S --flood -p 80 {target} 2>&1 || true", timeout=15)
+
+    # Additional targeted flood on different ports
+    print(f"  {YELLOW}[*] Running: hping3 -S --flood -p 443 {target} (5s){NC}")
+    run_cmd(f"timeout 5 hping3 -S --flood -p 443 {target} 2>&1 || true", timeout=10)
+
+    return wait_and_check(pre, "DDoS SYN Flood", "critical", "ddos")
+
+
+def scenario_brute_force(target):
+    """Scenario 3: SSH brute force → expect HIGH r2l/unauthorized_access alerts."""
+    print_header("Scenario 3: SSH Brute Force", YELLOW)
+    print(f"  Target: {target}:22")
+    print(f"  Expected: HIGH severity, category=unauthorized_access")
+
+    pre = get_alert_stats()
+    print(f"  Pre-attack alerts: {pre.get('total', 0)}")
+
+    # Rapid SSH connection attempts
+    print(f"\n  {YELLOW}[*] Sending 100 rapid TCP SYN to port 22...{NC}")
+    for i in range(100):
+        run_cmd(f"timeout 1 bash -c 'echo > /dev/tcp/{target}/22' 2>/dev/null || true", timeout=2)
+        if (i + 1) % 25 == 0:
+            print(f"    Sent {i + 1}/100...")
+        time.sleep(0.02)
+
+    # Also try with hping3 for more volume
+    print(f"  {YELLOW}[*] Running: hping3 -S -p 22 -c 200 --fast {target}{NC}")
+    run_cmd(f"hping3 -S -p 22 -c 200 --fast {target} 2>&1 || true", timeout=30)
+
+    return wait_and_check(pre, "SSH Brute Force", "high", "unauthorized_access")
+
+
+def scenario_multi_port_probe(target):
+    """Scenario 4: Multi-vector probe → expect HIGH probe alerts."""
+    print_header("Scenario 4: Multi-Vector Reconnaissance", CYAN)
+    print(f"  Target: {target}")
+    print(f"  Expected: HIGH severity, category=port_scan")
+
+    pre = get_alert_stats()
+    print(f"  Pre-attack alerts: {pre.get('total', 0)}")
+
+    # Service detection scan
+    print(f"\n  {YELLOW}[*] Running: nmap -sV -p 22,80,443,8000,5432,6379 {target}{NC}")
+    run_cmd(f"nmap -sV -p 22,80,443,8000,5432,6379 {target} -T4", timeout=60)
+
+    # UDP scan
+    print(f"  {YELLOW}[*] Running: nmap -sU -p 53,123,161 {target}{NC}")
+    run_cmd(f"nmap -sU -p 53,123,161 {target} --max-retries 1 -T4", timeout=30)
+
+    # XMAS scan
+    print(f"  {YELLOW}[*] Running: nmap -sX -p 1-100 {target}{NC}")
+    run_cmd(f"nmap -sX -p 1-100 {target} --max-retries 1 -T4", timeout=30)
+
+    return wait_and_check(pre, "Multi-Vector Probe", "high", "port_scan")
+
+
+def scenario_normal_traffic(target):
+    """Scenario 5: Normal traffic → expect NO new alerts (false positive check)."""
+    print_header("Scenario 5: Normal Traffic (False Positive Check)", GREEN)
+    print(f"  Expected: NO new alerts")
+
+    pre = get_alert_stats()
+    pre_total = pre.get("total", 0)
+    print(f"  Pre-traffic alerts: {pre_total}")
+
+    # Normal API requests
     endpoints = [
         "/system/health", "/flows/?limit=10", "/alerts/?limit=5",
         "/flows/stats", "/flows/protocols", "/ml/models",
     ]
+    print(f"\n  {YELLOW}[*] Sending 20 normal API requests...{NC}")
     for i in range(20):
         ep = endpoints[i % len(endpoints)]
-        subprocess.run(["curl", "-s", "-o", "/dev/null", f"{API_URL}{ep}"], timeout=5)
-        time.sleep(1)
-    time.sleep(30)
-    post = get_alert_count()
-    new_alerts = post - pre
+        run_cmd(f"curl -s -o /dev/null {API_URL}{ep}", timeout=5)
+        time.sleep(0.5)
+
+    time.sleep(20)
+    post = get_alert_stats()
+    post_total = post.get("total", 0)
+    new_alerts = post_total - pre_total
+
     if new_alerts == 0:
-        print(f"  {GREEN}[✓] PASS — No false positives{NC}")
-        results.append("Normal Traffic: PASS (no false positives)")
+        print(f"\n  {GREEN}✅ PASS — No false positives{NC}")
+        return "PASS"
     else:
-        print(f"  {RED}[✗] FALSE POSITIVE — {new_alerts} unexpected alerts{NC}")
-        results.append("Normal Traffic: FALSE POSITIVES DETECTED")
+        print(f"\n  {RED}✗ FALSE POSITIVES — {new_alerts} unexpected alerts{NC}")
+        return "FALSE_POS"
 
-    # ── Summary ────────────────────────────────────────────
-    print(f"\n{BOLD}{CYAN}")
-    print("╔══════════════════════════════════════════════════════════════╗")
-    print("║  SIMULATION COMPLETE — RESULTS SUMMARY                      ║")
-    print("╚══════════════════════════════════════════════════════════════╝")
-    print(f"{NC}\n")
 
-    for r in results:
-        if "PASS" in r:
-            print(f"  {GREEN}✓{NC} {r}")
-        elif "FALSE" in r:
-            print(f"  {RED}✗{NC} {r}")
+def main():
+    parser = argparse.ArgumentParser(description="ThreatMatrix AI — Local Attack Simulation")
+    parser.add_argument("--target", default="127.0.0.1", help="Target IP (default: 127.0.0.1)")
+    parser.add_argument("--scenario", type=int, default=0,
+                       help="Run specific scenario (1-5, 0=all)")
+    parser.add_argument("--wait", type=int, default=30,
+                       help="Seconds to wait after each attack (default: 30)")
+    args = parser.parse_args()
+
+    global WAIT_AFTER_ATTACK
+    WAIT_AFTER_ATTACK = args.wait
+    target = args.target
+
+    print(f"""{BOLD}{CYAN}
+╔══════════════════════════════════════════════════════════════╗
+║  ThreatMatrix AI — Local Attack Simulation                  ║
+║  Target: {target:<48s} ║
+║  Wait: {WAIT_AFTER_ATTACK}s per scenario                                    ║
+╚══════════════════════════════════════════════════════════════╝{NC}
+""")
+
+    # Check API
+    health = api_get("/system/health")
+    if not health:
+        print(f"{RED}[ERROR] Cannot reach API at {API_URL}{NC}")
+        sys.exit(1)
+    print(f"{GREEN}[+] API reachable{NC}")
+
+    # Check tools
+    for tool in ["nmap", "hping3"]:
+        r = subprocess.run(["which", tool], capture_output=True, timeout=5)
+        if r.returncode != 0:
+            print(f"{YELLOW}[!] {tool} not found — install with: apt install {tool}{NC}")
+
+    # Initial stats
+    stats = get_alert_stats()
+    print(f"\n{CYAN}Baseline: {stats.get('total', 0)} total alerts{NC}")
+    sev = stats.get("by_severity", {})
+    for s in ["critical", "high", "medium", "low"]:
+        print(f"  {s.upper():10s}: {sev.get(s, 0)}")
+
+    # Run scenarios
+    scenarios = {
+        1: ("Port Scan",          lambda: scenario_port_scan(target)),
+        2: ("DDoS SYN Flood",     lambda: scenario_ddos(target)),
+        3: ("SSH Brute Force",    lambda: scenario_brute_force(target)),
+        4: ("Multi-Vector Probe", lambda: scenario_multi_port_probe(target)),
+        5: ("Normal Traffic",     lambda: scenario_normal_traffic(target)),
+    }
+
+    results = []
+    if args.scenario > 0:
+        name, fn = scenarios[args.scenario]
+        result = fn()
+        results.append((name, result))
+    else:
+        for num, (name, fn) in sorted(scenarios.items()):
+            result = fn()
+            results.append((name, result))
+            if num < 5:
+                print(f"\n  {YELLOW}Cooldown 10s...{NC}")
+                time.sleep(10)
+
+    # Final Summary
+    final_stats = get_alert_stats()
+    final_sev = final_stats.get("by_severity", {})
+
+    print(f"\n{BOLD}{CYAN}{'═' * 60}")
+    print(f"  ATTACK SIMULATION — FINAL RESULTS")
+    print(f"{'═' * 60}{NC}\n")
+
+    for name, result in results:
+        if result == "PASS":
+            icon = f"{GREEN}✅{NC}"
+        elif result == "PARTIAL":
+            icon = f"{YELLOW}⚠{NC}"
+        elif result == "FALSE_POS":
+            icon = f"{RED}🚨{NC}"
         else:
-            print(f"  {YELLOW}?{NC} {r}")
+            icon = f"{RED}✗{NC}"
+        print(f"  {icon}  {name}: {result}")
 
-    pass_count = sum(1 for r in results if "PASS" in r)
-    print(f"\n{BOLD}Result: {pass_count}/{len(results)} scenarios detected{NC}")
+    print(f"\n  {BOLD}Final Severity Distribution:{NC}")
+    for s in ["critical", "high", "medium", "low"]:
+        count = final_sev.get(s, 0)
+        bar = "█" * min(count, 40)
+        print(f"    {s.upper():10s}: {count:5d} {bar}")
+
+    pass_count = sum(1 for _, r in results if r in ("PASS", "PARTIAL"))
+    total = len(results)
+    print(f"\n  {BOLD}Score: {pass_count}/{total} scenarios detected{NC}\n")
 
 
 if __name__ == "__main__":

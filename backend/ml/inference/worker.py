@@ -196,13 +196,16 @@ class MLWorker:
         # Log per-model scores for anomalous flows
         if is_anomaly:
             logger.info(
-                "[Worker] Flow %s scores: IF=%.3f RF=%.3f AE=%.3f composite=%.3f severity=%s",
+                "[Worker] Flow %s scores: IF=%.3f RF_conf=%.3f AE=%.3f "
+                "raw=%.3f adjusted=%.3f severity=%s agreement=%s",
                 flow_id,
                 result["if_score"],
                 result["rf_confidence"],
                 result["ae_score"],
-                result["composite_score"],
+                result.get("raw_composite", composite_score),
+                composite_score,
                 severity,
+                result["model_agreement"],
             )
 
         # Publish scored flow to ml:scored channel

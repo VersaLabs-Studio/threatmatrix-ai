@@ -12,8 +12,17 @@ Composite:
   composite = W_IF × IF_score + W_RF × RF_confidence + W_AE × AE_score
   W_IF = 0.30, W_RF = 0.45, W_AE = 0.25
 
-  Attack-type multipliers applied post-composite:
-    dos → ×1.3, probe → ×1.15, r2l → ×1.2, u2r → ×1.4
+Classification-Driven Severity:
+  When RF identifies an attack type, severity is determined by a
+  combination of attack threat level, RF confidence, and model
+  agreement — not solely by the raw composite score. This accounts
+  for the domain gap between NSL-KDD training data and live VPS traffic.
+
+  Score floors enforce minimum adjusted scores per attack+agreement:
+    dos/u2r  + unanimous → ≥0.85 (CRITICAL)
+    dos/u2r  + majority  → ≥0.72 (HIGH)
+    probe/r2l + majority → ≥0.68 (HIGH)
+    etc.
 
 Alert severity from adjusted score:
   ≥ 0.80 → CRITICAL
@@ -34,10 +43,50 @@ from ml.training.hyperparams import ENSEMBLE_WEIGHTS, ALERT_THRESHOLDS
 
 logger = logging.getLogger(__name__)
 
+# Classification-driven score floors.
+# When RF identifies an attack type, the adjusted score cannot fall
+# below the floor for that attack+agreement combination. This ensures
+# severity diversity regardless of how narrow the raw composite range is.
+#
+# Floors are calibrated so that:
+#   - DDoS/U2R attacks with consensus → CRITICAL
+#   - DDoS/U2R with majority → HIGH
+#   - Probe/R2L with consensus → HIGH
+#   - Probe/R2L with majority → HIGH (lower end)
+#   - Single-model detection → MEDIUM
+ATTACK_SCORE_FLOORS: Dict[str, Dict[str, float]] = {
+    "dos": {
+        "unanimous": 0.88,
+        "majority":  0.72,
+        "single":    0.55,
+    },
+    "u2r": {
+        "unanimous": 0.92,
+        "majority":  0.78,
+        "single":    0.60,
+    },
+    "r2l": {
+        "unanimous": 0.80,
+        "majority":  0.68,
+        "single":    0.50,
+    },
+    "probe": {
+        "unanimous": 0.75,
+        "majority":  0.65,
+        "single":    0.48,
+    },
+}
+
+# Additional RF confidence boost thresholds
+RF_HIGH_CONFIDENCE_THRESHOLD = 0.75
+RF_HIGH_CONFIDENCE_BOOST = 0.08
+
 
 class EnsembleScorer:
     """
-    Combines scores from all three models into a composite anomaly score.
+    Combines scores from all three models into a composite anomaly score,
+    then applies classification-driven severity determination based on
+    RF attack type + model agreement.
     """
 
     def __init__(
@@ -62,7 +111,7 @@ class EnsembleScorer:
         ae_scores: np.ndarray,
     ) -> np.ndarray:
         """
-        Compute composite anomaly scores.
+        Compute raw composite anomaly scores.
 
         Args:
             if_scores: Isolation Forest anomaly scores [0, 1] (higher = more anomalous)
@@ -88,6 +137,11 @@ class EnsembleScorer:
         """
         Full classification: composite score + severity + label.
 
+        Uses a two-stage approach:
+        1. Compute raw composite score (weighted average of model scores)
+        2. Apply classification-driven severity escalation based on
+           RF attack label, RF confidence, and model agreement
+
         Args:
             if_scores: IF anomaly scores
             rf_predictions: RF prediction dicts (from predict_with_confidence)
@@ -103,33 +157,30 @@ class EnsembleScorer:
             for p in rf_predictions
         ])
 
-        composite = self.score(if_scores, rf_attack_conf, ae_scores)
-
-        # Attack-type-specific score multipliers.
-        # Models trained on NSL-KDD produce moderate scores on live traffic;
-        # these multipliers calibrate severity to match expected threat levels.
-        ATTACK_MULTIPLIERS = {
-            "dos": 1.3,        # DDoS → boost toward CRITICAL
-            "probe": 1.15,     # Port scan → boost toward HIGH
-            "r2l": 1.2,        # Brute force → boost toward HIGH
-            "u2r": 1.4,        # Privilege escalation → boost toward CRITICAL
-        }
+        raw_composite = self.score(if_scores, rf_attack_conf, ae_scores)
 
         results = []
-        for i in range(len(composite)):
+        for i in range(len(raw_composite)):
             rf_pred = rf_predictions[i]
-            score = float(composite[i])
+            base_score = float(raw_composite[i])
 
-            # Apply attack-type multiplier if RF identifies an attack
-            if rf_pred["is_anomaly"]:
-                label = rf_pred["label"]
-                multiplier = ATTACK_MULTIPLIERS.get(label, 1.0)
-                score = min(score * multiplier, 1.0)
+            # Compute model agreement
+            agreement = self._agreement(
+                if_scores[i] > 0.5,
+                rf_pred["is_anomaly"],
+                ae_scores[i] > 0.5,
+            )
 
-            severity = self._severity(score)
+            # Classification-driven severity escalation
+            adjusted_score = self._escalate_score(
+                base_score, rf_pred, agreement
+            )
+
+            severity = self._severity(adjusted_score)
 
             results.append({
-                "composite_score": score,
+                "composite_score": adjusted_score,
+                "raw_composite": base_score,
                 "severity": severity,
                 "is_anomaly": severity != "none",
                 "label": rf_pred["label"] if rf_pred["is_anomaly"] else "normal",
@@ -137,14 +188,54 @@ class EnsembleScorer:
                 "rf_confidence": rf_pred["confidence"],
                 "if_score": float(if_scores[i]),
                 "ae_score": float(ae_scores[i]),
-                "model_agreement": self._agreement(
-                    if_scores[i] > 0.5,
-                    rf_pred["is_anomaly"],
-                    ae_scores[i] > 0.5,
-                ),
+                "model_agreement": agreement,
             })
 
         return results
+
+    def _escalate_score(
+        self,
+        base_score: float,
+        rf_pred: Dict[str, Any],
+        agreement: str,
+    ) -> float:
+        """
+        Apply classification-driven score escalation.
+
+        When RF identifies a specific attack type, enforces a minimum
+        score floor based on the attack's threat level and how many
+        models agree. This ensures severity diversity even when the raw
+        composite is narrow due to model-training data domain gaps.
+
+        Args:
+            base_score: Raw composite score from weighted average
+            rf_pred: RF prediction dict with label, confidence, is_anomaly
+            agreement: Model agreement level (unanimous/majority/single/none)
+
+        Returns:
+            Adjusted score (>= base_score when escalated).
+        """
+        if not rf_pred["is_anomaly"]:
+            return base_score
+
+        label = rf_pred["label"]
+        rf_conf = rf_pred["confidence"]
+
+        # Look up score floor for this attack type + agreement level
+        floors = ATTACK_SCORE_FLOORS.get(label)
+        if floors is None:
+            return base_score
+
+        floor = floors.get(agreement, 0.0)
+
+        # Enforce floor: adjusted score cannot be below the floor
+        adjusted = max(base_score, floor)
+
+        # Additional boost for high RF confidence
+        if rf_conf >= RF_HIGH_CONFIDENCE_THRESHOLD:
+            adjusted = min(adjusted + RF_HIGH_CONFIDENCE_BOOST, 1.0)
+
+        return adjusted
 
     def _severity(self, score: float) -> str:
         """Map composite score to alert severity."""
