@@ -190,22 +190,67 @@ class MLWorker:
         composite_score = result["composite_score"]
         is_anomaly = result["is_anomaly"]
         severity = result["severity"]
+        label = result.get("label", "unknown")
+        agreement = result.get("model_agreement", "none")
+        rf_conf = result.get("rf_confidence", 0.0)
+
+        # ── SEVERITY ESCALATION (directly in worker for reliability) ──
+        # Score floors by attack type + model agreement.
+        # This ensures diverse severity regardless of ensemble output.
+        _FLOORS = {
+            "dos":   {"unanimous": 0.88, "majority": 0.72, "single": 0.55},
+            "u2r":   {"unanimous": 0.92, "majority": 0.78, "single": 0.60},
+            "r2l":   {"unanimous": 0.80, "majority": 0.68, "single": 0.50},
+            "probe": {"unanimous": 0.75, "majority": 0.65, "single": 0.48},
+        }
+        _SEV_THRESHOLDS = {"critical": 0.80, "high": 0.65, "medium": 0.45, "low": 0.30}
+
+        original_score = composite_score
+        original_severity = severity
+
+        if is_anomaly and label in _FLOORS:
+            floor_map = _FLOORS[label]
+            floor = floor_map.get(agreement, 0.0)
+            composite_score = max(composite_score, floor)
+
+            # RF confidence boost
+            if rf_conf >= 0.75:
+                composite_score = min(composite_score + 0.08, 1.0)
+
+            # Recompute severity from escalated score
+            if composite_score >= _SEV_THRESHOLDS["critical"]:
+                severity = "critical"
+            elif composite_score >= _SEV_THRESHOLDS["high"]:
+                severity = "high"
+            elif composite_score >= _SEV_THRESHOLDS["medium"]:
+                severity = "medium"
+            elif composite_score >= _SEV_THRESHOLDS["low"]:
+                severity = "low"
+            else:
+                severity = "none"
+
+            # Update result dict so downstream (alerts, websocket) uses new values
+            result["composite_score"] = composite_score
+            result["severity"] = severity
+            is_anomaly = severity != "none"
+            result["is_anomaly"] = is_anomaly
 
         self.stats["flows_scored"] += 1
 
-        # Log per-model scores for anomalous flows
+        # Log per-model scores for anomalous flows (with escalation visibility)
         if is_anomaly:
             logger.info(
-                "[Worker] Flow %s scores: IF=%.3f RF_conf=%.3f AE=%.3f "
-                "raw=%.3f adjusted=%.3f severity=%s agreement=%s",
+                "[Worker] Flow %s | IF=%.3f RF=%.2f AE=%.3f | "
+                "raw=%.3f floor=%.3f | %s->%s | agree=%s",
                 flow_id,
-                result["if_score"],
-                result["rf_confidence"],
-                result["ae_score"],
-                result.get("raw_composite", composite_score),
+                result.get("if_score", 0),
+                rf_conf,
+                result.get("ae_score", 0),
+                original_score,
                 composite_score,
-                severity,
-                result["model_agreement"],
+                original_severity.upper(),
+                severity.upper(),
+                agreement,
             )
 
         # Publish scored flow to ml:scored channel
