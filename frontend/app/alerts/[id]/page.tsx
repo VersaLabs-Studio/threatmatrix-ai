@@ -112,7 +112,7 @@ export default function AlertDetailPage() {
     setAlert(prev => prev ? { ...prev, ai_narrative: '[AI Analyst is generating report...]' } : null);
     
     try {
-      const { data, error: err } = await api.post(`/api/v1/llm/analyze-alert/${alert.alert_id}`, {});
+      const { data, error: err } = await api.post<{ narrative?: string }>(`/api/v1/llm/analyze-alert/${alert.alert_id}`, {});
       if (data && data.narrative) {
         setAlert(prev => prev ? { ...prev, ai_narrative: data.narrative } : null);
       } else if (err) {

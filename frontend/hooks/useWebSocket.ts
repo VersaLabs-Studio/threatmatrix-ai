@@ -122,7 +122,7 @@ export function useWebSocket(): UseWebSocketReturn {
           checkConnection();
         });
       } else if (channel === WS_CHANNELS.METRICS) {
-        unsubFn = wsClient.subscribe(WS_CHANNELS.METRICS, (d) => setLastMetricEvent((d as any).data as MLMetricEvent));
+        unsubFn = wsClient.subscribe(WS_CHANNELS.METRICS, (d) => setLastMetricEvent((d as any).data.payload as MLMetricEvent));
       }
 
       // Store the unsubscribe function
@@ -179,7 +179,7 @@ export function useWebSocket(): UseWebSocketReturn {
       setLastAnomalyEvent(anomaly);
     });
     const unsubMetrics = wsClient.subscribe(WS_CHANNELS.METRICS, (d: any) => {
-      const metrics = d.data as MLMetricEvent;
+      const metrics = d.data.payload as MLMetricEvent;
       console.log('[WS] ML Metrics received:', metrics);
       setLastMetricEvent(metrics);
     });

@@ -93,58 +93,59 @@ export function LiveAlertFeed({ lastAlertEvent, lastAnomalyEvent }: LiveAlertFee
     }
   }, []);
 
-  // Initial fetch + less frequent polling to avoid conflicts with WebSocket
+  // Initial fetch + polling for live updates
   useEffect(() => {
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, 30000); // Poll every 30 seconds
+    const interval = setInterval(fetchAlerts, 10000); // Poll every 10 seconds
     return () => clearInterval(interval);
   }, [fetchAlerts]);
 
-  // Ingest new WebSocket alert events (if WebSocket connects)
-  useEffect(() => {
-    if (!lastAlertEvent) return;
-    const newItem: AlertFeedItem = {
-      id:        lastAlertEvent.id,
-      severity:  lastAlertEvent.severity,
-      category:  lastAlertEvent.category,
-      src_ip:    lastAlertEvent.src_ip,
-      dst_ip:    lastAlertEvent.dst_ip,
-      timestamp: lastAlertEvent.timestamp,
-      composite_score: lastAlertEvent.composite_score,
-      isNew:     true,
-    };
-    setAlerts((prev) => [newItem, ...prev].slice(0, MAX_FEED_SIZE));
+  // Ingest new WebSocket alert events (disabled to avoid conflicts with API polling)
+  // useEffect(() => {
+  //   if (!lastAlertEvent) return;
+  //   const newItem: AlertFeedItem = {
+  //     id:        lastAlertEvent.id,
+  //     severity:  lastAlertEvent.severity,
+  //     category:  lastAlertEvent.category,
+  //     src_ip:    lastAlertEvent.src_ip,
+  //     dst_ip:    lastAlertEvent.dst_ip,
+  //     timestamp: lastAlertEvent.timestamp,
+  //     composite_score: lastAlertEvent.composite_score,
+  //     isNew:     true,
+  //   };
+  //   setAlerts((prev) => [newItem, ...prev].slice(0, MAX_FEED_SIZE));
 
-    // Remove isNew flag after animation
-    setTimeout(() => {
-      setAlerts((prev) => prev.map((a) => a.id === newItem.id ? { ...a, isNew: false } : a));
-    }, 1000);
-  }, [lastAlertEvent]);
+  //   // Remove isNew flag after animation
+  //   setTimeout(() => {
+  //     setAlerts((prev) => prev.map((a) => a.id === newItem.id ? { ...a, isNew: false } : a));
+  //   }, 1000);
+  // }, [lastAlertEvent]);
 
-  // Ingest new WebSocket anomaly events
-  useEffect(() => {
-    if (!lastAnomalyEvent) return;
-    const score = lastAnomalyEvent.composite_score ?? lastAnomalyEvent.anomaly_score ?? 0;
-    // Only show high-severity anomalies in feed to reduce noise
-    if (score < 0.75) return;
-    const severity: Severity = score >= 0.90 ? 'critical' : 'high';
-    const newItem: AlertFeedItem = {
-      id:        `anomaly-${lastAnomalyEvent.flow_id}-${Date.now()}`,
-      severity,
-      category:  `ML: ${lastAnomalyEvent.label || 'Anomaly'}`,
-      src_ip:    lastAnomalyEvent.src_ip,
-      dst_ip:    lastAnomalyEvent.dst_ip,
-      timestamp: lastAnomalyEvent.timestamp || new Date().toISOString(),
-      composite_score: score,
-      isNew:     true,
-    };
-    setAlerts((prev) => [newItem, ...prev].slice(0, MAX_FEED_SIZE));
+  // Ingest new WebSocket anomaly events (disabled to avoid conflicts with API polling)
+  // useEffect(() => {
+  //   if (!lastAnomalyEvent) return;
+  //   const score = lastAnomalyEvent.composite_score ?? lastAnomalyEvent.anomaly_score ?? 0;
 
-    // Remove isNew flag after animation
-    setTimeout(() => {
-      setAlerts((prev) => prev.map((a) => a.id === newItem.id ? { ...a, isNew: false } : a));
-    }, 1000);
-  }, [lastAnomalyEvent]);
+  //   const severity: Severity = score >= 0.90 ? 'critical' : score >= 0.75 ? 'high' : score >= 0.50 ? 'medium' : 'low';
+  //   // Only show notifications for CRITICAL and HIGH severity
+  //   if (severity !== 'critical' && severity !== 'high') return;
+  //   const newItem: AlertFeedItem = {
+  //     id:        `anomaly-${lastAnomalyEvent.flow_id}-${Date.now()}`,
+  //     severity,
+  //     category:  `ML: ${lastAnomalyEvent.label || 'Anomaly'}`,
+  //     src_ip:    lastAnomalyEvent.src_ip,
+  //     dst_ip:    lastAnomalyEvent.dst_ip,
+  //     timestamp: lastAnomalyEvent.timestamp || new Date().toISOString(),
+  //     composite_score: score,
+  //     isNew:     true,
+  //   };
+  //   setAlerts((prev) => [newItem, ...prev].slice(0, MAX_FEED_SIZE));
+
+  //   // Remove isNew flag after animation
+  //   setTimeout(() => {
+  //     setAlerts((prev) => prev.map((a) => a.id === newItem.id ? { ...a, isNew: false } : a));
+  //   }, 1000);
+  // }, [lastAnomalyEvent]);
 
   // Auto-scroll to top when new alert arrives
   useEffect(() => {

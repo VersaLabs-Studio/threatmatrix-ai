@@ -39,14 +39,15 @@ class TaskType(str, Enum):
 
 
 CASCADING_MODELS = [
-    "nvidia/nemotron-3-super-120b-a12b:free",
+    "openai/gpt-oss-120b:free",
+    "openrouter/free",
     "minimax/minimax-m2.5:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
     "arcee-ai/trinity-large-preview:free",
     "nvidia/nemotron-3-nano-30b-a3b:free",
-    "openai/gpt-oss-120b:free",
     "z-ai/glm-4.5-air:free",
     "nousresearch/hermes-3-llama-3.1-405b:free",
-    "openrouter/free",
+
 ]
 
 # Task → Model routing (preserves PART4 §9.1 logic)

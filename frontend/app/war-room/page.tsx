@@ -20,9 +20,9 @@ import { ProtocolChart }     from '@/components/war-room/ProtocolChart';
 import { TrafficTimeline }   from '@/components/war-room/TrafficTimeline';
 import { LiveAlertFeed }     from '@/components/war-room/LiveAlertFeed';
 import { TopTalkers }        from '@/components/war-room/TopTalkers';
-import { AIBriefingWidget }  from '@/components/war-room/AIBriefingWidget';
-import { LatencyWidget }     from '@/components/war-room/LatencyWidget';
-import { GeoDistribution }   from '@/components/war-room/GeoDistribution';
+const AIBriefingWidget = dynamic(() => import('@/components/war-room/AIBriefingWidget').then(m => m.AIBriefingWidget), { ssr: false });
+const LatencyWidget = dynamic(() => import('@/components/war-room/LatencyWidget').then(m => m.LatencyWidget), { ssr: false });
+const GeoDistribution = dynamic(() => import('@/components/war-room/GeoDistribution').then(m => m.GeoDistribution), { ssr: false });
 import { SystemStatusCard }  from '@/components/war-room/SystemStatusCard';
 import { ProtocolCard }      from '@/components/war-room/ProtocolCard';
 import { TrafficTimelineCard } from '@/components/war-room/TrafficTimelineCard';
@@ -66,7 +66,7 @@ export default function WarRoomPage() {
   const { lastAlertEvent, lastAnomalyEvent, isConnected: wsConnected } = useWebSocket();
   const { t } = useTranslation();
   const { stats, protocols, topTalkers, loading: flowsLoading } = useFlows({ time_range: '1h' });
-  const { alerts, total: alertTotal, loading: alertsLoading } = useAlerts({ limit: 100 });
+  const { alerts, total: alertTotal, loading: alertsLoading } = useAlerts({ limit: 20 });
   const { trainedCount, loading: mlLoading } = useMLModels();
 
   // Alert stats for accurate threat level computation

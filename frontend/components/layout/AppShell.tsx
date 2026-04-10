@@ -31,19 +31,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Create toasts from WebSocket alert events
   useEffect(() => {
     if (!lastAlertEvent) return;
-    const severity = (lastAlertEvent.severity || 'medium') as Severity;
+    const severity = ((lastAlertEvent.severity || 'medium') as string).toLowerCase() as Severity;
     const score = lastAlertEvent.composite_score ?? 0;
-    // Only process CRITICAL and HIGH severity alerts
-    if (severity !== 'critical' && severity !== 'high') return;
+    // Only process CRITICAL, HIGH, and MEDIUM severity alerts
+    if (severity !== 'critical' && severity !== 'high' && severity !== 'medium') return;
     const toast: Toast = {
-      id: `toast-alert-${Date.now()}`,
-      severity,
-      title: lastAlertEvent.category?.toUpperCase() || 'ALERT',
-      message: `${lastAlertEvent.src_ip || 'unknown'} → ${lastAlertEvent.dst_ip || 'unknown'} — Score: ${(score * 100).toFixed(0)}%`,
-      alertId: lastAlertEvent.id,
+      id:        lastAlertEvent.id,
+      severity:  lastAlertEvent.severity,
+      title:     lastAlertEvent.category?.toUpperCase() || 'ALERT',
+      message:   `${lastAlertEvent.src_ip || 'unknown'} → ${lastAlertEvent.dst_ip || 'unknown'} — Score: ${(score * 100).toFixed(0)}%`,
+      alertId:   lastAlertEvent.id,
       composite_score: score,
-      src_ip: lastAlertEvent.src_ip,
-      dst_ip: lastAlertEvent.dst_ip,
+      src_ip:    lastAlertEvent.src_ip,
+      dst_ip:    lastAlertEvent.dst_ip,
     };
     addToast(toast);
 
@@ -67,17 +67,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // Only show notifications for CRITICAL and HIGH severity
     if (severity !== 'critical' && severity !== 'high') return;
     const toast: Toast = {
-      id: `toast-anomaly-${Date.now()}`,
+      id:        `anomaly-${lastAnomalyEvent.flow_id}-${Date.now()}`,
       severity,
-      title: `ML ANOMALY: ${lastAnomalyEvent.label?.toUpperCase() || 'DETECTED'}`,
-      message: `${lastAnomalyEvent.src_ip || 'unknown'} → ${lastAnomalyEvent.dst_ip || 'unknown'} — Score: ${(score * 100).toFixed(0)}%`,
+      title:     `ML ANOMALY: ${lastAnomalyEvent.label?.toUpperCase() || 'DETECTED'}`,
+      message:   `${lastAnomalyEvent.src_ip || 'unknown'} → ${lastAnomalyEvent.dst_ip || 'unknown'} — Score: ${(score * 100).toFixed(0)}%`,
       composite_score: score,
-      if_score: lastAnomalyEvent.if_score,
-      ae_score: lastAnomalyEvent.ae_score,
-      rf_score: lastAnomalyEvent.rf_confidence,
+      if_score:  lastAnomalyEvent.if_score,
+      ae_score:  lastAnomalyEvent.ae_score,
+      rf_score:  lastAnomalyEvent.rf_confidence,
       model_agreement: lastAnomalyEvent.model_agreement,
-      src_ip: lastAnomalyEvent.src_ip,
-      dst_ip: lastAnomalyEvent.dst_ip,
+      src_ip:    lastAnomalyEvent.src_ip,
+      dst_ip:    lastAnomalyEvent.dst_ip,
     };
     addToast(toast);
 

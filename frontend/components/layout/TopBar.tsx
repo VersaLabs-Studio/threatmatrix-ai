@@ -7,7 +7,7 @@
 // ═══════════════════════════════════════════════════════
 
 import { useState, useEffect } from 'react';
-import { Bell, Globe, Menu } from 'lucide-react';
+import { Bell, Globe, Menu, X } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useTranslation } from '@/hooks/useTranslation';
 import { THREAT_LEVEL_COLORS, type ThreatLevel } from '@/lib/constants';
@@ -21,6 +21,7 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
   const { t, locale, toggleLocale } = useTranslation();
   const [alertBadge, setAlertBadge] = useState(0);
   const [currentTime, setCurrentTime] = useState('');
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const threatLevel: ThreatLevel = systemStatus?.threat_level ?? 'GUARDED';
 
@@ -40,6 +41,17 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
       setAlertBadge((n) => n + 1);
     }
   }, [lastAlertEvent]);
+
+  // Close popup on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showNotifications && !(event.target as Element).closest('.notification-popup')) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showNotifications]);
 
   return (
     <div 
@@ -183,41 +195,127 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
           </button>
 
           {/* Notification bell */}
-          <button
-            onClick={() => setAlertBadge(0)}
-            style={{
-              position: 'relative',
-              background: 'none',
-              border: 'none',
-              color: alertBadge > 0 ? 'var(--critical)' : 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: 6,
-              transition: 'var(--transition-fast)',
-            }}
-            className="nav-icon"
-            title={t('TopBar.notifications')}
-            aria-label="Notifications"
-          >
-            <Bell size={20} />
-            {alertBadge > 0 && (
-              <span
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => {
+                setShowNotifications(!showNotifications);
+                if (!showNotifications) setAlertBadge(0); // Reset badge when opening
+              }}
+              style={{
+                position: 'relative',
+                background: 'none',
+                border: 'none',
+                color: alertBadge > 0 ? 'var(--critical)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: 6,
+                transition: 'var(--transition-fast)',
+              }}
+              className="nav-icon"
+              title={t('TopBar.notifications')}
+              aria-label="Notifications"
+            >
+              <Bell size={20} />
+              {alertBadge > 0 && (
+                <span
+                  style={{
+                    position: 'absolute', top: 4, right: 4,
+                    background: 'var(--critical)',
+                    color: '#fff',
+                    borderRadius: '50%',
+                    width: 14, height: 14,
+                    fontSize: '0.6rem',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: 'var(--font-data)',
+                    fontWeight: 700,
+                    boxShadow: '0 0 8px var(--critical)',
+                  }}
+                >
+                  {alertBadge > 9 ? '9+' : alertBadge}
+                </span>
+              )}
+            </button>
+
+            {/* Notifications Popup */}
+            {showNotifications && (
+              <div
+                className="notification-popup"
                 style={{
-                  position: 'absolute', top: 4, right: 4,
-                  background: 'var(--critical)',
-                  color: '#fff',
-                  borderRadius: '50%',
-                  width: 14, height: 14,
-                  fontSize: '0.6rem',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: 'var(--font-data)',
-                  fontWeight: 700,
-                  boxShadow: '0 0 8px var(--critical)',
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  width: 320,
+                  maxHeight: 400,
+                  background: 'rgba(17, 17, 24, 0.97)',
+                  backdropFilter: 'blur(16px)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-lg)',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+                  zIndex: 1000,
+                  overflow: 'hidden',
                 }}
               >
-                {alertBadge > 9 ? '9+' : alertBadge}
-              </span>
+                <div
+                  style={{
+                    padding: '12px 16px',
+                    borderBottom: '1px solid var(--border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-data)',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    Recent Alerts
+                  </span>
+                  <button
+                    onClick={() => setShowNotifications(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: 4,
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div style={{ padding: '8px 0', maxHeight: 320, overflowY: 'auto' }}>
+                  {alertBadge === 0 ? (
+                    <div
+                      style={{
+                        padding: '16px',
+                        textAlign: 'center',
+                        color: 'var(--text-muted)',
+                        fontSize: '0.8rem',
+                      }}
+                    >
+                      No new notifications
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        padding: '16px',
+                        textAlign: 'center',
+                        color: 'var(--text-muted)',
+                        fontSize: '0.8rem',
+                      }}
+                    >
+                      Notifications cleared
+                    </div>
+                  )}
+                  {/* Could add recent alerts list here if we store them */}
+                </div>
+              </div>
             )}
-          </button>
+          </div>
 
           {/* User avatar */}
           <div
