@@ -32,6 +32,34 @@ body {
   scroll-behavior: smooth;
 }
 
+/* ── About Scroll Root — zero-width scrollbar ─────────── */
+/* CSS display:none is not enough in some Chromium builds.  */
+/* We must zero out width on the track, thumb, AND button   */
+/* pseudo-elements so the browser allocates 0px of space.   */
+.about-scroll-root {
+  -ms-overflow-style: none;   /* IE / old Edge                */
+  scrollbar-width: none;      /* Firefox                      */
+}
+.about-scroll-root::-webkit-scrollbar {
+  width: 0 !important;         /* Chrome / Safari / Comet      */
+  height: 0 !important;
+  background: transparent;
+}
+.about-scroll-root::-webkit-scrollbar-track {
+  width: 0 !important;
+  background: transparent;
+}
+.about-scroll-root::-webkit-scrollbar-thumb {
+  width: 0 !important;
+  background: transparent;
+}
+.about-scroll-root::-webkit-scrollbar-button {
+  width: 0 !important;
+  height: 0 !important;
+  display: none;
+}
+
+
 /* ── Sentinel Overlay (scanlines, vignette, grain) ───── */
 .sentinel-overlay {
   position: absolute;
@@ -129,6 +157,49 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ── Canvas Scrub Section ────────────────────────────── */
+.canvas-scrub-section {
+  position: relative;
+  background: #000;
+}
+
+/* Canvas preloader — prevents white flash */
+.canvas-preloader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  z-index: 100;
+}
+
+.canvas-preloader__bar {
+  width: 200px;
+  height: 2px;
+  background: rgba(0, 255, 255, 0.1);
+  border-radius: 1px;
+  overflow: hidden;
+  position: relative;
+}
+
+.canvas-preloader__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--about-cyan), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+  transition: width 0.3s ease;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 /* ── Ken Burns Animation ─────────────────────────────── */
@@ -255,18 +326,17 @@ body {
   }
 }
 
-/* ── Scroll Progress Nav ─────────────────────────────── */
+/* ── Scroll Progress Nav — hairline track ─────────────── */
 .scroll-progress-nav {
+  /* Width is controlled by its 2px track segments — ~28px total */
   position: fixed;
-  right: 2rem;
+  right: 1.25rem;
   top: 50%;
   transform: translateY(-50%);
   z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  align-items: flex-end;
+  pointer-events: auto;
 }
+
 
 /* ── Responsive Adjustments ──────────────────────────── */
 @media (max-width: 768px) {
@@ -366,4 +436,10 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 255, 255, 0.5);
+}
+
+/* ── Tech Stack Orbit Animation ──────────────────────── */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }

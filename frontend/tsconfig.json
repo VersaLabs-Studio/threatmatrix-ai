@@ -20,8 +20,8 @@
     ],
     "paths": {
       "@/*": ["./*"],
-      "@about-experience": ["../../packages/about-experience/index.ts"],
-      "@about-experience/*": ["../../packages/about-experience/*"]
+      "@about-experience": ["../packages/about-experience/index.ts"],
+      "@about-experience/*": ["../packages/about-experience/*"]
     }
   },
   "include": [
