@@ -46,9 +46,41 @@ export default function ForensicsLabPage() {
     if (data) setCaptureStatus(data);
   }, []);
 
+  // Fetch PCAP upload history
+  const fetchUploads = useCallback(async () => {
+    const { data } = await api.get<any[]>('/api/v1/capture/uploads');
+    if (data && Array.isArray(data)) {
+      const formatted: PCAPUpload[] = data.map(u => ({
+        id: u.id,
+        filename: u.filename,
+        size: formatFileSize(Number(u.size)),
+        status: u.status,
+        packets: u.packets,
+        flows: u.flows,
+        anomalies: u.anomalies,
+        uploaded: new Date(u.uploaded).toLocaleString(),
+        error: u.error
+      }));
+      setUploads(formatted);
+    }
+  }, []);
+
   useEffect(() => {
     void fetchCaptureStatus();
-  }, [fetchCaptureStatus]);
+    void fetchUploads();
+  }, [fetchCaptureStatus, fetchUploads]);
+
+  // Polling for processing uploads
+  useEffect(() => {
+    const hasProcessing = uploads.some(u => u.status === 'processing' || u.status === 'uploading');
+    if (!hasProcessing) return;
+
+    const interval = setInterval(() => {
+      void fetchUploads();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [uploads, fetchUploads]);
 
   // Upload handler
   const handleUpload = useCallback(async (file: File) => {
@@ -87,20 +119,8 @@ export default function ForensicsLabPage() {
       );
       setError(err);
     } else if (data) {
-      setUploads((prev) =>
-        prev.map((u) =>
-          u.id === uploadId
-            ? {
-                ...u,
-                id: data.id || uploadId,
-                status: 'complete',
-                packets: data.packets_processed ?? null,
-                flows: data.flows_extracted ?? null,
-                anomalies: data.anomalies_found ?? null,
-              }
-            : u
-        )
-      );
+      // Refresh to get the actual status from DB
+      await fetchUploads();
     }
 
     setUploading(false);

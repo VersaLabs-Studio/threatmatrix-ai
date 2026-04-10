@@ -18,39 +18,45 @@ interface Report {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  daily: 'Daily Summary',
+  daily_summary: 'Daily Summary',
   incident: 'Incident Report',
   executive: 'Executive Briefing',
   ml_performance: 'ML Performance',
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  daily: 'var(--cyan)',
+  daily_summary: 'var(--cyan)',
   incident: 'var(--critical)',
   executive: 'var(--info)',
   ml_performance: 'var(--safe)',
 };
 
 const REPORT_TYPES = [
-  { key: 'daily', label: 'Daily Summary', description: '24h alerts, top threats, anomaly trends' },
+  { key: 'daily_summary', label: 'Daily Summary', description: '24h alerts, top threats, anomaly trends' },
   { key: 'incident', label: 'Incident Report', description: 'Alert details, timeline, affected IPs' },
   { key: 'executive', label: 'Executive Briefing', description: 'High-level threat posture, risk score' },
   { key: 'ml_performance', label: 'ML Performance', description: 'Model comparison, accuracy trends' },
 ];
+
+interface ReportsListResponse {
+  reports: Report[];
+  total: number;
+}
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [alertId, setAlertId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
   // Fetch reports on mount
   const fetchReports = useCallback(async () => {
     setLoading(true);
-    const { data, error: err } = await api.get<Report[]>('/api/v1/reports/');
-    if (data && Array.isArray(data)) {
-      setReports(data);
+    const { data, error: err } = await api.get<ReportsListResponse>('/api/v1/reports/');
+    if (data && data.reports) {
+      setReports(data.reports);
     } else if (err && !err.includes('404')) {
       setError(err);
     }
@@ -64,6 +70,11 @@ export default function ReportsPage() {
   // Generate a new report
   const handleGenerate = useCallback(
     async (reportType: string) => {
+      if (reportType === 'incident' && !alertId) {
+        setError('Alert ID is required for incident reports');
+        return;
+      }
+
       setGenerating(true);
       setSelectedType(reportType);
       setError(null);
@@ -76,19 +87,21 @@ export default function ReportsPage() {
       }>('/api/v1/reports/generate', {
         report_type: reportType,
         format: 'pdf',
+        alert_id: reportType === 'incident' ? alertId : undefined,
       });
 
       if (err) {
         setError(err);
       } else if (data) {
         // Refresh report list after generation
+        setAlertId('');
         await fetchReports();
       }
 
       setGenerating(false);
       setSelectedType(null);
     },
-    [fetchReports]
+    [fetchReports, alertId]
   );
 
   // Download a report
@@ -187,6 +200,29 @@ export default function ReportsPage() {
             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
               {type.description}
             </span>
+
+            {type.key === 'incident' && (
+              <input
+                type="text"
+                placeholder="Enter Alert ID..."
+                value={alertId}
+                onChange={(e) => setAlertId(e.target.value)}
+                style={{
+                  marginTop: 'var(--space-3)',
+                  width: '100%',
+                  padding: '6px 10px',
+                  background: 'rgba(0,0,0,0.2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-primary)',
+                  fontSize: 'var(--text-xs)',
+                  fontFamily: 'var(--font-data)',
+                  outline: 'none',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
+
             <button
               onClick={() => void handleGenerate(type.key)}
               disabled={generating}
@@ -254,62 +290,77 @@ export default function ReportsPage() {
               <div
                 key={report.id}
                 style={{
-                  display: 'flex',
+                  display: 'grid',
+                  gridTemplateColumns: 'min-content 1fr 180px 100px',
                   alignItems: 'center',
                   gap: 'var(--space-4)',
-                  padding: 'var(--space-3)',
-                  background: 'var(--bg-secondary)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'rgba(255,255,255,0.02)',
                   borderRadius: 'var(--radius-md)',
                   border: '1px solid var(--border)',
+                  transition: 'background 0.2s',
                 }}
               >
-                <FileText size={20} style={{ color: TYPE_COLORS[report.report_type] || 'var(--cyan)' }} />
-                <div style={{ flex: 1 }}>
-                  <p style={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: 2 }}>
+                <div style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 'var(--radius-sm)',
+                  background: `${TYPE_COLORS[report.report_type] || 'var(--cyan)'}20`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: TYPE_COLORS[report.report_type] || 'var(--cyan)'
+                }}>
+                  <FileText size={18} />
+                </div>
+
+                <div style={{ overflow: 'hidden' }}>
+                  <p style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.85rem', marginBottom: 2, whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                     {report.title || `${TYPE_LABELS[report.report_type] || report.report_type} Report`}
                   </p>
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: 'var(--space-3)',
-                      fontSize: 'var(--text-xs)',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Clock size={12} /> {new Date(report.created_at).toLocaleString()}
-                    </span>
-                    {report.file_size && <span>{formatFileSize(report.file_size)}</span>}
-                    <span style={{ color: TYPE_COLORS[report.report_type] || 'var(--cyan)' }}>
-                      {TYPE_LABELS[report.report_type] || report.report_type}
-                    </span>
+                  <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    ID: {report.id.slice(0, 8)}...
+                  </p>
+                </div>
+
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <Calendar size={12} style={{ color: 'var(--text-muted)' }} />
+                    {new Date(report.generated_at).toLocaleDateString()}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Clock size={12} style={{ color: 'var(--text-muted)' }} />
+                    {new Date(report.generated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
-                {report.status === 'complete' || report.file_path ? (
+
+                <div style={{ textAlign: 'right' }}>
                   <button
                     onClick={() => void handleDownload(report.id, report.title || 'report')}
+                    disabled={report.status !== 'complete'}
+                    className="btn-aether"
                     style={{
+                      padding: '4px 12px',
+                      fontSize: '0.7rem',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 4,
-                      padding: '6px 12px',
-                      borderRadius: 'var(--radius-sm)',
-                      border: '1px solid var(--border)',
-                      background: 'transparent',
-                      color: 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      fontSize: 'var(--text-sm)',
-                      transition: 'all 0.2s',
+                      width: '100%',
+                      justifyContent: 'center',
+                      opacity: report.status === 'complete' ? 1 : 0.5
                     }}
                   >
-                    <Download size={14} /> PDF
+                    {report.status === 'complete' ? (
+                      <>
+                        <Download size={14} /> PDF
+                      </>
+                    ) : (
+                      <>
+                        <Loader2 size={12} className="animate-spin" />
+                      </>
+                    )}
                   </button>
-                ) : (
-                  <span style={{ color: 'var(--warning)', fontSize: 'var(--text-sm)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                    Generating...
-                  </span>
-                )}
+                </div>
               </div>
             ))}
           </div>

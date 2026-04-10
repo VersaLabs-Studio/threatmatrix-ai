@@ -130,8 +130,10 @@ class PcapProcessor:
             self.stats["anomalies_found"] = len(anomalies)
 
             logger.info(
-                "[PCAP] ML detected %d anomalies, heuristics detected %d, total %d",
-                len(ml_anomalies), len(heuristic_anomalies), len(anomalies),
+                "[PCAP] Stats updated: packets=%d, flows=%d, anomalies=%d",
+                self.stats["packets_read"],
+                self.stats["flows_extracted"],
+                self.stats["anomalies_found"],
             )
 
             # 7. Persist to database
@@ -142,12 +144,6 @@ class PcapProcessor:
             if anomalies:
                 await self._publish_alerts(anomalies)
 
-            logger.info(
-                "[PCAP] Complete: %d packets, %d flows, %d anomalies",
-                self.stats["packets_read"],
-                self.stats["flows_extracted"],
-                self.stats["anomalies_found"],
-            )
             return self.stats
 
         except Exception as e:
@@ -741,68 +737,6 @@ class PcapProcessor:
             logger.info(
                 "[PCAP] Heuristic: DNS tunneling (%d sources, score=%.2f)",
                 len(dns_sources), score,
-            )
-
-        # Detect DDoS: 8+ different sources hitting same TCP target (exclude DNS/UDP)
-        for target, sources in dst_source_map.items():
-            if len(sources) >= 8 and ":53" not in target:
-                for f in flows:
-                    flow_target = f"{f.get('dst_ip')}:{f.get('dst_port')}"
-                    if flow_target == target and not f.get("is_anomaly"):
-                        f["label"] = "dos"
-                        f["category"] = "ddos"
-                        anomalies.append(f)
-                logger.info(
-                    "[PCAP] Heuristic: DDoS against %s (%d sources)",
-                    target, len(sources),
-                )
-
-        # Detect brute force: 10+ SSH/FTP attempts from same source
-        for src_ip, count in src_ssh_count.items():
-            if count >= 10:
-                for f in flows:
-                    if (f.get("src_ip") == src_ip and
-                        f.get("service") in ("ssh", "ftp", "telnet") and
-                        not f.get("is_anomaly")):
-                        f["label"] = "r2l"
-                        f["category"] = "brute_force"
-                        anomalies.append(f)
-                logger.info(
-                    "[PCAP] Heuristic: brute force from %s (%d attempts)",
-                    src_ip, count,
-                )
-
-        # Detect SYN flood: 30+ S0 flagged flows from same source
-        for src_ip, count in s0_count_by_src.items():
-            if count >= 30:
-                for f in flows:
-                    if (f.get("src_ip") == src_ip and
-                        f.get("flag") == "S0" and
-                        not f.get("is_anomaly")):
-                        f["label"] = "dos"
-                        f["category"] = "syn_flood"
-                        anomalies.append(f)
-                logger.info(
-                    "[PCAP] Heuristic: SYN flood from %s (%d S0 flows)",
-                    src_ip, count,
-                )
-
-        # Detect DNS tunneling: 8+ sources hitting port 53 with high entropy
-        dns_sources = set()
-        for f in flows:
-            if f.get("dst_port") == 53 and f.get("protocol_type") == "udp":
-                dns_sources.add(f.get("src_ip", ""))
-        if len(dns_sources) >= 8:
-            for f in flows:
-                if (f.get("dst_port") == 53 and
-                    f.get("protocol_type") == "udp" and
-                    not f.get("is_anomaly")):
-                    f["label"] = "probe"
-                    f["category"] = "dns_tunnel"
-                    anomalies.append(f)
-            logger.info(
-                "[PCAP] Heuristic: DNS tunneling (%d sources querying port 53)",
-                len(dns_sources),
             )
 
         # Deduplicate (a flow might match multiple heuristics)

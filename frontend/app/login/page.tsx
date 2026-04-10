@@ -10,6 +10,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // ═══════════════════════════════════════════════════════
 // Components & Sub-elements
@@ -92,6 +93,7 @@ const TelemetryPanel = ({ side }: { side: 'left' | 'right' }) => {
 // ═══════════════════════════════════════════════════════
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   
   // Form state
@@ -218,7 +220,7 @@ export default function LoginPage() {
                 color: 'rgba(255,255,255,0.4)',
                 marginTop: '10px',
                 textTransform: 'uppercase'
-              }}>Tactical Defense Command</div>
+              }}>{t('Login.tacticalDefenseCommand')}</div>
             </motion.div>
             
             <div style={{ 
@@ -233,7 +235,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: '25px' }}>
               <label style={{ fontSize: '10px', letterSpacing: '2px', color: 'rgba(255,106,0,0.6)', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
-                Operator ID
+                {t('Login.operatorId')}
               </label>
               <input
                 type="text"
@@ -255,7 +257,7 @@ export default function LoginPage() {
 
             <div style={{ marginBottom: '35px' }}>
               <label style={{ fontSize: '10px', letterSpacing: '2px', color: 'rgba(255,106,0,0.6)', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
-                Secure Access Code
+                {t('Login.secureAccessCode')}
               </label>
               <input
                 type="password"

@@ -15,6 +15,7 @@ import { AuthGuard } from '@/components/auth/AuthGuard';
 import { useLLM, type ChatMessage } from '@/hooks/useLLM';
 import { useChatHistory } from '@/hooks/useChatHistory';
 import { ChatHistorySidebar } from '@/components/ai-analyst/ChatHistorySidebar';
+import { useTranslation } from '@/hooks/useTranslation';
 import { api } from '@/lib/api';
 
 // Helper: Create markdown table components with proper row tracking
@@ -228,6 +229,7 @@ const mdComponents: Components = {
 };
 
 function AIAnalystContent() {
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const alertId = searchParams.get('alert_id') || searchParams.get('alert');
   const { messages, isStreaming, error, tokenUsage, sendMessage, clearMessages, loadMessages, resetUsage } = useLLM();
@@ -423,7 +425,7 @@ function AIAnalystContent() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
                   <Coins size={10} style={{ color: 'hsl(195 85% 58%)' }} />
-                  <span style={{ color: 'hsl(195 85% 58%)', fontWeight: 600 }}>TOKEN USAGE</span>
+                  <span style={{ color: 'hsl(195 85% 58%)', fontWeight: 600 }}>{t('AiAnalyst.tokenUsage')}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                   <span>In: <b style={{ color: '#f8fafc' }}>{tokenUsage.tokensIn.toLocaleString()}</b></span>
@@ -463,7 +465,7 @@ function AIAnalystContent() {
                 }}
               >
                 <History size={12} />
-                New
+                {t('Common.new')}
               </button>
             </div>
           </div>
@@ -475,7 +477,7 @@ function AIAnalystContent() {
                 <div className="ai-empty">
                   <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>🤖</div>
                   <div>
-                    THREATMATRIX AI ANALYST<br />
+                    {t('AiAnalyst.threatmatrixAiAnalyst')}<br />
                     <span style={{ color: 'hsla(195 85% 58% / 0.15)', fontWeight: 600 }}>Awaiting instructions...</span>
                   </div>
                 </div>
@@ -599,7 +601,7 @@ function AIAnalystContent() {
                     handleSend();
                   }
                 }}
-                placeholder="Enter query... (Shift+Enter for newline)"
+                placeholder={t('AiAnalyst.enterQuery')}
                 rows={2}
                 className="ai-textarea"
               />

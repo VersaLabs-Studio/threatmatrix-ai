@@ -414,37 +414,73 @@ def generate_pdf_report(
         )
     )
 
-    # Executive Summary
-    elements.append(Paragraph("Executive Summary", styles["heading"]))
-    alert_stats = report_data.get("alert_stats", [])
-    total_alerts = sum(s.get("count", 0) for s in alert_stats)
-    critical = next(
-        (s["count"] for s in alert_stats if s.get("severity") == "critical"), 0
-    )
-    high = next(
-        (s["count"] for s in alert_stats if s.get("severity") == "high"), 0
-    )
-
-    threat_level = "NORMAL"
-    if critical > 0:
-        threat_level = "CRITICAL"
-    elif high > 5:
-        threat_level = "HIGH"
-    elif total_alerts > 10:
-        threat_level = "ELEVATED"
-
-    elements.append(
-        Paragraph(
-            f"Current threat level: <b>{threat_level}</b>. "
-            f"Total alerts in period: <b>{total_alerts}</b>. "
-            f"Critical: <b>{critical}</b>, High: <b>{high}</b>.",
-            styles["body"],
+    # Executive Summary (Skip or adapt for incident)
+    if report_type != "incident":
+        elements.append(Paragraph("Executive Summary", styles["heading"]))
+        alert_stats = report_data.get("alert_stats", [])
+        total_alerts = sum(s.get("count", 0) for s in alert_stats)
+        critical = next(
+            (s["count"] for s in alert_stats if s.get("severity") == "critical"), 0
         )
-    )
-    elements.append(Spacer(1, 8))
+        high = next(
+            (s["count"] for s in alert_stats if s.get("severity") == "high"), 0
+        )
 
-    # Alert Summary Table
-    elements.extend(_build_alert_table(alert_stats, styles))
+        threat_level = "NORMAL"
+        if critical > 0:
+            threat_level = "CRITICAL"
+        elif high > 5:
+            threat_level = "HIGH"
+        elif total_alerts > 10:
+            threat_level = "ELEVATED"
+
+        elements.append(
+            Paragraph(
+                f"Current threat level: <b>{threat_level}</b>. "
+                f"Total alerts in period: <b>{total_alerts}</b>. "
+                f"Critical: <b>{critical}</b>, High: <b>{high}</b>.",
+                styles["body"],
+            )
+        )
+        elements.append(Spacer(1, 8))
+
+        # Alert Summary Table
+        elements.extend(_build_alert_table(alert_stats, styles))
+    else:
+        # Incident Specific Layout
+        elements.append(Paragraph("Incident Details", styles["heading"]))
+        alert = report_data.get("alert", {})
+        if alert:
+            incident_data = [
+                ["Alert ID", alert.get("alert_id", "Unknown")],
+                ["Severity", alert.get("severity", "Info").upper()],
+                ["Category", alert.get("category", "General")],
+                ["Title", alert.get("title", "No Title")],
+                ["Source IP", alert.get("source_ip", "N/A")],
+                ["Dest IP", alert.get("dest_ip", "N/A")],
+                ["Status", alert.get("status", "Open")],
+                ["Created At", alert.get("created_at", "N/A")],
+            ]
+            table = Table(incident_data, colWidths=[1.5 * inch, 4.5 * inch])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (0,-1), BRAND_LIGHT_BG),
+                ('TEXTCOLOR', (0,0), (0,-1), BRAND_PRIMARY),
+                ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                ('PADDING', (0,0), (-1,-1), 8),
+            ]))
+            elements.append(table)
+            elements.append(Spacer(1, 12))
+
+            if alert.get("description"):
+                elements.append(Paragraph("Description", styles["heading"]))
+                elements.append(Paragraph(alert["description"], styles["body"]))
+            
+            if alert.get("ai_narrative"):
+                elements.append(Paragraph("AI Analyst Narrative", styles["heading"]))
+                elements.append(Paragraph(alert["ai_narrative"], styles["body"]))
+        else:
+            elements.append(Paragraph("No alert data found for this incident.", styles["body"]))
 
     # Flow Statistics
     flow_stats = report_data.get("flow_stats", {})

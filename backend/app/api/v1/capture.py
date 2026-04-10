@@ -247,6 +247,47 @@ async def upload_pcap(
     }
 
 
+@router.get("/uploads")
+async def list_pcap_uploads(
+    user: User = Depends(get_current_user),
+    limit: int = 20,
+):
+    """List recent PCAP uploads and their processing status."""
+    from app.database import engine
+    from sqlalchemy import text
+
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(
+                text("""
+                    SELECT id, filename, file_size, status, packets_count, 
+                           flows_extracted, anomalies_found, created_at, error_message
+                    FROM pcap_uploads
+                    ORDER BY created_at DESC
+                    LIMIT :limit
+                """),
+                {"limit": limit}
+            )
+            
+            uploads = []
+            for row in result:
+                uploads.append({
+                    "id": str(row[0]),
+                    "filename": row[1],
+                    "size": row[2],
+                    "status": row[3],
+                    "packets": row[4],
+                    "flows": row[5],
+                    "anomalies": row[6],
+                    "uploaded": row[7].isoformat() if row[7] else None,
+                    "error": row[8]
+                })
+            return uploads
+    except Exception as e:
+        logger.error("[Capture API] Failed to list PCAP uploads: %s", e)
+        return []
+
+
 async def _process_pcap(task_id: str, tmp_path: str, filename: str, file_size: int = 0, user_id: str | None = None) -> None:
     """
     Background task to process uploaded PCAP file.

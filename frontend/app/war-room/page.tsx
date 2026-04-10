@@ -44,7 +44,7 @@ const ThreatMap = dynamic(
         fontSize: '0.75rem', color: '#00f0ff',
         letterSpacing: '0.1em',
       }}>
-        LOADING THREAT MAP…
+        {t('Shared.loadingThreatMap')}
       </div>
     ),
   }

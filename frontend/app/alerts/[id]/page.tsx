@@ -15,47 +15,51 @@ import { api } from '@/lib/api';
 import type { AlertResponse } from '@/lib/types';
 import type { AlertStatus } from '@/lib/constants';
 import { AuthGuard } from '@/components/auth/AuthGuard';
+import { useTranslation } from '@/hooks/useTranslation';
 
-// Status transition config
-const STATUS_TRANSITIONS: Record<string, { status: AlertStatus; label: string; icon: React.ReactNode; variant: 'cyan' | 'warning' | 'safe' | 'muted' }[]> = {
+// Status transition config function
+const getStatusTransitions = (t: (key: string) => string) => ({
   open: [
-    { status: 'acknowledged', label: 'ACKNOWLEDGE', icon: <Eye size={14} />, variant: 'cyan' },
-    { status: 'investigating', label: 'INVESTIGATE', icon: <Search size={14} />, variant: 'warning' },
-    { status: 'resolved', label: 'RESOLVE', icon: <CheckSquare size={14} />, variant: 'safe' },
-    { status: 'false_positive', label: 'FALSE POSITIVE', icon: <Flag size={14} />, variant: 'muted' },
+    { status: 'acknowledged' as AlertStatus, label: t('Alerts.acknowledge'), icon: <Eye size={14} />, variant: 'cyan' as const },
+    { status: 'investigating' as AlertStatus, label: t('Alerts.investigate'), icon: <Search size={14} />, variant: 'warning' as const },
+    { status: 'resolved' as AlertStatus, label: t('Alerts.resolve'), icon: <CheckSquare size={14} />, variant: 'safe' as const },
+    { status: 'false_positive' as AlertStatus, label: t('Alerts.falsePositive'), icon: <Flag size={14} />, variant: 'muted' as const },
   ],
   acknowledged: [
-    { status: 'investigating', label: 'INVESTIGATE', icon: <Search size={14} />, variant: 'warning' },
-    { status: 'resolved', label: 'RESOLVE', icon: <CheckSquare size={14} />, variant: 'safe' },
-    { status: 'false_positive', label: 'FALSE POSITIVE', icon: <Flag size={14} />, variant: 'muted' },
-    { status: 'reopened', label: 'REOPEN', icon: <RotateCcw size={14} />, variant: 'cyan' },
+    { status: 'investigating' as AlertStatus, label: t('Alerts.investigate'), icon: <Search size={14} />, variant: 'warning' as const },
+    { status: 'resolved' as AlertStatus, label: t('Alerts.resolve'), icon: <CheckSquare size={14} />, variant: 'safe' as const },
+    { status: 'false_positive' as AlertStatus, label: t('Alerts.falsePositive'), icon: <Flag size={14} />, variant: 'muted' as const },
+    { status: 'reopened' as AlertStatus, label: t('Alerts.reopen'), icon: <RotateCcw size={14} />, variant: 'cyan' as const },
   ],
   investigating: [
-    { status: 'resolved', label: 'RESOLVE', icon: <CheckSquare size={14} />, variant: 'safe' },
-    { status: 'false_positive', label: 'FALSE POSITIVE', icon: <Flag size={14} />, variant: 'muted' },
-    { status: 'acknowledged', label: 'BACK TO ACKNOWLEDGED', icon: <ArrowLeft size={14} />, variant: 'cyan' },
-    { status: 'reopened', label: 'REOPEN', icon: <RotateCcw size={14} />, variant: 'cyan' },
+    { status: 'resolved' as AlertStatus, label: t('Alerts.resolve'), icon: <CheckSquare size={14} />, variant: 'safe' as const },
+    { status: 'false_positive' as AlertStatus, label: t('Alerts.falsePositive'), icon: <Flag size={14} />, variant: 'muted' as const },
+    { status: 'acknowledged' as AlertStatus, label: t('Alerts.backToAcknowledged'), icon: <ArrowLeft size={14} />, variant: 'cyan' as const },
+    { status: 'reopened' as AlertStatus, label: t('Alerts.reopen'), icon: <RotateCcw size={14} />, variant: 'cyan' as const },
   ],
   resolved: [
-    { status: 'reopened', label: 'REOPEN', icon: <RotateCcw size={14} />, variant: 'cyan' },
+    { status: 'reopened' as AlertStatus, label: t('Alerts.reopen'), icon: <RotateCcw size={14} />, variant: 'cyan' as const },
   ],
   false_positive: [
-    { status: 'reopened', label: 'REOPEN', icon: <RotateCcw size={14} />, variant: 'cyan' },
+    { status: 'reopened' as AlertStatus, label: t('Alerts.reopen'), icon: <RotateCcw size={14} />, variant: 'cyan' as const },
   ],
   reopened: [
-    { status: 'acknowledged', label: 'ACKNOWLEDGE', icon: <Eye size={14} />, variant: 'cyan' },
-    { status: 'investigating', label: 'INVESTIGATE', icon: <Search size={14} />, variant: 'warning' },
-    { status: 'resolved', label: 'RESOLVE', icon: <CheckSquare size={14} />, variant: 'safe' },
-    { status: 'false_positive', label: 'FALSE POSITIVE', icon: <Flag size={14} />, variant: 'muted' },
+    { status: 'acknowledged' as AlertStatus, label: t('Alerts.acknowledge'), icon: <Eye size={14} />, variant: 'cyan' as const },
+    { status: 'investigating' as AlertStatus, label: t('Alerts.investigate'), icon: <Search size={14} />, variant: 'warning' as const },
+    { status: 'resolved' as AlertStatus, label: t('Alerts.resolve'), icon: <CheckSquare size={14} />, variant: 'safe' as const },
+    { status: 'false_positive' as AlertStatus, label: t('Alerts.falsePositive'), icon: <Flag size={14} />, variant: 'muted' as const },
   ],
-};
+});
 
 // Statuses that require resolution notes
 const NEEDS_NOTE = new Set(['resolved', 'false_positive', 'reopened']);
 
 export default function AlertDetailPage() {
+  const { t } = useTranslation();
   const params = useParams();
   const router = useRouter();
+
+  const STATUS_TRANSITIONS = getStatusTransitions(t);
   const alertId = params.id as string;
 
   const [alert, setAlert] = useState<AlertResponse | null>(null);
@@ -152,7 +156,7 @@ export default function AlertDetailPage() {
       <AuthGuard>
         <div style={{ padding: 'var(--space-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
           <div style={{ fontFamily: 'var(--font-data)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Loading alert details...
+            {t('Alerts.loadingAlertDetails')}
           </div>
         </div>
       </AuthGuard>
@@ -165,7 +169,7 @@ export default function AlertDetailPage() {
         <div style={{ padding: 'var(--space-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontFamily: 'var(--font-data)', color: 'var(--critical)', fontSize: '0.85rem', marginBottom: 8 }}>
-              {error || 'Alert not found'}
+              {error || t('Alerts.alertNotFound')}
             </div>
             <button
               onClick={() => router.push('/alerts')}
@@ -180,7 +184,7 @@ export default function AlertDetailPage() {
                 fontSize: '0.7rem',
               }}
             >
-              ← Back to Alerts
+              ← {t('Alerts.backToAlerts')}
             </button>
           </div>
         </div>
@@ -214,7 +218,7 @@ export default function AlertDetailPage() {
           }}
         >
           <ArrowLeft size={16} />
-          Back to Alert Console
+          {t('Alerts.backToAlertConsole')}
         </button>
 
         {/* Alert Header */}
@@ -234,7 +238,7 @@ export default function AlertDetailPage() {
             <StatusBadge severity={alert.severity} />
             <div>
               <h1 style={{ fontFamily: 'var(--font-data)', fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-                {alert.title || 'Alert Detail'}
+                {alert.title || t('Alerts.alertDetail')}
               </h1>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
                 <span style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
@@ -266,31 +270,56 @@ export default function AlertDetailPage() {
                 gap: 4,
               }}
             >
-              <Copy size={12} /> Copy JSON
+              <Copy size={12} />           {t('Alerts.copyJson')}
             </button>
           </div>
         </div>
 
         {/* Core Metadata Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-4)', marginBottom: 24 }}>
-          <MetadataCard icon={<Shield size={16} />} label="Category" value={alert.category || 'N/A'} accent="cyan" />
-          <MetadataCard icon={<Zap size={16} />} label="Confidence" value={`${(confidence * 100).toFixed(1)}%`} accent={confidence > 0.8 ? 'critical' : confidence > 0.6 ? 'high' : confidence > 0.4 ? 'warning' : 'info'} />
-          <MetadataCard icon={<MapPin size={16} />} label="Source IP" value={formatIP(sourceIP)} />
-          <MetadataCard icon={<MapPin size={16} />} label="Target IP" value={formatIP(destIP)} />
-          <MetadataCard icon={<Clock size={16} />} label="Status" value={alert.status.toUpperCase()} accent={alert.status === 'open' ? 'warning' : alert.status === 'acknowledged' ? 'cyan' : 'safe'} />
-          <MetadataCard icon={<User size={16} />} label="Owner" value={alert.assigned_to ? formatIP(alert.assigned_to) : 'UNASSIGNED'} />
-          <MetadataCard icon={<Activity size={16} />} label="ML Model" value={(alert.ml_model || 'N/A').toUpperCase()} />
-          <MetadataCard icon={<Hash size={16} />} label="Alert ID" value={alert.alert_id || 'N/A'} />
+          <MetadataCard icon={<Shield size={16} />} label={t('Alerts.category')} value={alert.category || 'N/A'} accent="cyan" />
+          <MetadataCard icon={<Zap size={16} />} label={t('Alerts.confidence')} value={`${(confidence * 100).toFixed(1)}%`} accent={confidence > 0.8 ? 'critical' : confidence > 0.6 ? 'high' : confidence > 0.4 ? 'warning' : 'info'} />
+          <MetadataCard icon={<MapPin size={16} />} label={t('Alerts.sourceIp')} value={formatIP(sourceIP)} />
+          <MetadataCard icon={<MapPin size={16} />} label={t('Alerts.targetIp')} value={formatIP(destIP)} />
+          <MetadataCard icon={<Clock size={16} />} label={t('Alerts.status')} value={alert.status.toUpperCase()} accent={alert.status === 'open' ? 'warning' : alert.status === 'acknowledged' ? 'cyan' : 'safe'} />
+          <MetadataCard icon={<User size={16} />} label={t('Alerts.owner')} value={alert.assigned_to ? formatIP(alert.assigned_to) : 'UNASSIGNED'} />
+          <MetadataCard icon={<Activity size={16} />} label={t('Alerts.mlModel')} value={(alert.ml_model || 'N/A').toUpperCase()} />
+          <MetadataCard icon={<Hash size={16} />} label={t('Alerts.alertId')} value={alert.alert_id || 'N/A'} />
         </div>
 
         {/* ML Scores Panel */}
-        <GlassPanel static title="ML MODEL SCORES" icon="🧠" style={{ marginBottom: 24 }}>
+        <GlassPanel static title={t('Alerts.mlModelScores')} icon="🧠" style={{ marginBottom: 24 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-4)' }}>
             <MLScoreCard
-              title="Composite Score"
+              title={t('Alerts.compositeScore')}
               value={`${(compositeScore * 100).toFixed(1)}%`}
               accent={compositeScore > 0.8 ? 'critical' : compositeScore > 0.6 ? 'high' : compositeScore > 0.4 ? 'warning' : 'info'}
-              description="Weighted ensemble score"
+              description={t('Alerts.weightedEnsembleScore')}
+            />
+            <MLScoreCard
+              title={t('Alerts.isolationForest')}
+              value={alert.if_score != null ? alert.if_score.toFixed(4) : 'N/A'}
+              description={t('Alerts.unsupervisedAnomalyDetection')}
+            />
+            <MLScoreCard
+              title={t('Alerts.autoencoder')}
+              value={alert.ae_score != null ? alert.ae_score.toFixed(4) : 'N/A'}
+              description={t('Alerts.reconstructionError')}
+            />
+            <MLScoreCard
+              title={t('Alerts.randomForest')}
+              value={alert.rf_score != null ? `${(alert.rf_score * 100).toFixed(1)}%` : 'N/A'}
+              description={t('Alerts.supervisedClassification')}
+            />
+            <MLScoreCard
+              title={t('Alerts.modelAgreement')}
+              value={alert.model_agreement || 'N/A'}
+              description={t('Alerts.crossModelConsensus')}
+            />
+            <MLScoreCard
+              title={t('Alerts.description')}
+              value={alert.description || 'N/A'}
+              description={t('Alerts.description')}
             />
             <MLScoreCard
               title="Isolation Forest"
@@ -323,7 +352,7 @@ export default function AlertDetailPage() {
         </GlassPanel>
 
         {/* AI Narrative */}
-        <GlassPanel static title="AI ANALYST REPORT" icon="🤖" style={{ marginBottom: 24 }}>
+        <GlassPanel static title={t('AiAnalyst.aiAnalyst')} icon="🤖" style={{ marginBottom: 24 }}>
           {alert.ai_narrative ? (
             <div>
               <div
@@ -397,7 +426,7 @@ export default function AlertDetailPage() {
                   }}
                 >
                   <ExternalLink size={14} />
-                  OPEN IN AI ANALYST
+                  {t('AiAnalyst.openInAiAnalyst')}
                 </button>
               </div>
             </div>
@@ -419,11 +448,11 @@ export default function AlertDetailPage() {
         </GlassPanel>
 
         {/* Related Flows / Evidence */}
-        <GlassPanel static title="EVIDENCE & RELATED FLOWS" icon="📡" style={{ marginBottom: 24 }}>
+        <GlassPanel static title={t('Alerts.evidenceRelatedFlows')} icon="📡" style={{ marginBottom: 24 }}>
           {alert.flow_ids && alert.flow_ids.length > 0 ? (
             <div>
               <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 12 }}>
-                {alert.flow_ids.length} related flow(s) identified
+                {alert.flow_ids.length} {t('Alerts.relatedFlowsIdentified')}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {alert.flow_ids.slice(0, 10).map((flowId) => (
@@ -464,7 +493,7 @@ export default function AlertDetailPage() {
           ) : (
             <div style={{ fontFamily: 'var(--font-data)', fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center', padding: 'var(--space-4)' }}>
               <Network size={24} style={{ marginBottom: 8, opacity: 0.3 }} />
-              <div>No related flows linked to this alert.</div>
+              <div>{t('Alerts.noRelatedFlows')}</div>
             </div>
           )}
         </GlassPanel>
@@ -547,7 +576,7 @@ export default function AlertDetailPage() {
                   margin: 0,
                   letterSpacing: '0.05em',
                 }}>
-                  Resolution Note
+                  {t('Alerts.resolutionNote')}
                 </h3>
                 <button
                   onClick={() => { setShowNoteModal(false); setPendingStatus(null); setResolutionNote(''); }}
@@ -573,7 +602,7 @@ export default function AlertDetailPage() {
               <textarea
                 value={resolutionNote}
                 onChange={(e) => setResolutionNote(e.target.value)}
-                placeholder="Describe why this status change was made..."
+                  placeholder={t('Alerts.describeStatusChange')}
                 style={{
                   width: '100%',
                   minHeight: 100,

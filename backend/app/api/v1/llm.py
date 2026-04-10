@@ -102,7 +102,7 @@ async def chat(request: ChatRequest):
                         alerts = alerts_data.get("items", [])
                         context_str += "Recent Anomalies (Top 5):\n"
                         for a in alerts:
-                            context_str += f"- [{str(a.get('severity')).upper()}] {a.get('alert_id')} | Category: {a.get('category')} | Source: {a.get('source_ip')} -> Dest: {a.get('dest_ip')} | Composite Score: {a.get('composite_score', 'N/A')} | ML Confidence: {a.get('confidence')} | Isolation Forest: {a.get('if_score', 'N/A')} | Random Forest: {a.get('ml_model', 'N/A')} ({a.get('rf_score', 'N/A')}) | Autoencoder: {a.get('ae_score', 'N/A')}\n"
+                            context_str += f"- [{str(a.get('severity')).upper()}] {a.get('alert_id')} | Category: {a.get('category')} | Source: {a.get('source_ip')} -> Dest: {a.get('dest_ip')} | Composite Score: {a.get('composite_score', 'N/A')} | ML Confidence: {a.get('confidence')} | Isolation Forest: {a.get('if_score', 'N/A')} | Random Forest: {a.get('rf_label', a.get('ml_model', 'N/A'))} ({a.get('rf_score', 'N/A')}) | Autoencoder: {a.get('ae_score', 'N/A')}\n"
                             
                     if "alert statistics" in last_content or "model performance" in last_content or "daily briefing" in last_content:
                         stats = await alert_service.get_alert_stats(session, time_range="24h")
@@ -154,8 +154,8 @@ async def analyze_alert(alert_id: str, request: Optional[AnalyzeAlertRequest] = 
                 "dest_ip": alert.get("dest_ip", "unknown"),
                 "composite_score": alert.get("composite_score", 0.0),
                 "if_score": alert.get("if_score", 0.0),
-                "rf_label": alert.get("ml_model", "unknown"), # Use ml_model as label fallback
-                "rf_confidence": alert.get("confidence", 0.0),
+                "rf_label": alert.get("rf_label", alert.get("ml_model", "unknown")), # Fallback to ml_model for old alerts
+                "rf_confidence": alert.get("rf_score", alert.get("confidence", 0.0)),
                 "ae_score": alert.get("ae_score", 0.0),
                 "model_agreement": "unknown",
                 "confidence": alert.get("confidence", 0.0),

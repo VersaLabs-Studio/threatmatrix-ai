@@ -93,19 +93,19 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
 
         {/* Left — Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <span
-            style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: 'var(--text-base)',
-              fontWeight: 800,
-              color: 'var(--cyan)',
-              letterSpacing: '0.05em',
-              textTransform: 'uppercase',
-            }}
-          >
-            THREATMATRIX
-          </span>
-          <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', fontWeight: 600 }}>AI</span>
+            <span
+              style={{
+                fontFamily: 'var(--font-heading)',
+                fontSize: 'var(--text-base)',
+                fontWeight: 800,
+                color: 'var(--cyan)',
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+              }}
+            >
+              {t('Common.threatMatrix')}
+            </span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', fontWeight: 600 }}>{t('Common.ai')}</span>
         </div>
 
         {/* Spacer */}
@@ -144,9 +144,9 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
               color: THREAT_LEVEL_COLORS[threatLevel],
               letterSpacing: '0.1em',
             }}
-          >
-            THREAT LEVEL: {threatLevel}
-          </span>
+            >
+              {t('TopBar.threatLevel')}: {threatLevel}
+            </span>
         </div>
 
         {/* Spacer */}
@@ -271,7 +271,7 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
                       color: 'var(--text-primary)',
                     }}
                   >
-                    Recent Alerts
+                    {t('TopBar.recentAlerts')}
                   </span>
                   <button
                     onClick={() => setShowNotifications(false)}
@@ -289,16 +289,16 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
 
                 <div style={{ padding: '8px 0', maxHeight: 320, overflowY: 'auto' }}>
                   {alertBadge === 0 ? (
-                    <div
-                      style={{
-                        padding: '16px',
-                        textAlign: 'center',
-                        color: 'var(--text-muted)',
-                        fontSize: '0.8rem',
-                      }}
-                    >
-                      No new notifications
-                    </div>
+                      <div
+                        style={{
+                          padding: '16px',
+                          textAlign: 'center',
+                          color: 'var(--text-muted)',
+                          fontSize: '0.8rem',
+                        }}
+                      >
+                        {t('TopBar.noNewNotifications')}
+                      </div>
                   ) : (
                     <div
                       style={{
@@ -308,7 +308,7 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
                         fontSize: '0.8rem',
                       }}
                     >
-                      Notifications cleared
+                      {t('TopBar.notificationsCleared')}
                     </div>
                   )}
                   {/* Could add recent alerts list here if we store them */}

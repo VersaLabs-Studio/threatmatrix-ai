@@ -80,12 +80,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       <nav className={cx('sidebar', isOpen && 'sidebar--open')}>
       {/* Logo mark */}
-      <div style={{ marginBottom: 'var(--space-4)' }}>
-        <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '0 20px', marginBottom: 'var(--space-4)' }}>
+        <svg width="28" height="28" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
           <path d="M24 4L6 14V34L24 44L42 34V14L24 4Z" stroke="var(--cyan)" strokeWidth="1.5" />
           <path d="M24 12L14 18V30L24 36L34 30V18L24 12Z" stroke="var(--cyan)" strokeWidth="1" fill="var(--cyan-muted)" />
           <circle cx="24" cy="24" r="3" fill="var(--cyan)" />
         </svg>
+        <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>ThreatMatrix AI</span>
       </div>
 
       <div style={{ width: '100%', height: '1px', background: 'var(--border)', margin: 'var(--space-2) 0' }} />
@@ -108,7 +109,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             key={item.href} 
             href={item.href} 
             onClick={onClose}
-            style={{ textDecoration: 'none', width: '100%', display: 'flex', justifyContent: 'center', position: 'relative' }}
+            style={{ textDecoration: 'none', width: '100%', display: 'flex', padding: '0 var(--space-3)', position: 'relative' }}
           >
             <div
               className={cx('nav-icon', isActive && 'nav-icon--active')}
@@ -118,13 +119,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               aria-current={isActive ? 'page' : undefined}
             >
               <Icon size={18} />
+              <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
               {badgeCount > 0 && (
                 <span style={{
-                  position: 'absolute',
-                  top: 2,
-                  right: 2,
-                  width: 16,
-                  height: 16,
+                  marginLeft: 'auto',
+                  width: 20,
+                  height: 20,
                   borderRadius: '50%',
                   background: item.href === '/alerts' ? 'var(--critical)' : 'var(--safe)',
                   color: 'white',

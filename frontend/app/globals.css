@@ -110,7 +110,7 @@
   --bg-dark: hsl(228 28% 3%);
 
   /* Layout */
-  --sidebar-width: 64px;
+  --sidebar-width: 240px;
   --topbar-height: 64px;
   --statusbar-height: 32px;
 
@@ -774,7 +774,7 @@ select:focus-visible {
   z-index: var(--z-sidebar);
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   padding-top: var(--space-6);
   gap: var(--space-3);
   backdrop-filter: blur(8px);
@@ -810,18 +810,21 @@ select:focus-visible {
 
 /* Nav icon button */
 .nav-icon {
-  width: 44px;
+  width: 100%;
   height: 44px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  padding: 0 var(--space-4);
+  gap: var(--space-3);
   border-radius: var(--radius-md);
   color: var(--text-muted);
   cursor: pointer;
   transition: all var(--transition-fast);
   border: 1px solid transparent;
   background: transparent;
-  font-size: 1.25rem;
+  font-size: var(--text-sm);
+  font-weight: 500;
   position: relative;
 }
 
