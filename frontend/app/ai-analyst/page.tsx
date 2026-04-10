@@ -5,7 +5,7 @@
 // LLM-powered threat analysis with markdown rendering
 // ═══════════════════════════════════════════════════════
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
@@ -227,7 +227,7 @@ const mdComponents: Components = {
   ...createTableComponents(),
 };
 
-export default function AIAnalystPage() {
+function AIAnalystContent() {
   const searchParams = useSearchParams();
   const alertId = searchParams.get('alert_id') || searchParams.get('alert');
   const { messages, isStreaming, error, tokenUsage, sendMessage, clearMessages, loadMessages, resetUsage } = useLLM();
@@ -661,5 +661,13 @@ export default function AIAnalystPage() {
         </div>
       </div>
     </AuthGuard>
+  );
+}
+
+export default function AIAnalystPage() {
+  return (
+    <Suspense fallback={<div className="ai-empty">Initializing AI Analyst...</div>}>
+      <AIAnalystContent />
+    </Suspense>
   );
 }

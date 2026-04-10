@@ -26,6 +26,7 @@ from app.redis import (
     CHANNEL_ALERTS_LIVE,
     CHANNEL_SYSTEM_STATUS,
     CHANNEL_ML_LIVE,
+    CHANNEL_ML_METRICS,
 )
 
 router = APIRouter()
@@ -50,6 +51,7 @@ class ConnectionManager:
             CHANNEL_ALERTS_LIVE: set(),
             CHANNEL_SYSTEM_STATUS: set(),
             CHANNEL_ML_LIVE: set(),
+            CHANNEL_ML_METRICS: set(),
         }
         # Redis subscriber task
         self._redis_task: asyncio.Task | None = None
@@ -167,6 +169,7 @@ class ConnectionManager:
                 CHANNEL_ALERTS_LIVE,
                 CHANNEL_SYSTEM_STATUS,
                 CHANNEL_ML_LIVE,
+                CHANNEL_ML_METRICS,
             )
             
             # Listen for messages
@@ -274,6 +277,7 @@ async def websocket_endpoint(
             CHANNEL_ALERTS_LIVE,
             CHANNEL_SYSTEM_STATUS,
             CHANNEL_ML_LIVE,
+            CHANNEL_ML_METRICS,
         ],
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })

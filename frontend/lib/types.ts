@@ -35,6 +35,7 @@ export interface AlertResponse {
   model_agreement?: 'unanimous' | 'majority' | 'single' | 'none';
   rf_label?: string;
   rf_confidence?: number;
+  rf_score?: number;
   if_score?: number;
   ae_score?: number;
   label?: string;
@@ -45,6 +46,7 @@ export interface AlertResponse {
 export interface AlertFilters {
   severity?: AlertSeverity | 'all';
   status?: AlertStatus | 'all';
+  category?: string;
   page?: number;
   limit?: number;
 }

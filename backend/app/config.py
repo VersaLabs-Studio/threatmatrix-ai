@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # ── LLM Providers ───────────────────────────────────────────
+    OPENROUTER_API_KEY: str = ""
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
     GLM_API_KEY: str = ""
@@ -51,6 +52,11 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
     LLM_MONTHLY_BUDGET_USD: float = 50.0
+
+    # ── LLM Resilience ──────────────────────────────────────────
+    LLM_MAX_RETRIES: int = 3
+    LLM_RETRY_DELAY: int = 2
+    LLM_MAX_CONCURRENT: int = 2
 
     # ── Threat Intel ─────────────────────────────────────────────
     OTX_API_KEY: str = ""

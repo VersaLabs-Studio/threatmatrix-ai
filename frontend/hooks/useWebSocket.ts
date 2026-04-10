@@ -65,11 +65,24 @@ export interface AnomalyDetectedEvent {
   timestamp: string;
 }
 
+export interface MLMetricEvent {
+  flow_id: string;
+  preprocess_ms: number;
+  if_ms: number;
+  rf_ms: number;
+  ae_ms: number;
+  ensemble_ms: number;
+  total_ms: number;
+  severity: string;
+  timestamp: string;
+}
+
 interface UseWebSocketReturn {
   isConnected: boolean;
   lastFlowEvent: FlowEvent | null;
   lastAlertEvent: AlertEvent | null;
   lastAnomalyEvent: AnomalyDetectedEvent | null;
+  lastMetricEvent: MLMetricEvent | null;
   systemStatus: SystemStatusEvent | null;
   subscribe: (channels: string[]) => void;
   unsubscribe: (channels: string[]) => void;
@@ -81,6 +94,7 @@ export function useWebSocket(): UseWebSocketReturn {
   const [lastFlowEvent, setLastFlowEvent]   = useState<FlowEvent | null>(null);
   const [lastAlertEvent, setLastAlertEvent] = useState<AlertEvent | null>(null);
   const [lastAnomalyEvent, setLastAnomalyEvent] = useState<AnomalyDetectedEvent | null>(null);
+  const [lastMetricEvent, setLastMetricEvent] = useState<MLMetricEvent | null>(null);
   const [systemStatus, setSystemStatus]     = useState<SystemStatusEvent | null>(null);
 
   // Track unsubscribe functions per channel
@@ -107,6 +121,8 @@ export function useWebSocket(): UseWebSocketReturn {
           setSystemStatus(d as SystemStatusEvent);
           checkConnection();
         });
+      } else if (channel === WS_CHANNELS.METRICS) {
+        unsubFn = wsClient.subscribe(WS_CHANNELS.METRICS, (d) => setLastMetricEvent((d as any).data as MLMetricEvent));
       }
 
       // Store the unsubscribe function
@@ -162,12 +178,18 @@ export function useWebSocket(): UseWebSocketReturn {
       console.log('[WS] Anomaly detected:', { flowId: anomaly.flow_id, score: anomaly.composite_score });
       setLastAnomalyEvent(anomaly);
     });
+    const unsubMetrics = wsClient.subscribe(WS_CHANNELS.METRICS, (d: any) => {
+      const metrics = d.data as MLMetricEvent;
+      console.log('[WS] ML Metrics received:', metrics);
+      setLastMetricEvent(metrics);
+    });
 
     // Store unsubscribe functions for dynamic unsubscribe support
     unsubFunctionsRef.current.set(WS_CHANNELS.FLOWS, unsubFlows);
     unsubFunctionsRef.current.set(WS_CHANNELS.ALERTS, unsubAlerts);
     unsubFunctionsRef.current.set(WS_CHANNELS.SYSTEM, unsubSystem);
     unsubFunctionsRef.current.set(WS_CHANNELS.ML, unsubML);
+    unsubFunctionsRef.current.set(WS_CHANNELS.METRICS, unsubMetrics);
 
     // Poll connection state every 2 seconds
     const interval = setInterval(checkConnection, 2000);
@@ -184,11 +206,12 @@ export function useWebSocket(): UseWebSocketReturn {
       unsubAlerts();
       unsubSystem();
       unsubML();
+      unsubMetrics();
       unsubFunctionsRef.current.clear();
       clearInterval(interval);
       clearInterval(heartbeatInterval);
     };
   }, [checkConnection]);
 
-  return { isConnected, lastFlowEvent, lastAlertEvent, lastAnomalyEvent, systemStatus, subscribe, unsubscribe, reconnect };
+  return { isConnected, lastFlowEvent, lastAlertEvent, lastAnomalyEvent, lastMetricEvent, systemStatus, subscribe, unsubscribe, reconnect };
 }

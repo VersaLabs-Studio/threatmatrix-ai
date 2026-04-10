@@ -8,12 +8,17 @@ import { AuthGuardWrapper } from "@/components/auth/AuthGuardWrapper";
 import { NotificationToast, type Toast } from "@/components/shared/NotificationToast";
 import { CriticalOverlay } from "@/components/shared/CriticalOverlay";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useAudioAlarm } from "@/hooks/useAudioAlarm";
+import { PageTransition } from "@/components/shared/PageTransition";
 import { type Severity } from "@/lib/constants";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { lastAlertEvent, lastAnomalyEvent } = useWebSocket();
+  const { playAlarm } = useAudioAlarm();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [showCriticalOverlay, setShowCriticalOverlay] = useState(false);
+  const [criticalInfo, setCriticalInfo] = useState<{ category?: string; srcIp?: string }>({});
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const addToast = useCallback((toast: Toast) => {
     setToasts((prev) => [toast, ...prev].slice(0, 5));
@@ -26,13 +31,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Create toasts from WebSocket alert events
   useEffect(() => {
     if (!lastAlertEvent) return;
-    const severity = lastAlertEvent.severity as Severity;
-    const score = lastAlertEvent.composite_score || 0;
+    const severity = (lastAlertEvent.severity || 'medium') as Severity;
+    const score = lastAlertEvent.composite_score ?? 0;
     const toast: Toast = {
       id: `toast-alert-${Date.now()}`,
       severity,
       title: lastAlertEvent.category?.toUpperCase() || 'ALERT',
-      message: `${severity.toUpperCase()} — Score: ${(score * 100).toFixed(0)}%`,
+      message: `${(severity || 'medium').toUpperCase()} — Score: ${(score * 100).toFixed(0)}%`,
       alertId: lastAlertEvent.id,
       composite_score: score,
       src_ip: lastAlertEvent.src_ip,
@@ -40,12 +45,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
     addToast(toast);
 
-    // Trigger critical overlay
-    if (severity === 'critical' || score >= 0.90) {
+    // Audio and Visual Alerts
+    if (severity === 'critical') {
+      playAlarm('critical');
+      setCriticalInfo({ category: lastAlertEvent.category, srcIp: lastAlertEvent.src_ip });
       setShowCriticalOverlay(true);
-      setTimeout(() => setShowCriticalOverlay(false), 2000);
+      setTimeout(() => setShowCriticalOverlay(false), 3000);
+    } else if (severity === 'high') {
+      playAlarm('high');
     }
-  }, [lastAlertEvent, addToast]);
+  }, [lastAlertEvent, addToast, playAlarm]);
 
   // Create toasts from WebSocket anomaly events (MEDIUM+ severity only)
   useEffect(() => {
@@ -59,7 +68,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       id: `toast-anomaly-${Date.now()}`,
       severity,
       title: `ML ANOMALY: ${lastAnomalyEvent.label?.toUpperCase() || 'DETECTED'}`,
-      message: `${severity.toUpperCase()} — Score: ${(score * 100).toFixed(0)}%`,
+      message: `${(severity || 'medium').toUpperCase()} — Score: ${(score * 100).toFixed(0)}%`,
       composite_score: score,
       if_score: lastAnomalyEvent.if_score,
       ae_score: lastAnomalyEvent.ae_score,
@@ -70,26 +79,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
     addToast(toast);
 
-    // Trigger critical overlay
+    // Audio and Visual Alerts
     if (severity === 'critical') {
+      playAlarm('critical');
+      setCriticalInfo({ category: lastAnomalyEvent.label, srcIp: lastAnomalyEvent.src_ip });
       setShowCriticalOverlay(true);
-      setTimeout(() => setShowCriticalOverlay(false), 2000);
+      setTimeout(() => setShowCriticalOverlay(false), 3000);
+    } else if (severity === 'high') {
+      playAlarm('high');
     }
-  }, [lastAnomalyEvent, addToast]);
+  }, [lastAnomalyEvent, addToast, playAlarm]);
 
   return (
     <>
       <div className="bg-mesh" />
       <div className="app-shell">
         {/* Column 1 — Sidebar spans all rows */}
-        <Sidebar />
+        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
         {/* Column 2, Row 1 — Top bar */}
-        <TopBar />
+        <TopBar onOpenSidebar={() => setIsSidebarOpen(true)} />
 
         {/* Column 2, Row 2 — Main scrollable content */}
-        <main className="main-content page-enter">
-          <AuthGuardWrapper>{children}</AuthGuardWrapper>
+        <main className="main-content">
+          <AuthGuardWrapper>
+            <PageTransition>{children}</PageTransition>
+          </AuthGuardWrapper>
         </main>
 
         {/* Column 2, Row 3 — Status bar */}
@@ -100,7 +115,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <NotificationToast toasts={toasts} onDismiss={dismissToast} />
 
       {/* Critical Alert Full-Screen Overlay */}
-      <CriticalOverlay visible={showCriticalOverlay} />
+      <CriticalOverlay 
+        visible={showCriticalOverlay} 
+        category={criticalInfo.category} 
+        srcIp={criticalInfo.srcIp} 
+      />
     </>
   );
 }

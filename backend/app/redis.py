@@ -24,6 +24,7 @@ CHANNEL_FLOWS_LIVE = "flows:live"
 CHANNEL_ALERTS_LIVE = "alerts:live"
 CHANNEL_SYSTEM_STATUS = "system:status"
 CHANNEL_ML_LIVE = "ml:live"
+CHANNEL_ML_METRICS = "ml:metrics"
 
 
 class RedisManager:

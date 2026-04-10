@@ -201,10 +201,14 @@ class AlertEngine:
             )
 
         # ── LLM Auto-Narrative (per MASTER_DOC_PART4 §12.1 [6]→[7]) ─
-        # Fire-and-forget: alert persistence MUST NOT be blocked by LLM latency.
-        asyncio.create_task(
-            self._generate_narrative(alert_ref, payload)
-        )
+        # Only trigger for medium/high/critical to save API budget (Low skipped)
+        if payload.get("severity", "medium").lower() != "low":
+            # Fire-and-forget: alert persistence MUST NOT be blocked by LLM latency.
+            asyncio.create_task(
+                self._generate_narrative(alert_ref, payload)
+            )
+        else:
+            logger.info("[AlertEngine] Skipping LLM narrative for LOW severity alert: %s", alert_ref)
 
     async def _generate_narrative(
         self, alert_id: str, payload: Dict[str, Any]

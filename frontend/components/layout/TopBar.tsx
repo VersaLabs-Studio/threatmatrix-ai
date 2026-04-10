@@ -7,13 +7,18 @@
 // ═══════════════════════════════════════════════════════
 
 import { useState, useEffect } from 'react';
-import { Bell, Globe } from 'lucide-react';
+import { Bell, Globe, Menu } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useTranslation } from '@/hooks/useTranslation';
 import { THREAT_LEVEL_COLORS, type ThreatLevel } from '@/lib/constants';
 
-export function TopBar() {
+interface TopBarProps {
+  onOpenSidebar?: () => void;
+}
+
+export function TopBar({ onOpenSidebar }: TopBarProps) {
   const { systemStatus, lastAlertEvent } = useWebSocket();
-  const [lang, setLang]       = useState<'EN' | 'AM'>('EN');
+  const { t, locale, toggleLocale } = useTranslation();
   const [alertBadge, setAlertBadge] = useState(0);
   const [currentTime, setCurrentTime] = useState('');
 
@@ -59,6 +64,21 @@ export function TopBar() {
         border: '1px solid var(--glass-border)',
         boxShadow: '0 8px 32px -8px rgba(0, 0, 0, 0.5)',
       }}>
+        {/* Mobile Menu Trigger */}
+        <button
+          onClick={onOpenSidebar}
+          className="nav-icon mobile-only"
+          style={{
+            marginRight: 'var(--space-2)',
+            background: 'none',
+            border: 'none',
+            display: 'none', // Controlled by CSS media queries or className
+          }}
+          aria-label="Open menu"
+        >
+          <Menu size={20} />
+        </button>
+
         {/* Left — Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
           <span
@@ -147,19 +167,19 @@ export function TopBar() {
               flexShrink: 0,
             }} />
             <span style={{ color: 'var(--text-secondary)', fontWeight: 500, fontSize: 'var(--text-xs)' }}>
-              System Operational
+              {t('TopBar.systemOperational')}
             </span>
           </div>
 
           {/* Language toggle */}
           <button
-            onClick={() => setLang((l) => (l === 'EN' ? 'AM' : 'EN'))}
+            onClick={toggleLocale}
             className="btn-aether"
             style={{ padding: '6px 12px' }}
-            title="Toggle language"
+            title={t('TopBar.toggleLanguage')}
           >
             <Globe size={14} />
-            <span style={{ fontSize: '11px', fontWeight: 600 }}>{lang}</span>
+            <span style={{ fontSize: '11px', fontWeight: 600 }}>{locale.toUpperCase()}</span>
           </button>
 
           {/* Notification bell */}
@@ -175,7 +195,7 @@ export function TopBar() {
               transition: 'var(--transition-fast)',
             }}
             className="nav-icon"
-            title={`${alertBadge} unread alerts`}
+            title={t('TopBar.notifications')}
             aria-label="Notifications"
           >
             <Bell size={20} />

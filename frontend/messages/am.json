@@ -1,0 +1,28 @@
+{
+  "Common": {
+    "warRoom": "የጦርነት ክፍል",
+    "threatHunt": "የዛቻ አደን",
+    "intelHub": "የመረጃ ማዕከል",
+    "networkFlow": "የኔትወርክ ፍሰት",
+    "aiAnalyst": "የኤአይ ተንታኝ",
+    "alertConsole": "የማስጠንቀቂያ ኮንሶል",
+    "forensicsLab": "የፎረንሲክ ላብራቶሪ",
+    "mlOps": "የኤምኤል ስራዎች",
+    "reports": "ሪፖርቶች",
+    "admin": "አስተዳደር"
+  },
+  "TopBar": {
+    "threatLevel": "የዛቻ ደረጃ",
+    "systemOperational": "ስርዓቱ በመስራት ላይ ነው",
+    "toggleLanguage": "ቋንቋ ቀይር",
+    "notifications": "ማሳወቂያዎች"
+  },
+  "WarRoom": {
+    "liveThreatMap": "የቀጥታ የዛቻ ካርታ",
+    "packetsPerSec": "ፓኬቶች/ሰከንድ",
+    "activeFlows": "ንቁ ፍሰቶች",
+    "anomalyRate": "የተዛባ ፍሰት መጠን",
+    "threats24h": "ዛቻዎች (24ሰ)",
+    "mlModels": "የኤምኤል ሞዴሎች"
+  }
+}

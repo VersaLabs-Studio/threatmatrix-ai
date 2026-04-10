@@ -1,0 +1,28 @@
+{
+  "Common": {
+    "warRoom": "War Room",
+    "threatHunt": "Threat Hunt",
+    "intelHub": "Intel Hub",
+    "networkFlow": "Network Flow",
+    "aiAnalyst": "AI Analyst",
+    "alertConsole": "Alert Console",
+    "forensicsLab": "Forensics Lab",
+    "mlOps": "ML Operations",
+    "reports": "Reports",
+    "admin": "Administration"
+  },
+  "TopBar": {
+    "threatLevel": "THREAT LEVEL",
+    "systemOperational": "System Operational",
+    "toggleLanguage": "Toggle Language",
+    "notifications": "Notifications"
+  },
+  "WarRoom": {
+    "liveThreatMap": "LIVE THREAT MAP",
+    "packetsPerSec": "PACKETS/SEC",
+    "activeFlows": "ACTIVE FLOWS",
+    "anomalyRate": "ANOMALY RATE",
+    "threats24h": "THREATS (24H)",
+    "mlModels": "ML MODELS"
+  }
+}

@@ -151,13 +151,47 @@ export function ThreatMap({ recentFlows = [], loading = false }: ThreatMapProps)
     }),
   ];
 
+  const [webglSupported, setWebglSupported] = useState<boolean | null>(null);
+
+  // Check for WebGL support
+  useEffect(() => {
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      setWebglSupported(!!gl);
+    } catch (e) {
+      setWebglSupported(false);
+    }
+  }, []);
+
   const anomalyCount = flows.filter(f => f.isAnomaly).length;
 
-  return (
-    <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-      {loading ? (
-        <div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: 'var(--radius-md)' }} />
-      ) : !isReady ? (
+  const renderMapContent = () => {
+    if (loading) {
+      return <div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: 'var(--radius-md)' }} />;
+    }
+    
+    if (webglSupported === false) {
+      return (
+        <div style={{
+          width: '100%', height: '100%',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(10,10,15,0.9)', color: 'var(--critical)',
+          padding: '2rem', textAlign: 'center',
+        }}>
+          <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⚠</div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, marginBottom: '0.5rem' }}>
+            WEBGL NOT SUPPORTED
+          </div>
+          <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>
+            Your browser or hardware does not support WebGL, which is required for the 3D threat map.
+          </div>
+        </div>
+      );
+    }
+
+    if (!isReady || webglSupported === null) {
+      return (
         <div style={{
           width: '100%', height: '100%',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -167,16 +201,24 @@ export function ThreatMap({ recentFlows = [], loading = false }: ThreatMapProps)
         }}>
           INITIALIZING MAP…
         </div>
-      ) : (
-        <DeckGL
-          initialViewState={INITIAL_VIEW_STATE}
-          controller={true}
-          layers={layers}
-          style={{ width: '100%', height: '100%' }}
-        >
-          <Map mapStyle={MAP_STYLE} attributionControl={false} />
-        </DeckGL>
-      )}
+      );
+    }
+
+    return (
+      <DeckGL
+        initialViewState={INITIAL_VIEW_STATE}
+        controller={true}
+        layers={layers}
+        style={{ width: '100%', height: '100%' }}
+      >
+        <Map mapStyle={MAP_STYLE} attributionControl={false} />
+      </DeckGL>
+    );
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+      {renderMapContent()}
 
       {/* Layer controls */}
       <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 6, zIndex: 10 }}>

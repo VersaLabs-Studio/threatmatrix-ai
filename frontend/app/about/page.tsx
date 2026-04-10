@@ -6,17 +6,17 @@
 // ═══════════════════════════════════════════════════════
 
 import React from 'react';
-import { ScrollytellingProvider } from '../../../packages/about-experience/engine/ScrollytellingProvider';
-import { Preloader } from '../../../packages/about-experience/components/Preloader';
-import { ScrollProgress } from '../../../packages/about-experience/components/ScrollProgress';
-import { HeroSection } from '../../../packages/about-experience/sections/HeroSection';
-import { ProblemSection } from '../../../packages/about-experience/sections/ProblemSection';
-import { ArchitectureSection } from '../../../packages/about-experience/sections/ArchitectureSection';
-import { MLSection } from '../../../packages/about-experience/sections/MLSection';
-import { CompetitiveSection } from '../../../packages/about-experience/sections/CompetitiveSection';
-import { TechStackSection } from '../../../packages/about-experience/sections/TechStackSection';
-import { BenchmarksSection } from '../../../packages/about-experience/sections/BenchmarksSection';
-import { CTASection } from '../../../packages/about-experience/sections/CTASection';
+import { ScrollytellingProvider } from '@about-experience/engine/ScrollytellingProvider';
+import { Preloader } from '@about-experience/components/Preloader';
+import { ScrollProgress } from '@about-experience/components/ScrollProgress';
+import { HeroSection } from '@about-experience/sections/HeroSection';
+import { ProblemSection } from '@about-experience/sections/ProblemSection';
+import { ArchitectureSection } from '@about-experience/sections/ArchitectureSection';
+import { MLSection } from '@about-experience/sections/MLSection';
+import { CompetitiveSection } from '@about-experience/sections/CompetitiveSection';
+import { TechStackSection } from '@about-experience/sections/TechStackSection';
+import { BenchmarksSection } from '@about-experience/sections/BenchmarksSection';
+import { CTASection } from '@about-experience/sections/CTASection';
 
 export default function AboutPage() {
   return (

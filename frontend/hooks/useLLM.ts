@@ -131,24 +131,26 @@ export function useLLM(): UseLLMReturn {
                 ),
               );
             }
-            if (parsed.usage) {
+            const usage = parsed.usage;
+            if (usage) {
               sessionTokensRef.current = {
-                in: parsed.usage.prompt_tokens,
-                out: parsed.usage.completion_tokens,
+                in: usage.prompt_tokens,
+                out: usage.completion_tokens,
               };
               setTokenUsage((prev) => ({
-                tokensIn: prev.tokensIn + parsed.usage.prompt_tokens,
-                tokensOut: prev.tokensOut + parsed.usage.completion_tokens,
-                totalTokens: prev.totalTokens + parsed.usage.prompt_tokens + parsed.usage.completion_tokens,
-                costUsd: prev.costUsd + ((parsed.usage.prompt_tokens + parsed.usage.completion_tokens) / 1000) * COST_PER_1K_TOKENS,
+                tokensIn: prev.tokensIn + usage.prompt_tokens,
+                tokensOut: prev.tokensOut + usage.completion_tokens,
+                totalTokens: prev.totalTokens + usage.prompt_tokens + usage.completion_tokens,
+                costUsd: prev.costUsd + ((usage.prompt_tokens + usage.completion_tokens) / 1000) * COST_PER_1K_TOKENS,
                 requests: prev.requests + 1,
                 model: parsed.model || prev.model,
               }));
             }
-            if (parsed.budget) {
+            const budget = parsed.budget;
+            if (budget) {
               setTokenUsage((prev) => ({
                 ...prev,
-                costUsd: parsed.budget.spent,
+                costUsd: budget.spent,
               }));
             }
           } catch {

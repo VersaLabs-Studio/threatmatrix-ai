@@ -10,6 +10,7 @@
 import dynamic from 'next/dynamic';
 import { useState, useEffect, useCallback } from 'react';
 import { useWebSocket }      from '@/hooks/useWebSocket';
+import { useTranslation }    from '@/hooks/useTranslation';
 import { useFlows }          from '@/hooks/useFlows';
 import { useAlerts }         from '@/hooks/useAlerts';
 import { useMLModels }       from '@/hooks/useMLModels';
@@ -20,6 +21,7 @@ import { TrafficTimeline }   from '@/components/war-room/TrafficTimeline';
 import { LiveAlertFeed }     from '@/components/war-room/LiveAlertFeed';
 import { TopTalkers }        from '@/components/war-room/TopTalkers';
 import { AIBriefingWidget }  from '@/components/war-room/AIBriefingWidget';
+import { LatencyWidget }     from '@/components/war-room/LatencyWidget';
 import { GeoDistribution }   from '@/components/war-room/GeoDistribution';
 import { SystemStatusCard }  from '@/components/war-room/SystemStatusCard';
 import { ProtocolCard }      from '@/components/war-room/ProtocolCard';
@@ -62,6 +64,7 @@ interface CaptureStatus {
 
 export default function WarRoomPage() {
   const { lastAlertEvent, lastAnomalyEvent, isConnected: wsConnected } = useWebSocket();
+  const { t } = useTranslation();
   const { stats, protocols, topTalkers, loading: flowsLoading } = useFlows({ time_range: '1h' });
   const { alerts, total: alertTotal, loading: alertsLoading } = useAlerts({ limit: 100 });
   const { trainedCount, loading: mlLoading } = useMLModels();
@@ -158,35 +161,35 @@ export default function WarRoomPage() {
         {/* ── Row 1: Metric Cards ───────────────────────── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 'var(--space-3)' }}>
           <MetricCard
-            label="PACKETS/SEC"
+            label={t('WarRoom.packetsPerSec')}
             value={shortNumber(pps)}
             unit="pkt/s"
             accent="cyan"
             loading={flowsLoading}
           />
           <MetricCard
-            label="ACTIVE FLOWS"
+            label={t('WarRoom.activeFlows')}
             value={shortNumber(flows)}
             unit="flows"
             accent="cyan"
             loading={flowsLoading}
           />
           <MetricCard
-            label="ANOMALY RATE"
+            label={t('WarRoom.anomalyRate')}
             value={parseFloat(formatPercent(anomalyRate))}
             unit="%"
             accent={anomalyRate > 0.05 ? 'critical' : anomalyRate > 0 ? 'warning' : 'safe'}
             loading={flowsLoading}
           />
           <MetricCard
-            label="THREATS (24H)"
+            label={t('WarRoom.threats24h')}
             value={alertTotal}
             unit="alerts"
             accent="critical"
             loading={alertsLoading}
           />
           <MetricCard
-            label="ML MODELS"
+            label={t('WarRoom.mlModels')}
             value={`${trainedCount}/3`}
             unit="active"
             accent="cyan"
@@ -206,7 +209,7 @@ export default function WarRoomPage() {
               fontWeight: 600, color: 'var(--text-secondary)',
               textTransform: 'uppercase', letterSpacing: '0.08em', flex: 1,
             }}>
-              LIVE THREAT MAP
+              {t('WarRoom.liveThreatMap')}
             </span>
             <span className={`status-dot ${captureStatus?.status === 'running' ? 'status-dot--live' : 'status-dot--idle'}`} />
           </div>
@@ -215,9 +218,10 @@ export default function WarRoomPage() {
           </div>
         </div>
 
-        {/* ── Row 3: AI Briefing + System Status ────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 'var(--space-4)' }}>
+        {/* ── Row 3: AI Briefing + Latency + System Status ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 'var(--space-4)' }}>
           <AIBriefingWidget />
+          <LatencyWidget />
           <SystemStatusCard />
         </div>
 

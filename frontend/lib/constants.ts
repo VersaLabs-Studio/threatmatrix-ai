@@ -5,7 +5,7 @@
 export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 export type SystemStatus = 'live' | 'idle' | 'offline' | 'warning';
 export type ThreatLevel = 'SAFE' | 'GUARDED' | 'ELEVATED' | 'HIGH' | 'CRITICAL';
-export type AlertStatus = 'open' | 'acknowledged' | 'investigating' | 'resolved' | 'false_positive';
+export type AlertStatus = 'open' | 'acknowledged' | 'investigating' | 'resolved' | 'false_positive' | 'reopened';
 export type UserRole = 'admin' | 'soc_manager' | 'analyst' | 'viewer';
 
 // ── Severity color map ─────────────────────────────────
@@ -57,6 +57,7 @@ export const WS_CHANNELS = {
   ALERTS: 'alerts:live',
   SYSTEM: 'system:status',
   ML:     'ml:live',
+  METRICS: 'ml:metrics',
 } as const;
 
 // ── Navigation items ───────────────────────────────────
@@ -76,4 +77,4 @@ export const NAV_ITEMS = [
 // ── API base URL ───────────────────────────────────────
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://187.124.45.161:8000';
 export const WS_BASE_URL  = process.env.NEXT_PUBLIC_WS_URL  ?? 'ws://187.124.45.161:8000';
-export const APP_VERSION  = 'v0.6.4';
+export const APP_VERSION  = 'v1.0.0';

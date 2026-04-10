@@ -9,44 +9,49 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  Target, Search, Shield, Radio, Bot,
-  Bell, FlaskConical, BrainCircuit, BarChart3, Settings,
-} from 'lucide-react';
+import { Target, Search, Shield, Radio, Bot, Bell, FlaskConical, BrainCircuit, BarChart3, Settings } from 'lucide-react';
 import { cx } from '@/lib/utils';
 import { APP_VERSION } from '@/lib/constants';
 import { useAlerts } from '@/hooks/useAlerts';
 import { useMLModels } from '@/hooks/useMLModels';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const ICON_MAP = {
   Target, Search, Shield, Radio, Bot,
   Bell, FlaskConical, BrainCircuit, BarChart3, Settings,
 } as const;
 
-const NAV_ITEMS = [
-  { icon: 'Target'       as const, label: 'War Room',       href: '/war-room',   key: '1' },
-  { icon: 'Search'       as const, label: 'Threat Hunt',    href: '/hunt',       key: '2' },
-  { icon: 'Shield'       as const, label: 'Intel Hub',      href: '/intel',      key: '3' },
-  { icon: 'Radio'        as const, label: 'Network Flow',   href: '/network',    key: '4' },
-  { icon: 'Bot'          as const, label: 'AI Analyst',     href: '/ai-analyst', key: '5' },
-  { icon: 'Bell'         as const, label: 'Alert Console',  href: '/alerts',     key: '6' },
-  { icon: 'FlaskConical' as const, label: 'Forensics Lab',  href: '/forensics',  key: '7' },
-  { icon: 'BrainCircuit' as const, label: 'ML Operations',  href: '/ml-ops',     key: '8' },
-  { icon: 'BarChart3'    as const, label: 'Reports',        href: '/reports',    key: '9' },
-  { icon: 'Settings'     as const, label: 'Administration', href: '/admin',      key: '0' },
-];
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router   = useRouter();
   const { alerts } = useAlerts({ limit: 100 });
   const { trainedCount } = useMLModels();
+  const { t } = useTranslation();
+
+  const navItems = [
+    { icon: 'Target'       as const, label: t('Common.warRoom'),       href: '/war-room',   key: '1' },
+    { icon: 'Search'       as const, label: t('Common.threatHunt'),    href: '/hunt',       key: '2' },
+    { icon: 'Shield'       as const, label: t('Common.intelHub'),      href: '/intel',      key: '3' },
+    { icon: 'Radio'        as const, label: t('Common.networkFlow'),   href: '/network',    key: '4' },
+    { icon: 'Bot'          as const, label: t('Common.aiAnalyst'),     href: '/ai-analyst', key: '5' },
+    { icon: 'Bell'         as const, label: t('Common.alertConsole'),  href: '/alerts',     key: '6' },
+    { icon: 'FlaskConical' as const, label: t('Common.forensicsLab'),  href: '/forensics',  key: '7' },
+    { icon: 'BrainCircuit' as const, label: t('Common.mlOps'),     href: '/ml-ops',     key: '8' },
+    { icon: 'BarChart3'    as const, label: t('Common.reports'),        href: '/reports',    key: '9' },
+    { icon: 'Settings'     as const, label: t('Common.admin'), href: '/admin',      key: '0' },
+  ];
 
   // Keyboard shortcuts: Alt+1 through Alt+0
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!e.altKey) return;
-      const item = NAV_ITEMS.find((n) => n.key === e.key);
+      const item = navItems.find((n) => n.key === e.key);
       if (item) {
         e.preventDefault();
         router.push(item.href);
@@ -54,10 +59,26 @@ export function Sidebar() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [router]);
+  }, [router, navItems]);
 
   return (
-    <nav className="sidebar">
+    <>
+      {/* Mobile Overlay */}
+      {isOpen && (
+        <div 
+          onClick={onClose}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 999,
+          }}
+          className="mobile-only"
+        />
+      )}
+
+      <nav className={cx('sidebar', isOpen && 'sidebar--open')}>
       {/* Logo mark */}
       <div style={{ marginBottom: 'var(--space-4)' }}>
         <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
@@ -70,7 +91,7 @@ export function Sidebar() {
       <div style={{ width: '100%', height: '1px', background: 'var(--border)', margin: 'var(--space-2) 0' }} />
 
       {/* Nav items */}
-      {NAV_ITEMS.map((item) => {
+      {navItems.map((item) => {
         const Icon    = ICON_MAP[item.icon];
         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
 
@@ -83,7 +104,12 @@ export function Sidebar() {
         }
 
         return (
-          <Link key={item.href} href={item.href} style={{ textDecoration: 'none', width: '100%', display: 'flex', justifyContent: 'center', position: 'relative' }}>
+          <Link 
+            key={item.href} 
+            href={item.href} 
+            onClick={onClose}
+            style={{ textDecoration: 'none', width: '100%', display: 'flex', justifyContent: 'center', position: 'relative' }}
+          >
             <div
               className={cx('nav-icon', isActive && 'nav-icon--active')}
               title={`${item.label} (Alt+${item.key})`}
@@ -132,5 +158,6 @@ export function Sidebar() {
         {APP_VERSION}
       </div>
     </nav>
+    </>
   );
 }

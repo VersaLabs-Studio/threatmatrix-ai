@@ -15,6 +15,7 @@ Verified providers via OpenRouter (March 25, 2026):
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -45,27 +46,35 @@ class TaskType(str, Enum):
 TASK_MODEL_ROUTING: Dict[TaskType, List[str]] = {
     TaskType.ALERT_ANALYSIS: [
         "nvidia/nemotron-3-super-120b-a12b:free",
-        "openai/gpt-oss-120b:free",
+        "mistralai/pixtral-12b:free",
+        "google/gemini-2.0-flash-exp:free",
+        "openrouter/free",
     ],
     TaskType.DAILY_BRIEFING: [
         "nvidia/nemotron-3-super-120b-a12b:free",
-        "stepfun/step-3.5-flash:free",
+        "google/gemini-2.0-flash-exp:free",
+        "openrouter/free",
     ],
     TaskType.IP_INVESTIGATION: [
         "nvidia/nemotron-3-super-120b-a12b:free",
         "openai/gpt-oss-120b:free",
+        "mistralai/mistral-7b-instruct:free",
+        "openrouter/free",
     ],
     TaskType.CHAT: [
         "openai/gpt-oss-120b:free",
-        "nvidia/nemotron-3-super-120b-a12b:free",
+        "mistralai/mistral-7b-instruct:free",
+        "openrouter/free",
     ],
     TaskType.TRANSLATION: [
+        "google/gemini-2.0-flash-exp:free",
         "stepfun/step-3.5-flash:free",
-        "openai/gpt-oss-120b:free",
+        "openrouter/free",
     ],
     TaskType.QUICK_SUMMARY: [
         "stepfun/step-3.5-flash:free",
-        "openai/gpt-oss-120b:free",
+        "mistralai/mistral-7b-instruct:free",
+        "openrouter/free",
     ],
 }
 
@@ -173,7 +182,9 @@ class LLMGateway:
     """
 
     def __init__(self) -> None:
-        self.api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        from app.config import get_settings
+        self._settings = get_settings()
+        self.api_key = self._settings.OPENROUTER_API_KEY
         self.base_url = OPENROUTER_BASE_URL
         self.enabled = bool(self.api_key)
         self.stats = {
@@ -186,6 +197,7 @@ class LLMGateway:
         }
         self._client: Optional[httpx.AsyncClient] = None
         self._redis: Any = None
+        self._semaphore = asyncio.Semaphore(self._settings.LLM_MAX_CONCURRENT)
 
         if self.enabled:
             logger.info("[LLM] OpenRouter gateway initialized (key present)")
@@ -268,40 +280,57 @@ class LLMGateway:
         }
 
         try:
-            response = await client.post("/chat/completions", json=payload)
-            response.raise_for_status()
-            data = response.json()
+            MAX_RETRIES = self._settings.LLM_MAX_RETRIES
+            RETRY_DELAY = self._settings.LLM_RETRY_DELAY
+            
+            for attempt in range(MAX_RETRIES):
+                async with self._semaphore:
+                    response = await client.post("/chat/completions", json=payload)
+                    
+                    if response.status_code == 429:
+                        wait = RETRY_DELAY * (2 ** attempt)
+                        logger.warning("[LLM] Rate limited (429). Retrying in %ds... (Attempt %d/%d)", 
+                                       wait, attempt + 1, MAX_RETRIES)
+                        await asyncio.sleep(wait)
+                        continue
+                        
+                    response.raise_for_status()
+                    data = response.json()
 
-            content = data["choices"][0]["message"]["content"]
-            usage = data.get("usage", {})
+                    content = data["choices"][0]["message"]["content"]
+                    usage = data.get("usage", {})
 
-            # Track stats
-            self.stats["requests"] += 1
-            self.stats["tokens_in"] += usage.get("prompt_tokens", 0)
-            self.stats["tokens_out"] += usage.get("completion_tokens", 0)
-            self.stats["by_model"][model] = self.stats["by_model"].get(model, 0) + 1
+                    # Track stats
+                    self.stats["requests"] += 1
+                    self.stats["tokens_in"] += usage.get("prompt_tokens", 0)
+                    self.stats["tokens_out"] += usage.get("completion_tokens", 0)
+                    self.stats["by_model"][model] = self.stats["by_model"].get(model, 0) + 1
 
-            # Persist to Redis (fire-and-forget)
-            await self._persist_usage(
-                model=model,
-                tokens_in=usage.get("prompt_tokens", 0),
-                tokens_out=usage.get("completion_tokens", 0),
-            )
+                    # Persist to Redis (fire-and-forget)
+                    await self._persist_usage(
+                        model=model,
+                        tokens_in=usage.get("prompt_tokens", 0),
+                        tokens_out=usage.get("completion_tokens", 0),
+                    )
 
-            logger.info(
-                "[LLM] %s — %d in / %d out tokens",
-                model.split("/")[-1],
-                usage.get("prompt_tokens", 0),
-                usage.get("completion_tokens", 0),
-            )
+                    logger.info(
+                        "[LLM] %s — %d in / %d out tokens",
+                        model.split("/")[-1],
+                        usage.get("prompt_tokens", 0),
+                        usage.get("completion_tokens", 0),
+                    )
 
-            return {
-                "content": content,
-                "model": model,
-                "tokens_in": usage.get("prompt_tokens", 0),
-                "tokens_out": usage.get("completion_tokens", 0),
-                "cost_usd": 0.0,  # Free tier
-            }
+                    return {
+                        "content": content,
+                        "model": model,
+                        "tokens_in": usage.get("prompt_tokens", 0),
+                        "tokens_out": usage.get("completion_tokens", 0),
+                        "cost_usd": 0.0,  # Free tier
+                    }
+
+            # If we exhausted retries with 429
+            logger.error("[LLM] Exhausted retries for 429 Rate Limit")
+            return await self._fallback_chat(messages, task_type, temperature, max_tokens)
 
         except httpx.HTTPStatusError as e:
             self.stats["errors"] += 1
@@ -333,16 +362,36 @@ class LLMGateway:
         }
 
         try:
-            response = await client.post("/chat/completions", json=payload)
-            response.raise_for_status()
-            data = response.json()
-            content = data["choices"][0]["message"]["content"]
-            usage = data.get("usage", {})
-            self.stats["requests"] += 1
-            logger.info("[LLM] Fallback to %s succeeded", fallback_model)
-            return {"content": content, "model": fallback_model,
-                    "tokens_in": usage.get("prompt_tokens", 0),
-                    "tokens_out": usage.get("completion_tokens", 0), "cost_usd": 0.0}
+            for attempt in range(len(models) - 1):
+                fallback_model = models[attempt + 1]
+                logger.info("[LLM] Attempting fallback model: %s", fallback_model)
+                
+                payload["model"] = fallback_model
+                
+                MAX_RETRIES = self._settings.LLM_MAX_RETRIES
+                RETRY_DELAY = self._settings.LLM_RETRY_DELAY
+                
+                for r in range(MAX_RETRIES):
+                    async with self._semaphore:
+                        response = await client.post("/chat/completions", json=payload)
+                        
+                        if response.status_code == 429:
+                            wait = RETRY_DELAY * (2 ** r)
+                            await asyncio.sleep(wait)
+                            continue
+                            
+                        response.raise_for_status()
+                        data = response.json()
+                        content = data["choices"][0]["message"]["content"]
+                        usage = data.get("usage", {})
+                        self.stats["requests"] += 1
+                        logger.info("[LLM] Fallback to %s succeeded", fallback_model)
+                        return {"content": content, "model": fallback_model,
+                                "tokens_in": usage.get("prompt_tokens", 0),
+                                "tokens_out": usage.get("completion_tokens", 0), "cost_usd": 0.0}
+            
+            return {"error": "All fallback models rate limited or failed", 
+                    "content": "[System currently under high load — please try again in 1 minute]"}
         except Exception as e:
             self.stats["errors"] += 1
             logger.error("[LLM] Fallback also failed: %s", e)
@@ -360,41 +409,60 @@ class LLMGateway:
             yield "[LLM gateway not configured]"
             return
 
-        model = self.select_model(task_type)
+        models = TASK_MODEL_ROUTING.get(task_type, ["openai/gpt-oss-120b:free"])
         client = await self._get_client()
-
         full_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
-        payload = {
-            "model": model,
-            "messages": full_messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stream": True,
-        }
+        
+        for model in models:
+            payload = {
+                "model": model,
+                "messages": full_messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": True,
+            }
 
-        try:
-            async with client.stream("POST", "/chat/completions", json=payload) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        data_str = line[6:]
-                        if data_str.strip() == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(data_str)
-                            delta = chunk.get("choices", [{}])[0].get("delta", {})
-                            if "content" in delta and delta["content"]:
-                                yield delta["content"]
-                        except json.JSONDecodeError:
-                            continue
+            MAX_RETRIES = self._settings.LLM_MAX_RETRIES
+            RETRY_DELAY = self._settings.LLM_RETRY_DELAY
+            
+            for attempt in range(MAX_RETRIES):
+                try:
+                    async with self._semaphore:
+                        async with client.stream("POST", "/chat/completions", json=payload) as response:
+                            if response.status_code == 429:
+                                wait = RETRY_DELAY * (2 ** attempt)
+                                logger.warning("[LLM] Stream rate limited (429). Retrying in %ds...", wait)
+                                await asyncio.sleep(wait)
+                                continue
+                                
+                            response.raise_for_status()
+                            async for line in response.aiter_lines():
+                                if line.startswith("data: "):
+                                    data_str = line[6:]
+                                    if data_str.strip() == "[DONE]":
+                                        break
+                                    try:
+                                        chunk = json.loads(data_str)
+                                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                                        if "content" in delta and delta["content"]:
+                                            yield delta["content"]
+                                    except json.JSONDecodeError:
+                                        continue
+                            
+                            self.stats["requests"] += 1
+                            logger.info("[LLM] Stream complete: %s", model.split("/")[-1])
+                            return # Success!
 
-            self.stats["requests"] += 1
-            logger.info("[LLM] Stream complete: %s", model.split("/")[-1])
+                except Exception as e:
+                    if attempt == MAX_RETRIES - 1:
+                        logger.error("[LLM] Stream failed for model %s: %s", model, e)
+                    else:
+                        await asyncio.sleep(RETRY_DELAY)
+                        continue
+            
+            logger.warning("[LLM] Model %s failed, trying fallback...", model)
 
-        except Exception as e:
-            self.stats["errors"] += 1
-            logger.error("[LLM] Stream error: %s", e)
-            yield f"[Error: {e}]"
+        yield "[All models currently rate limited or unavailable - please try again later]"
 
     async def analyze_alert(self, alert_data: Dict[str, Any]) -> Dict[str, Any]:
         """Generate LLM narrative for an alert."""
