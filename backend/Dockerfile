@@ -1,6 +1,10 @@
 # ThreatMatrix AI — Backend Dockerfile
 FROM python:3.11-slim
 
+# Prevent Python from writing .pyc files — ensures source .py is always used
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 # System deps
