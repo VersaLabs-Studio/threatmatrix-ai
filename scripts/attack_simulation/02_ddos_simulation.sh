@@ -21,7 +21,7 @@ set -euo pipefail
 
 TARGET="${1:-127.0.0.1}"
 DURATION=10
-API_URL="http://localhost:8000/api/v1"
+API_URL="${2:-http://localhost:8000/api/v1}"
 
 # Colors
 RED='\033[0;31m'

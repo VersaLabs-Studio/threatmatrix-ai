@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -141,7 +142,7 @@ class MLWorker:
 
     async def _process_message(self, data: str) -> None:
         """Process a single flow message from Redis."""
-        start = time.time()
+        t_start = time.time()
 
         # Parse flow
         msg = json.loads(data)
@@ -161,9 +162,27 @@ class MLWorker:
             return
 
         X_batch = X.reshape(1, -1)
+        t_preprocess = time.time()
 
-        # Score with ensemble
-        results = self.model_manager.score_flows(X_batch)
+        # Score each model individually for latency tracking
+        if_scores = self.model_manager.if_model.score(X_batch) if self.model_manager.if_model._is_fitted else np.zeros(len(X_batch))
+        t_if = time.time()
+
+        rf_preds = (
+            self.model_manager.rf_model.predict_with_confidence(X_batch)
+            if self.model_manager.rf_model._is_fitted
+            else [{"label": "unknown", "confidence": 0.0, "is_anomaly": False,
+                   "class_probabilities": {}} for _ in range(len(X_batch))]
+        )
+        t_rf = time.time()
+
+        ae_scores = self.model_manager.ae_model.score(X_batch) if self.model_manager.ae_model._is_fitted else np.zeros(len(X_batch))
+        t_ae = time.time()
+
+        # Ensemble scoring
+        results = self.model_manager.scorer.classify(if_scores, rf_preds, ae_scores)
+        t_ensemble = time.time()
+
         if not results:
             return
 
@@ -173,6 +192,19 @@ class MLWorker:
         severity = result["severity"]
 
         self.stats["flows_scored"] += 1
+
+        # Log per-flow latency breakdown for anomalies
+        if is_anomaly:
+            logger.info(
+                "[Worker] Flow %s latency: preprocess=%.1fms IF=%.1fms RF=%.1fms AE=%.1fms ensemble=%.1fms total=%.1fms",
+                flow_id,
+                (t_preprocess - t_start) * 1000,
+                (t_if - t_preprocess) * 1000,
+                (t_rf - t_if) * 1000,
+                (t_ae - t_rf) * 1000,
+                (t_ensemble - t_ae) * 1000,
+                (t_ensemble - t_start) * 1000,
+            )
 
         # Publish scored flow to ml:scored channel
         score_update = {
@@ -222,11 +254,32 @@ class MLWorker:
             )
 
         # Stats
-        elapsed_ms = (time.time() - start) * 1000
+        elapsed_ms = (time.time() - t_start) * 1000
         self.stats["avg_inference_ms"] = (
             (self.stats["avg_inference_ms"] * (self.stats["flows_scored"] - 1) + elapsed_ms)
             / self.stats["flows_scored"]
         )
+
+        # Publish latency metrics for anomalies to ml:metrics channel
+        if is_anomaly and severity in ("critical", "high", "medium"):
+            try:
+                latency_payload = {
+                    "event": "latency",
+                    "payload": {
+                        "flow_id": flow_id,
+                        "preprocess_ms": round((t_preprocess - t_start) * 1000, 2),
+                        "if_ms": round((t_if - t_preprocess) * 1000, 2),
+                        "rf_ms": round((t_rf - t_if) * 1000, 2),
+                        "ae_ms": round((t_ae - t_rf) * 1000, 2),
+                        "ensemble_ms": round((t_ensemble - t_ae) * 1000, 2),
+                        "total_ms": round(elapsed_ms, 2),
+                        "severity": severity,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    },
+                }
+                await self._publisher.publish("ml:metrics", json.dumps(latency_payload))
+            except Exception as e:
+                logger.warning("[Worker] Failed to publish latency metrics: %s", e)
 
         if self.stats["flows_scored"] % 100 == 0:
             logger.info(
@@ -239,6 +292,7 @@ class MLWorker:
 
     async def _create_alert(self, flow_data: Dict, result: Dict) -> None:
         """Create and publish an alert for an anomalous flow."""
+        t_alert_start = time.time()
         alert = {
             "event": "new_alert",
             "payload": {
@@ -264,13 +318,15 @@ class MLWorker:
 
         await self._publisher.publish(self.alert_channel, json.dumps(alert))
         self.stats["alerts_created"] += 1
+        t_alert_end = time.time()
 
         logger.info(
-            "[Worker] ALERT: %s — %s (score=%.2f, agreement=%s)",
+            "[Worker] ALERT: %s — %s (score=%.2f, agreement=%s, latency=%.1fms)",
             result["severity"].upper(),
             result["label"],
             result["composite_score"],
             result["model_agreement"],
+            (t_alert_end - t_alert_start) * 1000,
         )
 
     async def _cleanup(self) -> None:

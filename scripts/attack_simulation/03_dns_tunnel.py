@@ -34,7 +34,7 @@ except ImportError:
 
 TARGET = sys.argv[1] if len(sys.argv) > 1 else "127.0.0.1"
 DNS_PORT = 53
-API_URL = "http://localhost:8000/api/v1"
+API_URL = sys.argv[2] if len(sys.argv) > 2 else "http://localhost:8000/api/v1"
 NUM_QUERIES = 50
 
 # ANSI colors

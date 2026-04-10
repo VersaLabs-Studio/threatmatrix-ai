@@ -6,12 +6,14 @@ import { TopBar }    from "@/components/layout/TopBar";
 import { StatusBar } from "@/components/layout/StatusBar";
 import { AuthGuardWrapper } from "@/components/auth/AuthGuardWrapper";
 import { NotificationToast, type Toast } from "@/components/shared/NotificationToast";
+import { CriticalOverlay } from "@/components/shared/CriticalOverlay";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { type Severity } from "@/lib/constants";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { lastAlertEvent, lastAnomalyEvent } = useWebSocket();
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [showCriticalOverlay, setShowCriticalOverlay] = useState(false);
 
   const addToast = useCallback((toast: Toast) => {
     setToasts((prev) => [toast, ...prev].slice(0, 5));
@@ -24,13 +26,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Create toasts from WebSocket alert events
   useEffect(() => {
     if (!lastAlertEvent) return;
+    const severity = lastAlertEvent.severity as Severity;
+    const score = lastAlertEvent.composite_score || 0;
     const toast: Toast = {
       id: `toast-alert-${Date.now()}`,
-      severity: lastAlertEvent.severity as Severity,
+      severity,
       title: lastAlertEvent.category?.toUpperCase() || 'ALERT',
-      message: `Score: ${((lastAlertEvent.composite_score || 0) * 100).toFixed(0)}% — ${lastAlertEvent.src_ip}`,
+      message: `${severity.toUpperCase()} — Score: ${(score * 100).toFixed(0)}%`,
+      alertId: lastAlertEvent.id,
+      composite_score: score,
+      src_ip: lastAlertEvent.src_ip,
+      dst_ip: lastAlertEvent.dst_ip,
     };
     addToast(toast);
+
+    // Trigger critical overlay
+    if (severity === 'critical' || score >= 0.90) {
+      setShowCriticalOverlay(true);
+      setTimeout(() => setShowCriticalOverlay(false), 2000);
+    }
   }, [lastAlertEvent, addToast]);
 
   // Create toasts from WebSocket anomaly events (MEDIUM+ severity only)
@@ -45,9 +59,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       id: `toast-anomaly-${Date.now()}`,
       severity,
       title: `ML ANOMALY: ${lastAnomalyEvent.label?.toUpperCase() || 'DETECTED'}`,
-      message: `Score: ${(score * 100).toFixed(0)}% — ${lastAnomalyEvent.src_ip} → ${lastAnomalyEvent.dst_ip}`,
+      message: `${severity.toUpperCase()} — Score: ${(score * 100).toFixed(0)}%`,
+      composite_score: score,
+      if_score: lastAnomalyEvent.if_score,
+      ae_score: lastAnomalyEvent.ae_score,
+      rf_score: lastAnomalyEvent.rf_confidence,
+      model_agreement: lastAnomalyEvent.model_agreement,
+      src_ip: lastAnomalyEvent.src_ip,
+      dst_ip: lastAnomalyEvent.dst_ip,
     };
     addToast(toast);
+
+    // Trigger critical overlay
+    if (severity === 'critical') {
+      setShowCriticalOverlay(true);
+      setTimeout(() => setShowCriticalOverlay(false), 2000);
+    }
   }, [lastAnomalyEvent, addToast]);
 
   return (
@@ -71,6 +98,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Notification Toasts */}
       <NotificationToast toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Critical Alert Full-Screen Overlay */}
+      <CriticalOverlay visible={showCriticalOverlay} />
     </>
   );
 }

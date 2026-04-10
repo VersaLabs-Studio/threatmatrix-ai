@@ -25,6 +25,7 @@ import { SystemStatusCard }  from '@/components/war-room/SystemStatusCard';
 import { ProtocolCard }      from '@/components/war-room/ProtocolCard';
 import { TrafficTimelineCard } from '@/components/war-room/TrafficTimelineCard';
 import { ThreatLevelCard }   from '@/components/war-room/ThreatLevelCard';
+import { AlertCounterBanner } from '@/components/war-room/AlertCounterBanner';
 import { formatPercent, shortNumber } from '@/lib/utils';
 import { AuthGuard }         from '@/components/auth/AuthGuard';
 
@@ -234,6 +235,9 @@ export default function WarRoomPage() {
           <ThreatLevelCard level={threatLevel} alertStats={sevCounts} loading={alertsLoading} />
         </div>
       </div>
+
+      {/* ── Alert Counter Banner (fixed, bottom-right) ── */}
+      <AlertCounterBanner />
     </AuthGuard>
   );
 }

@@ -55,7 +55,13 @@ export interface AnomalyDetectedEvent {
   dst_ip: string;
   anomaly_score: number;
   composite_score: number;
+  severity: string;
+  category: string;
   label: string;
+  if_score?: number;
+  ae_score?: number;
+  rf_confidence?: number;
+  model_agreement?: string;
   timestamp: string;
 }
 
