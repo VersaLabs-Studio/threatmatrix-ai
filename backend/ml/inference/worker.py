@@ -189,69 +189,132 @@ class MLWorker:
         result = results[0]
         rf_pred = rf_preds[0]
 
-        # ── DIRECT SEVERITY FROM RF LABEL ──
-        # The composite score is unreliable due to domain gap between
-        # NSL-KDD training data and live VPS traffic. Instead, map the
-        # RF attack classification directly to severity.
-        LABEL_SEVERITY = {
-            "dos":   "critical",
-            "u2r":   "critical",
-            "r2l":   "high",
-            "probe": "high",
-        }
-        LABEL_SCORE = {
-            "dos":   0.85,
-            "u2r":   0.92,
-            "r2l":   0.72,
-            "probe": 0.70,
-        }
-
         raw_composite = result["composite_score"]
         raw_severity = result["severity"]
-        label = rf_pred["label"]
+        rf_label = rf_pred["label"]
         rf_is_anomaly = rf_pred["is_anomaly"]
         rf_conf = rf_pred["confidence"]
 
-        # Override severity and score based on RF classification
-        if rf_is_anomaly and label in LABEL_SEVERITY:
-            severity = LABEL_SEVERITY[label]
-            # Set score to max of raw composite and label-based floor
-            composite_score = max(raw_composite, LABEL_SCORE[label])
-            # Boost for high RF confidence
-            if rf_conf >= 0.80:
-                composite_score = min(composite_score + 0.08, 1.0)
+        # ── ATTACK CLASSIFICATION VIA FLOW FEATURES ──────────────
+        # The RF model always predicts "normal" for live VPS traffic
+        # (NSL-KDD domain gap). Instead, use the NSL-KDD statistical
+        # features that the capture engine computes per flow.
+        # These features (count, serror_rate, same_srv_rate etc.)
+        # genuinely differ between normal and attack traffic.
+        f_count = features.get("count", 0)
+        f_srv_count = features.get("srv_count", 0)
+        f_serror_rate = features.get("serror_rate", 0)
+        f_srv_serror_rate = features.get("srv_serror_rate", 0)
+        f_same_srv_rate = features.get("same_srv_rate", 1.0)
+        f_diff_srv_rate = features.get("diff_srv_rate", 0)
+        f_dst_host_count = features.get("dst_host_count", 0)
+        f_dst_host_srv_count = features.get("dst_host_srv_count", 0)
+        f_dst_host_serror_rate = features.get("dst_host_serror_rate", 0)
+        f_dst_host_same_src_port_rate = features.get("dst_host_same_src_port_rate", 0)
+        f_flag = features.get("flag", "")
+        f_service = features.get("service", "")
+        f_protocol = features.get("protocol_type", "")
+        f_duration = features.get("duration", 0)
+        f_src_bytes = features.get("src_bytes", 0)
+
+        detected_attack = None
+        detected_severity = None
+        detected_score = None
+
+        # ─── DDoS / DoS: high count + same service + SYN errors ───
+        if (f_count >= 50 and f_same_srv_rate >= 0.8
+                and (f_serror_rate >= 0.3 or f_dst_host_serror_rate >= 0.3)):
+            detected_attack = "dos"
+            detected_severity = "critical"
+            detected_score = 0.88
+
+        elif f_count >= 100 and f_same_srv_rate >= 0.9:
+            detected_attack = "dos"
+            detected_severity = "critical"
+            detected_score = 0.85
+
+        # ─── Port Scan / Probe: many different services ───────────
+        elif (f_count >= 10 and f_diff_srv_rate >= 0.3
+              and f_same_srv_rate <= 0.7):
+            detected_attack = "probe"
+            detected_severity = "high"
+            detected_score = 0.75
+
+        elif (f_count >= 5 and f_serror_rate >= 0.5
+              and f_dst_host_serror_rate >= 0.3):
+            detected_attack = "probe"
+            detected_severity = "high"
+            detected_score = 0.70
+
+        # ─── SSH/FTP Brute Force: repeated same-service connections ─
+        elif (f_count >= 10 and f_service in ("ssh", "ftp", "telnet")
+              and f_same_srv_rate >= 0.9
+              and f_dst_host_same_src_port_rate >= 0.5):
+            detected_attack = "r2l"
+            detected_severity = "high"
+            detected_score = 0.72
+
+        # ─── Generic high-volume anomaly ──────────────────────────
+        elif f_count >= 80 and f_dst_host_count >= 50:
+            detected_attack = "dos"
+            detected_severity = "high"
+            detected_score = 0.68
+
+        # Apply heuristic classification
+        if detected_attack:
+            severity = detected_severity
+            composite_score = max(raw_composite, detected_score)
             is_anomaly = True
+            label = detected_attack
+        elif rf_is_anomaly and rf_label in ("dos", "u2r", "r2l", "probe"):
+            # RF actually detected an attack (rare but possible)
+            _RF_SEV = {"dos": "critical", "u2r": "critical",
+                       "r2l": "high", "probe": "high"}
+            _RF_SCORE = {"dos": 0.85, "u2r": 0.92,
+                         "r2l": 0.72, "probe": 0.70}
+            severity = _RF_SEV[rf_label]
+            composite_score = max(raw_composite, _RF_SCORE[rf_label])
+            is_anomaly = True
+            label = rf_label
         else:
             severity = raw_severity
             composite_score = raw_composite
             is_anomaly = result["is_anomaly"]
+            label = rf_label
+
+        # Suppress LOW severity — only alert on MEDIUM+ to avoid
+        # false positives from the AE/IF domain gap noise floor (~0.44)
+        if severity == "low":
+            is_anomaly = False
 
         # Update result dict for downstream (alerts, websocket, DB)
         result["composite_score"] = composite_score
         result["severity"] = severity
         result["is_anomaly"] = is_anomaly
+        result["label"] = label
 
         self.stats["flows_scored"] += 1
 
         # ── DIAGNOSTIC LOGGING ──
-        # Log EVERY flow's RF classification for first 20 flows + every 200th
-        # This lets us verify what the RF model actually sees
         n = self.stats["flows_scored"]
-        if n <= 20 or n % 200 == 0:
+        if n <= 20 or n % 500 == 0:
             logger.info(
-                "[Worker] DIAG #%d flow=%s rf_label=%s rf_conf=%.2f "
-                "rf_anomaly=%s IF=%.3f AE=%.3f raw=%.3f",
-                n, flow_id, label, rf_conf, rf_is_anomaly,
-                float(if_scores[0]), float(ae_scores[0]), raw_composite,
+                "[Worker] DIAG #%d flow=%s rf=%s(%.2f) | "
+                "cnt=%d serr=%.2f same_srv=%.2f diff_srv=%.2f | "
+                "IF=%.3f AE=%.3f | det=%s sev=%s",
+                n, flow_id, rf_label, rf_conf,
+                f_count, f_serror_rate, f_same_srv_rate, f_diff_srv_rate,
+                float(if_scores[0]), float(ae_scores[0]),
+                detected_attack or "none", severity,
             )
 
-        # Log all anomalous flows with escalation details
-        if is_anomaly:
+        # Log flows that will create alerts (MEDIUM+)
+        if is_anomaly and severity in ("critical", "high", "medium"):
             logger.info(
-                "[Worker] ALERT-PREP: %s | label=%s rf_conf=%.2f | "
-                "raw=%.3f -> %.3f | sev=%s->%s",
-                flow_id, label, rf_conf,
-                raw_composite, composite_score,
+                "[Worker] ATTACK: %s | %s(%.2f) | cnt=%d serr=%.1f "
+                "same_srv=%.1f | raw=%.3f->%.3f | %s->%s",
+                flow_id, label, rf_conf, f_count, f_serror_rate,
+                f_same_srv_rate, raw_composite, composite_score,
                 raw_severity.upper(), severity.upper(),
             )
 
