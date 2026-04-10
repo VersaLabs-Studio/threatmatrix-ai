@@ -212,7 +212,12 @@ async def validate_token(token: str) -> dict[str, Any] | None:
     Validate JWT token from WebSocket connection.
     
     Returns user info if valid, None if invalid.
+    In DEV_MODE, accepts any non-empty token.
     """
+    # DEV_MODE bypasses full JWT validation
+    if settings.DEV_MODE and token:
+        return {"user_id": "dev_user", "email": "dev@localhost", "role": "admin"}
+    
     try:
         from app.services.auth_service import decode_token
         payload = decode_token(token)
@@ -231,7 +236,7 @@ async def validate_token(token: str) -> dict[str, Any] | None:
 @router.websocket("/ws/")
 async def websocket_endpoint(
     websocket: WebSocket,
-    token: str = Query(..., description="JWT authentication token"),
+    token: str | None = Query(None, description="JWT authentication token"),
 ):
     """
     WebSocket endpoint for real-time event streaming.
@@ -252,7 +257,7 @@ async def websocket_endpoint(
         {"channel": "system:status", "data": {...}}
     """
     # Validate token
-    user = await validate_token(token)
+    user = await validate_token(token or "")
     if not user:
         await websocket.close(code=4001, reason="Invalid or missing token")
         return

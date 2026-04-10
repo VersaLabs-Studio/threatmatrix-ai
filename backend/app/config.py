@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # ── Application ──────────────────────────────────────────────
     APP_NAME: str = "ThreatMatrix AI"
-    APP_VERSION: str = "0.1.0"
+    APP_VERSION: str = "v0.6.4"
     DEBUG: bool = False
     DEV_MODE: bool = Field(
         default=True,
@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     # ── CORS ─────────────────────────────────────────────────────
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
+        "http://localhost:3001",
         "https://threatmatrix-ai.vercel.app",
     ]
 

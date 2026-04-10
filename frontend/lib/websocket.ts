@@ -37,17 +37,29 @@ class WebSocketClient {
       this.listeners.set(channel, new Set());
     }
     this.listeners.get(channel)!.add(listener);
+    this.subscribedChannels.add(channel);
     
     // If already connected, send subscribe message to backend
     if (this.ws?.readyState === WebSocket.OPEN) {
       this._sendSubscribeMessage([channel]);
     }
     
-    return () => this.listeners.get(channel)?.delete(listener);
+    return () => {
+      this.listeners.get(channel)?.delete(listener);
+      if (this.listeners.get(channel)?.size === 0) {
+        this.subscribedChannels.delete(channel);
+      }
+    };
   }
 
   get isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  ping() {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ action: 'ping' }));
+    }
   }
 
   private _open(token: string) {

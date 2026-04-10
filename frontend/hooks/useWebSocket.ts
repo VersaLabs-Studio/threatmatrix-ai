@@ -129,18 +129,33 @@ export function useWebSocket(): UseWebSocketReturn {
   }, []);
 
   useEffect(() => {
-    // Connect using stored token (if available)
+    // Connect using stored token (or dev_mode placeholder)
     const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
-    if (token) wsClient.connect(token);
+    const devToken = token || 'dev_mode_token';
+    wsClient.connect(devToken);
 
     // Subscribe to all channels (will be sent once WS is open)
-    const unsubFlows  = wsClient.subscribe(WS_CHANNELS.FLOWS,  (d) => setLastFlowEvent(d as FlowEvent));
-    const unsubAlerts = wsClient.subscribe(WS_CHANNELS.ALERTS, (d) => setLastAlertEvent(d as AlertEvent));
+    const unsubFlows  = wsClient.subscribe(WS_CHANNELS.FLOWS,  (d) => {
+      const flow = d as FlowEvent;
+      console.log('[WS] Flow event:', { flowId: flow.id, src_ip: flow.src_ip, is_anomaly: flow.is_anomaly });
+      setLastFlowEvent(flow);
+    });
+    const unsubAlerts = wsClient.subscribe(WS_CHANNELS.ALERTS, (d) => {
+      const alert = d as AlertEvent;
+      console.log('[WS] Alert event:', { alertId: alert.id, severity: alert.severity, category: alert.category });
+      setLastAlertEvent(alert);
+    });
     const unsubSystem = wsClient.subscribe(WS_CHANNELS.SYSTEM, (d) => {
-      setSystemStatus(d as SystemStatusEvent);
+      const status = d as SystemStatusEvent;
+      console.log('[WS] System status:', status);
+      setSystemStatus(status);
       checkConnection();
     });
-    const unsubML     = wsClient.subscribe(WS_CHANNELS.ML,     (d) => setLastAnomalyEvent(d as AnomalyDetectedEvent));
+    const unsubML     = wsClient.subscribe(WS_CHANNELS.ML,     (d) => {
+      const anomaly = d as AnomalyDetectedEvent;
+      console.log('[WS] Anomaly detected:', { flowId: anomaly.flow_id, score: anomaly.composite_score });
+      setLastAnomalyEvent(anomaly);
+    });
 
     // Store unsubscribe functions for dynamic unsubscribe support
     unsubFunctionsRef.current.set(WS_CHANNELS.FLOWS, unsubFlows);
@@ -154,9 +169,7 @@ export function useWebSocket(): UseWebSocketReturn {
     // Heartbeat: ping every 30 seconds to keep connection alive
     const heartbeatInterval = setInterval(() => {
       if (wsClient.isConnected) {
-        // Send a ping message (backend should respond with pong)
-        // For now, we just check connection state
-        checkConnection();
+        wsClient.ping();
       }
     }, 30000);
 
