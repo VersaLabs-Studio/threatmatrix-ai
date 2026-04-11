@@ -32,22 +32,56 @@ BOLD = "\033[1m"
 NC = "\033[0m"
 
 WAIT_AFTER_ATTACK = 45  # External attacks need more time (network latency)
+API_RETRIES = 3        # Number of retries for API calls
+API_TIMEOUT = 30       # Seconds per attempt
 
 
-def api_get(api_url, path):
-    """GET from ThreatMatrix API."""
+def api_get(api_url, path, retries=API_RETRIES):
+    """GET from ThreatMatrix API with retry logic."""
     from urllib.request import Request, urlopen
-    try:
-        req = Request(f"{api_url}{path}")
-        with urlopen(req, timeout=20) as resp:
-            return json.loads(resp.read().decode())
-    except Exception as e:
-        return {"error": str(e)}
+    last_err = None
+    for attempt in range(retries):
+        try:
+            req = Request(f"{api_url}{path}")
+            with urlopen(req, timeout=API_TIMEOUT) as resp:
+                return json.loads(resp.read().decode())
+        except Exception as e:
+            last_err = e
+            if attempt < retries - 1:
+                wait = 5 * (attempt + 1)
+                print(f"    {YELLOW}[retry] API call failed ({e}), retrying in {wait}s...{NC}")
+                time.sleep(wait)
+    return {"error": str(last_err)}
 
 
 def get_alert_stats(api_url):
     """Get alert stats."""
     return api_get(api_url, "/api/v1/alerts/stats")
+
+
+def wait_for_connectivity(api_url, max_wait=90):
+    """Wait up to max_wait seconds for API to become reachable again.
+    
+    After a DDoS scenario the hosting provider's firewall may
+    temporarily block our IP. This polls until connectivity returns.
+    """
+    from urllib.request import Request, urlopen
+    print(f"\n  {YELLOW}[*] Verifying API connectivity...{NC}", end="", flush=True)
+    start = time.time()
+    while time.time() - start < max_wait:
+        try:
+            req = Request(f"{api_url}/api/v1/system/health")
+            with urlopen(req, timeout=10) as resp:
+                resp.read()
+            print(f" {GREEN}OK{NC}")
+            return True
+        except Exception:
+            print(".", end="", flush=True)
+            time.sleep(5)
+    print(f" {RED}TIMEOUT after {max_wait}s{NC}")
+    print(f"  {YELLOW}[!] Your IP may be blocked by VPS DDoS protection.{NC}")
+    print(f"  {YELLOW}    SSH into VPS and run: iptables -F{NC}")
+    return False
 
 
 def print_header(title, color=CYAN):
@@ -138,8 +172,12 @@ def scenario_port_scan(target, api_url):
     return wait_and_check(api_url, pre, "Port Scan", "high", "port_scan")
 
 
-def scenario_ddos(target, api_url, duration=15):
-    """SYN flood using Scapy → expect CRITICAL dos alerts."""
+def scenario_ddos(target, api_url, duration=8):
+    """SYN flood using Scapy → expect CRITICAL dos alerts.
+    
+    NOTE: Reduced to 8s / ~5000 packets to avoid triggering the
+    hosting provider's DDoS protection which blocks our real IP.
+    """
     print_header("Scenario 2: DDoS SYN Flood", RED)
 
     from scapy.all import IP, TCP, send, conf
@@ -147,7 +185,7 @@ def scenario_ddos(target, api_url, duration=15):
 
     pre = get_alert_stats(api_url)
     print(f"  Pre-attack alerts: {pre.get('total', 0)}")
-    print(f"  Sending SYN flood to {target}:80 for {duration}s...")
+    print(f"  Sending SYN flood to {target}:80 for {duration}s (reduced to avoid IP block)...")
 
     sent = 0
     start = time.time()
@@ -163,12 +201,12 @@ def scenario_ddos(target, api_url, duration=15):
         batch.append(pkt)
         sent += 1
 
-        # Send in batches of 100 for speed
-        if len(batch) >= 100:
+        # Send in batches of 50 (smaller bursts = less likely to trip firewall)
+        if len(batch) >= 50:
             send(batch, verbose=0)
             batch = []
 
-        if sent % 2000 == 0:
+        if sent % 1000 == 0:
             elapsed = time.time() - start
             print(f"    Sent {sent} packets ({sent/max(elapsed,0.1):.0f}/s)...")
 
@@ -279,6 +317,7 @@ def main():
     parser.add_argument("--api", default=None, help="API URL (default: http://<target>:8000)")
     parser.add_argument("--scenario", type=int, default=0, help="Run specific scenario (1-5, 0=all)")
     parser.add_argument("--wait", type=int, default=45, help="Wait seconds per attack (default: 45)")
+    parser.add_argument("--skip-ddos", action="store_true", help="Skip DDoS scenario (avoids IP block)")
     args = parser.parse_args()
 
     global WAIT_AFTER_ATTACK
@@ -307,14 +346,16 @@ def main():
         print(f"{RED}[ERROR] scapy not installed. Install with: pip install scapy{NC}")
         sys.exit(1)
 
-    # Check API
+    # Check API connectivity (with retries)
     print(f"{YELLOW}[*] Checking API connectivity at {api_url}...{NC}")
-    health = api_get(api_url, "/api/v1/system/health")
-    if "error" in health:
-        print(f"{RED}[ERROR] Cannot reach API: {health['error']}{NC}")
-        print(f"{YELLOW}[!] Make sure port 8000 is open on the VPS{NC}")
+    if not wait_for_connectivity(api_url, max_wait=30):
+        print(f"{RED}[ERROR] Cannot reach API after retries.{NC}")
+        print(f"{YELLOW}[!] Troubleshooting:{NC}")
+        print(f"    1. SSH into VPS: ssh root@{target}")
+        print(f"    2. Check API: curl http://localhost:8000/api/v1/system/health")
+        print(f"    3. Clear firewall: iptables -F")
+        print(f"    4. Restart if needed: docker compose up -d --force-recreate backend")
         sys.exit(1)
-    print(f"{GREEN}[+] API reachable{NC}")
 
     # Baseline
     stats = get_alert_stats(api_url)
@@ -323,7 +364,7 @@ def main():
     for s in ["critical", "high", "medium", "low"]:
         print(f"  {s.upper():10s}: {sev.get(s, 0)}")
 
-    # Run scenarios
+    # Build scenario list
     scenarios = {
         1: ("Port Scan",      lambda: scenario_port_scan(target, api_url)),
         2: ("DDoS Flood",     lambda: scenario_ddos(target, api_url)),
@@ -331,6 +372,10 @@ def main():
         4: ("DNS Tunnel",     lambda: scenario_dns_tunnel(target, api_url)),
         5: ("Normal Traffic",  lambda: scenario_normal_traffic(target, api_url)),
     }
+
+    if args.skip_ddos:
+        print(f"\n  {YELLOW}[!] Skipping DDoS scenario (--skip-ddos){NC}")
+        del scenarios[2]
 
     results = []
     if args.scenario > 0:
@@ -341,12 +386,25 @@ def main():
         result = fn()
         results.append((name, result))
     else:
-        for num, (name, fn) in sorted(scenarios.items()):
+        scenario_keys = sorted(scenarios.keys())
+        for i, num in enumerate(scenario_keys):
+            name, fn = scenarios[num]
+
+            # Re-verify connectivity before each scenario (in case DDoS blocked us)
+            if i > 0:
+                if not wait_for_connectivity(api_url, max_wait=60):
+                    print(f"  {RED}[!] Lost connectivity — skipping remaining scenarios{NC}")
+                    print(f"  {YELLOW}    SSH into VPS and run: iptables -F{NC}")
+                    break
+
             result = fn()
             results.append((name, result))
-            if num < 5:
-                print(f"\n  {YELLOW}Cooldown 15s...{NC}")
-                time.sleep(15)
+
+            # Cooldown between scenarios
+            if i < len(scenario_keys) - 1:
+                cooldown = 30 if num == 2 else 15  # Extra cooldown after DDoS
+                print(f"\n  {YELLOW}Cooldown {cooldown}s...{NC}")
+                time.sleep(cooldown)
 
     # Final Summary
     final_stats = get_alert_stats(api_url)
