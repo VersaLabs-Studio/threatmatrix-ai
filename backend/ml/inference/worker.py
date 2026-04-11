@@ -245,9 +245,8 @@ class MLWorker:
 
         # ─── 3. Port Scan → HIGH ─────────────────────────────────
         # Port scans hit unknown ports → service="other"
-        # Threshold 80 filters normal VPS traffic (count=30-79)
-        # Real port scans generate count=100+ easily
-        elif f_count >= 80 and f_service == "other":
+        # High count to "other" = scanning uncommon ports
+        elif f_count >= 30 and f_service == "other":
             detected_attack = "probe"
             detected_severity = "high"
             detected_score = 0.75
@@ -255,8 +254,8 @@ class MLWorker:
         # ═══ VOLUME-BASED RULES (fallback for known services) ════
 
         # ─── 4. HTTP/HTTPS DDoS → CRITICAL ───────────────────────
-        # Volume to web services = DDoS (50+ connections in 2s window)
-        elif (f_count >= 50
+        # Massive volume to web services = DDoS
+        elif (f_count >= 80
               and f_service in ("http", "https", "http-alt",
                                 "http-proxy", "https-alt")):
             detected_attack = "dos"
@@ -284,15 +283,28 @@ class MLWorker:
             composite_score = max(raw_composite, detected_score)
             is_anomaly = True
             label = detected_attack
+        elif rf_is_anomaly and rf_label in ("dos", "u2r", "r2l", "probe"):
+            # RF actually detected an attack (rare but possible)
+            _RF_SEV = {"dos": "critical", "u2r": "critical",
+                       "r2l": "high", "probe": "high"}
+            _RF_SCORE = {"dos": 0.85, "u2r": 0.92,
+                         "r2l": 0.72, "probe": 0.70}
+            severity = _RF_SEV[rf_label]
+            composite_score = max(raw_composite, _RF_SCORE[rf_label])
+            is_anomaly = True
+            label = rf_label
         else:
-            # No heuristic matched → suppress alert entirely.
-            # The RF/AE/IF models have a domain gap on live traffic
-            # and cannot reliably distinguish attacks from normal.
-            # Only heuristic-detected flows should generate alerts.
             severity = raw_severity
             composite_score = raw_composite
-            is_anomaly = False
+            is_anomaly = result["is_anomaly"]
             label = rf_label
+
+        # Suppress false positives: if no heuristic matched AND RF says
+        # normal, this is just AE/IF noise floor (~0.44) drifting above
+        # the MEDIUM threshold. Not a real attack.
+        if not detected_attack and not rf_is_anomaly:
+            if severity in ("low", "medium"):
+                is_anomaly = False
 
         # Update result dict for downstream (alerts, websocket, DB)
         result["composite_score"] = composite_score
