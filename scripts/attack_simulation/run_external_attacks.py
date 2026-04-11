@@ -39,7 +39,7 @@ def api_get(api_url, path):
     from urllib.request import Request, urlopen
     try:
         req = Request(f"{api_url}{path}")
-        with urlopen(req, timeout=10) as resp:
+        with urlopen(req, timeout=20) as resp:
             return json.loads(resp.read().decode())
     except Exception as e:
         return {"error": str(e)}
@@ -251,7 +251,7 @@ def scenario_normal_traffic(target, api_url):
         ep = endpoints[i % len(endpoints)]
         try:
             req = Request(f"{api_url}{ep}")
-            with urlopen(req, timeout=5) as resp:
+            with urlopen(req, timeout=20) as resp:
                 resp.read()
                 success += 1
         except Exception:

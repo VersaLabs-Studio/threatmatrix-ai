@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThreatMatrix AI — Senior Project Defense</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #0f1018;
+            --bg-tertiary: #141420;
+            --cyan: #00f0ff;
+            --cyan-glow: rgba(0, 240, 255, 0.3);
+            --cyan-subtle: rgba(0, 240, 255, 0.08);
+            --blue: #3b82f6;
+            --red: #ef4444;
+            --orange: #f59e0b;
+            --green: #22c55e;
+            --purple: #a855f7;
+            --pink: #ec4899;
+            --text-primary: #e8eaed;
+            --text-secondary: #9ca3af;
+            --text-dim: #6b7280;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.06);
+            --glass-hover: rgba(255, 255, 255, 0.08);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+        .presentation { width: 100vw; height: 100vh; position: relative; }
+        .slide {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            padding: 50px 80px 70px;
+            opacity: 0; transform: translateX(60px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            pointer-events: none;
+            overflow-y: auto;
+        }
+        .slide.active { opacity: 1; transform: translateX(0); pointer-events: all; }
+        .slide.prev { opacity: 0; transform: translateX(-60px); }
+        .slide::before {
+            content: ''; position: absolute; inset: 0;
+            background: radial-gradient(circle at 20% 80%, rgba(0,240,255,0.03) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, rgba(59,130,246,0.03) 0%, transparent 50%);
+            pointer-events: none;
+        }
+        .grid-bg::after {
+            content: ''; position: absolute; inset: 0;
+            background-image: linear-gradient(rgba(0,240,255,0.03) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0,240,255,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+        }
+        .slide-title { font-size: 2.8rem; font-weight: 800; line-height: 1.1; margin-bottom: 8px; text-align: center; letter-spacing: -0.02em; }
+        .slide-title .accent { background: linear-gradient(135deg, var(--cyan), var(--blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .slide-subtitle { font-size: 1.15rem; color: var(--text-secondary); margin-bottom: 32px; text-align: center; font-weight: 400; max-width: 750px; }
+        .section-label {
+            font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; font-weight: 600;
+            color: var(--cyan); text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 14px; text-align: center;
+        }
+        .section-label::before { content: '// '; opacity: 0.5; }
+        .glass { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 16px; backdrop-filter: blur(12px); padding: 28px; }
+        .glass-sm { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 12px; backdrop-filter: blur(8px); padding: 18px; }
+        .content-area { width: 100%; max-width: 1100px; position: relative; z-index: 1; }
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+        .four-col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+        .five-col { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+        .metric-card { text-align: center; padding: 20px 14px; }
+        .metric-card .value { font-family: 'JetBrains Mono', monospace; font-size: 2.2rem; font-weight: 700; color: var(--cyan); line-height: 1; }
+        .metric-card .label { font-size: 0.8rem; color: var(--text-secondary); margin-top: 6px; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .data-table th { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 600; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.1em; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--glass-border); }
+        .data-table td { padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text-primary); }
+        .data-table tr:hover td { background: var(--glass-hover); }
+        .data-table .highlight { color: var(--cyan); font-weight: 600; }
+        .checkmark { color: var(--green); }
+        .crossmark { color: var(--red); opacity: 0.6; }
+        .feature-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+        .feature-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.88rem; line-height: 1.45; }
+        .feature-list .icon { width: 22px; height: 22px; border-radius: 6px; background: var(--cyan-subtle); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--cyan); font-size: 0.7rem; margin-top: 2px; }
+        .feature-list strong { color: var(--cyan); }
+        .formula-box { font-family: 'JetBrains Mono', monospace; font-size: 1rem; text-align: center; padding: 18px 28px; background: rgba(0,240,255,0.04); border: 1px solid rgba(0,240,255,0.15); border-radius: 12px; color: var(--cyan); }
+        .pipeline { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
+        .pipeline-step { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 8px; padding: 7px 12px; font-size: 0.75rem; text-align: center; min-width: 80px; }
+        .pipeline-step .step-num { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--cyan); display: block; margin-bottom: 1px; }
+        .pipeline-arrow { color: var(--cyan); font-size: 1rem; opacity: 0.5; }
+        .tier-card { text-align: center; padding: 20px; position: relative; overflow: hidden; }
+        .tier-name { font-size: 1.2rem; font-weight: 700; margin-bottom: 4px; }
+        .tier-card.sentinel .tier-name { color: var(--green); }
+        .tier-card.guardian .tier-name { color: var(--blue); }
+        .tier-card.warden .tier-name { color: var(--purple); }
+        .tier-price { font-family: 'JetBrains Mono', monospace; font-size: 1rem; color: var(--text-secondary); margin-bottom: 10px; }
+        .tier-desc { font-size: 0.8rem; color: var(--text-dim); }
+        .timeline { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+        .timeline-row { display: grid; grid-template-columns: 70px 1fr; gap: 14px; align-items: center; }
+        .timeline-week { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--cyan); text-align: right; font-weight: 600; }
+        .timeline-bar { height: 32px; border-radius: 8px; display: flex; align-items: center; padding: 0 14px; font-size: 0.75rem; font-weight: 500; position: relative; overflow: hidden; }
+        .timeline-bar::before { content: ''; position: absolute; inset: 0; opacity: 0.15; border-radius: 8px; }
+        .timeline-bar.cyan::before { background: var(--cyan); }
+        .timeline-bar.blue::before { background: var(--blue); }
+        .timeline-bar.green::before { background: var(--green); }
+        .timeline-bar.purple::before { background: var(--purple); }
+        .selling-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .selling-item { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
+        .selling-num { font-family: 'JetBrains Mono', monospace; font-size: 1.3rem; font-weight: 700; color: var(--cyan); min-width: 34px; }
+        .selling-text { font-size: 0.85rem; line-height: 1.3; }
+        .bar-chart { display: flex; flex-direction: column; gap: 10px; }
+        .bar-row { display: grid; grid-template-columns: 130px 1fr 55px; gap: 10px; align-items: center; }
+        .bar-label { font-size: 0.8rem; text-align: right; }
+        .bar-track { height: 24px; background: rgba(255,255,255,0.03); border-radius: 6px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 6px; }
+        .bar-fill.cyan { background: linear-gradient(90deg, var(--cyan), rgba(0,240,255,0.5)); }
+        .bar-fill.blue { background: linear-gradient(90deg, var(--blue), rgba(59,130,246,0.5)); }
+        .bar-fill.green { background: linear-gradient(90deg, var(--green), rgba(34,197,94,0.5)); }
+        .bar-fill.orange { background: linear-gradient(90deg, var(--orange), rgba(245,158,11,0.5)); }
+        .bar-fill.purple { background: linear-gradient(90deg, var(--purple), rgba(168,85,247,0.5)); }
+        .bar-fill.red { background: linear-gradient(90deg, var(--red), rgba(239,68,68,0.5)); }
+        .bar-value { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 600; }
+        .nav-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 50px; background: rgba(10,10,15,0.92); backdrop-filter: blur(12px); border-top: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; z-index: 100; }
+        .nav-info { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-dim); }
+        .nav-info .current { color: var(--cyan); font-weight: 600; }
+        .nav-controls { display: flex; align-items: center; gap: 10px; }
+        .nav-btn { background: var(--glass-bg); border: 1px solid var(--glass-border); color: var(--text-primary); padding: 6px 18px; border-radius: 8px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 0.8rem; font-weight: 500; transition: all 0.2s ease; }
+        .nav-btn:hover { background: var(--glass-hover); border-color: rgba(0,240,255,0.2); color: var(--cyan); }
+        .progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, var(--cyan), var(--blue)); transition: width 0.4s ease; z-index: 100; box-shadow: 0 0 10px var(--cyan-glow); }
+        .fullscreen-btn { position: fixed; top: 14px; right: 14px; background: var(--glass-bg); border: 1px solid var(--glass-border); color: var(--text-secondary); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 101; font-size: 1rem; transition: all 0.2s; }
+        .fullscreen-btn:hover { color: var(--cyan); border-color: rgba(0,240,255,0.3); }
+        .title-main { font-size: 4.2rem; font-weight: 900; letter-spacing: -0.03em; background: linear-gradient(135deg, #ffffff, var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: center; line-height: 1.05; margin-bottom: 6px; }
+        .title-tagline { font-size: 1rem; color: var(--text-secondary); text-align: center; margin-bottom: 40px; font-weight: 300; letter-spacing: 0.05em; }
+        .title-badges { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+        .badge { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; padding: 5px 14px; border: 1px solid rgba(0,240,255,0.2); border-radius: 20px; color: var(--cyan); background: rgba(0,240,255,0.05); }
+        .vs-box { text-align: center; padding: 20px; }
+        .vs-label { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.1em; }
+        .vs-value { font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; font-weight: 700; }
+        .vs-value.bad { color: var(--red); }
+        .vs-value.good { color: var(--green); }
+        @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 20px rgba(0,240,255,0.1); } 50% { box-shadow: 0 0 40px rgba(0,240,255,0.2); } }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        .float-anim { animation: float 4s ease-in-out infinite; }
+        .pulse-anim { animation: pulse-glow 3s ease-in-out infinite; }
+        .text-cyan { color: var(--cyan); } .text-red { color: var(--red); } .text-green { color: var(--green); } .text-blue { color: var(--blue); } .text-orange { color: var(--orange); } .text-purple { color: var(--purple); } .text-pink { color: var(--pink); }
+        .text-sm { font-size: 0.82rem; } .text-xs { font-size: 0.72rem; } .text-dim { color: var(--text-dim); } .text-secondary { color: var(--text-secondary); } .text-center { text-align: center; }
+        .mono { font-family: 'JetBrains Mono', monospace; } .fw-700 { font-weight: 700; } .fw-600 { font-weight: 600; }
+        .mt-8 { margin-top: 8px; } .mt-12 { margin-top: 12px; } .mt-16 { margin-top: 16px; } .mt-20 { margin-top: 20px; } .mt-24 { margin-top: 24px; } .mt-32 { margin-top: 32px; }
+        .mb-8 { margin-bottom: 8px; } .mb-12 { margin-bottom: 12px; } .mb-16 { margin-bottom: 16px; } .mb-24 { margin-bottom: 24px; }
+        .w-full { width: 100%; }
+        .logo-hex { width: 110px; height: 110px; margin: 0 auto 20px; position: relative; }
+        .logo-hex svg { width: 100%; height: 100%; }
+        .code-block { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 8px; padding: 14px 18px; line-height: 1.6; overflow-x: auto; white-space: pre; color: var(--text-secondary); }
+        .code-block .kw { color: var(--purple); } .code-block .fn { color: var(--cyan); } .code-block .str { color: var(--green); } .code-block .num { color: var(--orange); } .code-block .cm { color: var(--text-dim); }
+        .accent-border-l { border-left: 3px solid var(--cyan); }
+        .accent-border-b { border-left: 3px solid var(--blue); }
+        .accent-border-g { border-left: 3px solid var(--green); }
+        .accent-border-p { border-left: 3px solid var(--purple); }
+        .stat-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 0.85rem; }
+        .module-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+        .module-card { text-align: center; padding: 14px 8px; }
+        .module-card .module-icon { font-size: 1.5rem; margin-bottom: 6px; }
+        .module-card .module-name { font-size: 0.75rem; font-weight: 600; color: var(--text-primary); }
+        .module-card .module-route { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-dim); margin-top: 2px; }
+    </style>
+</head>
+<body>
+<div class="progress-bar" id="progressBar"></div>
+<button class="fullscreen-btn" id="fullscreenBtn" title="Toggle Fullscreen (F)">⛶</button>
+
+<div class="presentation" id="presentation">
+
+<!-- ===== SLIDE 1: TITLE ===== -->
+<div class="slide grid-bg active" data-slide="0">
+    <div class="content-area" style="display:flex;flex-direction:column;align-items:center;">
+        <div class="logo-hex float-anim">
+            <svg viewBox="0 0 120 120" fill="none"><polygon points="60,5 110,30 110,90 60,115 10,90 10,30" stroke="rgba(0,240,255,0.4)" stroke-width="1.5" fill="rgba(0,240,255,0.02)"/><polygon points="60,15 100,36 100,84 60,105 20,84 20,36" stroke="rgba(0,240,255,0.15)" stroke-width="1" fill="none"/><text x="60" y="68" text-anchor="middle" fill="#00f0ff" font-family="Inter" font-weight="800" font-size="28">TM</text></svg>
+        </div>
+        <h1 class="title-main">ThreatMatrix AI</h1>
+        <p class="title-tagline">AI-Powered Network Anomaly Detection & Cyber Threat Intelligence Platform</p>
+        <div class="title-badges">
+            <span class="badge">46 API Endpoints</span><span class="badge">3 ML Models</span><span class="badge">10 Modules</span><span class="badge">146ms Latency</span><span class="badge">Live on VPS</span><span class="badge">v1.0.0</span>
+        </div>
+        <p class="mt-32 text-dim text-xs">Senior Project Defense — April 11, 2026 &nbsp;|&nbsp; Kidus Abdula &nbsp;|&nbsp; VersaLabs</p>
+    </div>
+</div>
+
+<!-- ===== SLIDE 2: PROJECT CONTEXT ===== -->
+<div class="slide grid-bg" data-slide="1">
+    <div class="content-area">
+        <p class="section-label">Context</p>
+        <h2 class="slide-title">Project <span class="accent">Overview</span></h2>
+        <p class="slide-subtitle">AI-Powered Network Anomaly Detection and Cyber Threat Intelligence System utilizing Machine Learning and Real-Time Traffic Analysis</p>
+        <div class="glass mt-16">
+            <table class="data-table">
+                <tbody>
+                    <tr><td class="text-cyan fw-600" style="width:200px;">Academic Context</td><td>Bachelor's Degree Senior Project — Computer Science</td></tr>
+                    <tr><td class="text-cyan fw-600">Development Window</td><td>8 weeks (Feb 20 → Apr 11, 2026)</td></tr>
+                    <tr><td class="text-cyan fw-600">Team Size</td><td>4 members (Lead Architect, Full-Stack Dev, Business Manager, QA/Tester)</td></tr>
+                    <tr><td class="text-cyan fw-600">Budget</td><td>$100–200 (LLM APIs + VPS already owned)</td></tr>
+                    <tr><td class="text-cyan fw-600">Product Strategy</td><td>Enterprise-grade sellable system — not a prototype</td></tr>
+                    <tr><td class="text-cyan fw-600">Documentation</td><td>5-part master documentation (~250 pages)</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="three-col mt-20">
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-cyan" style="font-size:1.6rem;font-weight:700;">15,000+</div><p class="text-xs text-dim mt-8">Lines of Code</p></div>
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-blue" style="font-size:1.6rem;font-weight:700;">50+</div><p class="text-xs text-dim mt-8">Git Commits</p></div>
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-green" style="font-size:1.6rem;font-weight:700;">23</div><p class="text-xs text-dim mt-8">Days of Worklogs</p></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 3: PROBLEM ===== -->
+<div class="slide grid-bg" data-slide="2">
+    <div class="content-area">
+        <p class="section-label">The Problem</p>
+        <h2 class="slide-title">Ethiopia's <span class="accent">Cybersecurity Gap</span></h2>
+        <p class="slide-subtitle">Rapid digitization has outpaced local security tooling</p>
+        <div class="four-col mt-16">
+            <div class="glass-sm metric-card"><div class="value">35M</div><div class="label">Internet Users</div></div>
+            <div class="glass-sm metric-card"><div class="value" style="color:var(--red);">$4.1B</div><div class="label">Cybercrime Cost (Africa)</div></div>
+            <div class="glass-sm metric-card"><div class="value" style="color:var(--orange);">&lt;500</div><div class="label">Security Professionals</div></div>
+            <div class="glass-sm metric-card"><div class="value" style="color:var(--red);">$0</div><div class="label">Local AI Security Tools</div></div>
+        </div>
+        <div class="two-col mt-20">
+            <div class="glass-sm vs-box"><div class="vs-label">Option A: Do Nothing</div><div class="vs-value bad">Unprotected</div><p class="text-xs text-dim mt-8">Manual monitoring by junior IT staff</p></div>
+            <div class="glass-sm vs-box"><div class="vs-label">Option B: Foreign SIEM</div><div class="vs-value bad">$150K-500K/yr</div><p class="text-xs text-dim mt-8">Splunk, IBM QRadar — unaffordable</p></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 4: THREAT LANDSCAPE ===== -->
+<div class="slide grid-bg" data-slide="3">
+    <div class="content-area">
+        <p class="section-label">Threat Landscape</p>
+        <h2 class="slide-title">Current <span class="accent">Cyber Threats</span> in Ethiopia</h2>
+        <div class="glass mt-20">
+            <table class="data-table">
+                <thead><tr><th>Threat Vector</th><th>Impact</th><th>Detection Gap</th></tr></thead>
+                <tbody>
+                    <tr><td>🎣 Phishing Campaigns</td><td>Amharic-targeted against banking customers</td><td class="text-red">Vastly underdetected</td></tr>
+                    <tr><td>🔒 Ransomware</td><td>Healthcare & finance institutions targeted</td><td class="text-red">No local detection</td></tr>
+                    <tr><td>💥 DDoS Attacks</td><td>Ethio Telecom & financial services disrupted</td><td class="text-orange">Manual response only</td></tr>
+                    <tr><td>🤖 AI-Enhanced Attacks</td><td>Emerging threat class with automated evasion</td><td class="text-red">Zero capability</td></tr>
+                    <tr><td>👤 Insider Threats</td><td>Limited monitoring of internal anomalies</td><td class="text-orange">No behavioral analysis</td></tr>
+                    <tr><td>🔗 Supply Chain Attacks</td><td>Growing risk as businesses digitize</td><td class="text-red">No visibility</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="glass-sm mt-20" style="text-align:center;border-color:rgba(0,240,255,0.2);">
+            <p class="text-cyan fw-700" style="font-size:1.1rem;">ThreatMatrix AI addresses all six threat vectors</p>
+            <p class="text-xs text-dim mt-8">ML-powered detection • Real-time alerting • Behavioral analysis • Threat intelligence</p>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 5: SOLUTION ===== -->
+<div class="slide grid-bg" data-slide="4">
+    <div class="content-area">
+        <p class="section-label">Our Solution</p>
+        <h2 class="slide-title">ThreatMatrix AI <span class="accent">Closes the Gap</span></h2>
+        <p class="slide-subtitle">Detect • Classify • Respond — in under 200ms</p>
+        <div class="three-col mt-16">
+            <div class="glass pulse-anim" style="text-align:center;"><div style="font-size:2.2rem;margin-bottom:10px;">🔍</div><h3 class="text-cyan mb-12" style="font-size:1.1rem;">Detect</h3><p class="text-sm text-secondary">Live packet capture, 63 features per flow, real-time Scapy engine on VPS</p></div>
+            <div class="glass pulse-anim" style="text-align:center;animation-delay:0.5s;"><div style="font-size:2.2rem;margin-bottom:10px;">🧠</div><h3 class="text-blue mb-12" style="font-size:1.1rem;">Classify</h3><p class="text-sm text-secondary">3-model ML ensemble: Isolation Forest + Random Forest + Autoencoder</p></div>
+            <div class="glass pulse-anim" style="text-align:center;animation-delay:1s;"><div style="font-size:2.2rem;margin-bottom:10px;">🛡️</div><h3 class="text-green mb-12" style="font-size:1.1rem;">Respond</h3><p class="text-sm text-secondary">Auto alerts, 1,367 IOC correlation, LLM-powered threat narratives</p></div>
+        </div>
+        <div class="glass-sm mt-20" style="text-align:center;"><span class="mono text-cyan fw-700" style="font-size:1.2rem">$0 — $5,000/year</span><span class="text-dim" style="font-size:0.95rem;margin-left:10px;">vs $150K-500K for enterprise SIEM — 10-100x cheaper</span></div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 6: OBJECTIVES ===== -->
+<div class="slide grid-bg" data-slide="5">
+    <div class="content-area">
+        <p class="section-label">Methodology</p>
+        <h2 class="slide-title">Project <span class="accent">Objectives</span></h2>
+        <div class="glass mt-20" style="padding:24px;">
+            <table class="data-table">
+                <thead><tr><th>#</th><th>Specific Objective</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono text-cyan">SO-1</td><td>Capture & analyze live network traffic using ML</td><td class="text-green fw-700">✓ Achieved</td></tr>
+                    <tr><td class="mono text-cyan">SO-2</td><td>Implement 3 ML models (unsupervised, supervised, deep learning)</td><td class="text-green fw-700">✓ Achieved</td></tr>
+                    <tr><td class="mono text-cyan">SO-3</td><td>Integrate threat intelligence feeds (OTX, AbuseIPDB, VirusTotal)</td><td class="text-green fw-700">✓ Achieved</td></tr>
+                    <tr><td class="mono text-cyan">SO-4</td><td>Deploy LLM-powered conversational threat analysis</td><td class="text-green fw-700">✓ Achieved</td></tr>
+                    <tr><td class="mono text-cyan">SO-5</td><td>Real-time War Room command center dashboard</td><td class="text-green fw-700">✓ Achieved</td></tr>
+                    <tr><td class="mono text-cyan">SO-6</td><td>Bilingual Amharic/English interface</td><td class="text-green fw-700">✓ Achieved</td></tr>
+                    <tr><td class="mono text-cyan">SO-7</td><td>Scalable Docker Compose deployment</td><td class="text-green fw-700">✓ Achieved</td></tr>
+                    <tr><td class="mono text-cyan">SO-8</td><td>JWT authentication + 4-role RBAC</td><td class="text-green fw-700">✓ Achieved</td></tr>
+                    <tr><td class="mono text-cyan">SO-9</td><td>Automated incident reporting & threat narratives</td><td class="text-green fw-700">✓ Achieved</td></tr>
+                    <tr><td class="mono text-cyan">SO-10</td><td>PCAP forensic analysis for historical investigation</td><td class="text-green fw-700">✓ Achieved</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 7: ARCHITECTURE ===== -->
+<div class="slide grid-bg" data-slide="6">
+    <div class="content-area">
+        <p class="section-label">System Design</p>
+        <h2 class="slide-title">Three-Tier <span class="accent">Architecture</span></h2>
+        <div class="three-col mt-20">
+            <div class="glass accent-border-l"><h3 class="text-cyan mb-12" style="font-size:0.95rem;">Tier 1: Capture Engine</h3><ul class="feature-list"><li><span class="icon">▶</span><span>Python + Scapy live capture</span></li><li><span class="icon">▶</span><span>5-tuple flow aggregation</span></li><li><span class="icon">▶</span><span>63 features per flow</span></li><li><span class="icon">▶</span><span>Redis pub/sub publishing</span></li><li><span class="icon">▶</span><span>PCAP file ingestion</span></li></ul></div>
+            <div class="glass accent-border-b"><h3 class="text-blue mb-12" style="font-size:0.95rem;">Tier 2: Intelligence Engine</h3><ul class="feature-list"><li><span class="icon" style="background:rgba(59,130,246,0.1);color:var(--blue);">▶</span><span>FastAPI backend (46 endpoints)</span></li><li><span class="icon" style="background:rgba(59,130,246,0.1);color:var(--blue);">▶</span><span>3 ML models (ensemble)</span></li><li><span class="icon" style="background:rgba(59,130,246,0.1);color:var(--blue);">▶</span><span>IOC correlation engine</span></li><li><span class="icon" style="background:rgba(59,130,246,0.1);color:var(--blue);">▶</span><span>LLM gateway (5 models)</span></li><li><span class="icon" style="background:rgba(59,130,246,0.1);color:var(--blue);">▶</span><span>Alert lifecycle engine</span></li></ul></div>
+            <div class="glass accent-border-g"><h3 class="text-green mb-12" style="font-size:0.95rem;">Tier 3: Command Center</h3><ul class="feature-list"><li><span class="icon" style="background:rgba(34,197,94,0.1);color:var(--green);">▶</span><span>Next.js 16 + TypeScript</span></li><li><span class="icon" style="background:rgba(34,197,94,0.1);color:var(--green);">▶</span><span>Deck.gl threat map</span></li><li><span class="icon" style="background:rgba(34,197,94,0.1);color:var(--green);">▶</span><span>WebSocket live updates</span></li><li><span class="icon" style="background:rgba(34,197,94,0.1);color:var(--green);">▶</span><span>AI Analyst chat (SSE)</span></li><li><span class="icon" style="background:rgba(34,197,94,0.1);color:var(--green);">▶</span><span>Glassmorphism War Room UI</span></li></ul></div>
+        </div>
+        <div class="glass-sm mt-20" style="text-align:center;"><span class="mono text-sm text-dim">Deploy: </span><span class="mono text-cyan">docker compose up -d</span><span class="mono text-sm text-dim"> → 5 containers (PostgreSQL • Redis • Backend • Capture • ML Worker)</span></div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 8: TECHNOLOGY STACK ===== -->
+<div class="slide grid-bg" data-slide="7">
+    <div class="content-area">
+        <p class="section-label">Technology</p>
+        <h2 class="slide-title">Technology <span class="accent">Stack</span></h2>
+        <div class="two-col mt-20">
+            <div class="glass" style="padding:20px;">
+                <h4 class="text-cyan mb-12" style="font-size:0.9rem;">Frontend & Visualization</h4>
+                <div class="stat-row"><span>Framework</span><span class="mono text-cyan">Next.js 16</span></div>
+                <div class="stat-row"><span>Language</span><span class="mono text-cyan">TypeScript 5.x (strict)</span></div>
+                <div class="stat-row"><span>Styling</span><span class="mono text-cyan">Vanilla CSS + CSS Variables</span></div>
+                <div class="stat-row"><span>Maps</span><span class="mono text-cyan">Deck.gl + Maplibre GL</span></div>
+                <div class="stat-row"><span>Charts</span><span class="mono text-cyan">Recharts</span></div>
+                <div class="stat-row"><span>Real-time</span><span class="mono text-cyan">Native WebSocket API</span></div>
+                <div class="stat-row"><span>Hosting</span><span class="mono text-cyan">Vercel (HTTPS, Edge)</span></div>
+            </div>
+            <div class="glass" style="padding:20px;">
+                <h4 class="text-blue mb-12" style="font-size:0.9rem;">Backend & Infrastructure</h4>
+                <div class="stat-row"><span>API Framework</span><span class="mono text-blue">FastAPI 0.110+</span></div>
+                <div class="stat-row"><span>Language</span><span class="mono text-blue">Python 3.11+</span></div>
+                <div class="stat-row"><span>Database</span><span class="mono text-blue">PostgreSQL 16</span></div>
+                <div class="stat-row"><span>Cache/PubSub</span><span class="mono text-blue">Redis 7</span></div>
+                <div class="stat-row"><span>ML Libraries</span><span class="mono text-blue">scikit-learn + TensorFlow</span></div>
+                <div class="stat-row"><span>Packet Capture</span><span class="mono text-blue">Scapy 2.5+</span></div>
+                <div class="stat-row"><span>Deployment</span><span class="mono text-blue">Docker Compose v2</span></div>
+            </div>
+        </div>
+        <div class="glass-sm mt-16" style="text-align:center;"><p class="text-sm text-secondary"><span class="text-cyan fw-600">Design Philosophy:</span> Zero Tailwind CSS — pure CSS variables. Glassmorphism panels. JetBrains Mono for data, Inter for UI. Deep Space dark theme (#0a0a0f).</p></div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 9: DATABASE SCHEMA ===== -->
+<div class="slide grid-bg" data-slide="8">
+    <div class="content-area">
+        <p class="section-label">Data Layer</p>
+        <h2 class="slide-title">Database <span class="accent">Schema</span></h2>
+        <p class="slide-subtitle">10 normalized tables — Schema-first, Domain-Driven Design</p>
+        <div class="glass mt-16">
+            <table class="data-table">
+                <thead><tr><th>Table</th><th>Purpose</th><th>Key Fields</th></tr></thead>
+                <tbody>
+                    <tr><td class="text-cyan fw-600">users</td><td>Authentication & RBAC</td><td class="mono text-xs">email, password_hash, role, language</td></tr>
+                    <tr><td class="text-cyan fw-600">network_flows</td><td>Flow records with feature vectors</td><td class="mono text-xs">src_ip (INET), features (JSONB), anomaly_score</td></tr>
+                    <tr><td class="text-cyan fw-600">alerts</td><td>Threat alerts with lifecycle</td><td class="mono text-xs">severity, status, ai_narrative, confidence</td></tr>
+                    <tr><td class="text-cyan fw-600">threat_intel_iocs</td><td>Indicators of Compromise</td><td class="mono text-xs">ioc_type, ioc_value, threat_type, source</td></tr>
+                    <tr><td class="text-cyan fw-600">ml_models</td><td>Model registry & metrics</td><td class="mono text-xs">model_type, metrics (JSONB), hyperparams</td></tr>
+                    <tr><td class="text-cyan fw-600">capture_sessions</td><td>Packet capture sessions</td><td class="mono text-xs">interface, packets_total, flows_total</td></tr>
+                    <tr><td class="text-cyan fw-600">pcap_uploads</td><td>PCAP forensic uploads</td><td class="mono text-xs">filename, status, anomalies_found</td></tr>
+                    <tr><td class="text-cyan fw-600">llm_conversations</td><td>AI Analyst chat history</td><td class="mono text-xs">messages (JSONB), tokens_used, cost</td></tr>
+                    <tr><td class="text-cyan fw-600">system_config</td><td>System configuration</td><td class="mono text-xs">key, value (JSONB)</td></tr>
+                    <tr><td class="text-cyan fw-600">audit_log</td><td>Administrative audit trail</td><td class="mono text-xs">action, entity_type, ip_address</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="glass-sm mt-16" style="text-align:center;"><p class="text-xs text-secondary">PostgreSQL 16 with JSONB for flexible ML feature storage • INET type for IP address indexing • Performance indexes on timestamp, IP, and anomaly score</p></div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 10: FRONTEND MODULES ===== -->
+<div class="slide grid-bg" data-slide="9">
+    <div class="content-area">
+        <p class="section-label">Command Center</p>
+        <h2 class="slide-title">10 Functional <span class="accent">Modules</span></h2>
+        <div class="module-grid mt-24">
+            <div class="glass-sm module-card"><div class="module-icon">🎯</div><div class="module-name">War Room</div><div class="module-route">/war-room</div></div>
+            <div class="glass-sm module-card"><div class="module-icon">🔔</div><div class="module-name">Alert Console</div><div class="module-route">/alerts</div></div>
+            <div class="glass-sm module-card"><div class="module-icon">🤖</div><div class="module-name">AI Analyst</div><div class="module-route">/ai-analyst</div></div>
+            <div class="glass-sm module-card"><div class="module-icon">📊</div><div class="module-name">ML Operations</div><div class="module-route">/ml-ops</div></div>
+            <div class="glass-sm module-card"><div class="module-icon">🌐</div><div class="module-name">Intel Hub</div><div class="module-route">/intel</div></div>
+            <div class="glass-sm module-card"><div class="module-icon">🔬</div><div class="module-name">Forensics Lab</div><div class="module-route">/forensics</div></div>
+            <div class="glass-sm module-card"><div class="module-icon">🔎</div><div class="module-name">Threat Hunt</div><div class="module-route">/hunt</div></div>
+            <div class="glass-sm module-card"><div class="module-icon">📄</div><div class="module-name">Reports</div><div class="module-route">/reports</div></div>
+            <div class="glass-sm module-card"><div class="module-icon">🌊</div><div class="module-name">Network Flow</div><div class="module-route">/network</div></div>
+            <div class="glass-sm module-card"><div class="module-icon">⚙️</div><div class="module-name">Administration</div><div class="module-route">/admin</div></div>
+        </div>
+        <div class="glass-sm mt-20" style="text-align:center;"><p class="text-sm text-secondary">Every module connects to <span class="text-cyan fw-600">live backend APIs</span> via WebSocket + REST. Zero mock data. Real-time updates. War Room quality glassmorphism UI.</p></div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 11: API COVERAGE ===== -->
+<div class="slide grid-bg" data-slide="10">
+    <div class="content-area">
+        <p class="section-label">API Architecture</p>
+        <h2 class="slide-title"><span class="accent">46 Endpoints</span> — 100% Coverage</h2>
+        <div class="glass mt-20">
+            <table class="data-table">
+                <thead><tr><th>Service</th><th>Count</th><th>Key Endpoints</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr><td class="text-cyan fw-600">Auth</td><td class="mono">5</td><td class="text-xs">login, register, refresh, me, logout</td><td class="text-green">✓ Live</td></tr>
+                    <tr><td class="text-cyan fw-600">Flows</td><td class="mono">6</td><td class="text-xs">list, detail, stats, top-talkers, protocols, search</td><td class="text-green">✓ Live</td></tr>
+                    <tr><td class="text-cyan fw-600">Alerts</td><td class="mono">5</td><td class="text-xs">list, detail, status, assign, stats</td><td class="text-green">✓ Live</td></tr>
+                    <tr><td class="text-cyan fw-600">ML</td><td class="mono">5</td><td class="text-xs">models, predict, retrain, comparison, training-history</td><td class="text-green">✓ Live</td></tr>
+                    <tr><td class="text-cyan fw-600">LLM</td><td class="mono">5</td><td class="text-xs">chat (SSE), analyze-alert, briefing, translate, budget</td><td class="text-green">✓ Live</td></tr>
+                    <tr><td class="text-cyan fw-600">Intel</td><td class="mono">4</td><td class="text-xs">iocs, lookup, sync, feeds/status</td><td class="text-green">✓ Live</td></tr>
+                    <tr><td class="text-cyan fw-600">Capture</td><td class="mono">5</td><td class="text-xs">status, start, stop, upload-pcap, interfaces</td><td class="text-green">✓ Live</td></tr>
+                    <tr><td class="text-cyan fw-600">Reports</td><td class="mono">3</td><td class="text-xs">generate, list, download</td><td class="text-green">✓ Live</td></tr>
+                    <tr><td class="text-cyan fw-600">System</td><td class="mono">3</td><td class="text-xs">health, metrics, config</td><td class="text-green">✓ Live</td></tr>
+                    <tr><td class="text-cyan fw-600">WebSocket</td><td class="mono">1</td><td class="text-xs">/ws/ (6 event types: flows, alerts, anomaly, status, metrics, llm)</td><td class="text-green">✓ Live</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="glass-sm mt-16" style="text-align:center;"><p class="text-xs text-secondary">Full OpenAPI/Swagger documentation auto-generated at <span class="mono text-cyan">/docs</span> • Every endpoint requires JWT Bearer token (except /auth/login)</p></div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 12: WHY 3 MODELS ===== -->
+<div class="slide grid-bg" data-slide="11">
+    <div class="content-area">
+        <p class="section-label">ML Architecture</p>
+        <h2 class="slide-title">Why <span class="accent">Three Models?</span></h2>
+        <p class="slide-subtitle">Each model detects fundamentally different threat categories</p>
+        <div class="three-col mt-16">
+            <div class="glass" style="text-align:center;"><div style="font-size:1.4rem;margin-bottom:10px;">🌲</div><h3 class="text-cyan mb-8">Isolation Forest</h3><div class="badge mb-12">Unsupervised</div><p class="text-xs text-secondary">The Sentinel — catches <strong class="text-cyan">zero-day attacks</strong>. Isolates anomalies through random tree splits. No labeled data needed.</p></div>
+            <div class="glass" style="text-align:center;"><div style="font-size:1.4rem;margin-bottom:10px;">🎯</div><h3 class="text-blue mb-8">Random Forest</h3><div class="badge mb-12" style="border-color:rgba(59,130,246,0.3);color:var(--blue);background:rgba(59,130,246,0.05);">Supervised</div><p class="text-xs text-secondary">The Classifier — classifies into 5 NSL-KDD categories with <strong class="text-blue">explainable feature importance</strong>.</p></div>
+            <div class="glass" style="text-align:center;"><div style="font-size:1.4rem;margin-bottom:10px;">🧬</div><h3 class="text-purple mb-8">Autoencoder</h3><div class="badge mb-12" style="border-color:rgba(168,85,247,0.3);color:var(--purple);background:rgba(168,85,247,0.05);">Deep Learning</div><p class="text-xs text-secondary">The Pattern Learner — neural net trained on normal only. High reconstruction error = <strong class="text-purple">anomaly</strong>.</p></div>
+        </div>
+        <div class="glass-sm mt-16" style="text-align:center;"><p class="text-sm text-secondary">Ensemble = <span class="text-cyan fw-700">Robustness</span>. If one model false-fires, the other two compensate. Not redundancy — deliberate architectural design.</p></div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 13: FEATURE ENGINEERING ===== -->
+<div class="slide grid-bg" data-slide="12">
+    <div class="content-area">
+        <p class="section-label">Data Engineering</p>
+        <h2 class="slide-title">63 Features <span class="accent">Per Flow</span></h2>
+        <div class="glass mt-20">
+            <table class="data-table">
+                <thead><tr><th>Category</th><th>Features</th><th>Count</th><th>Mapping</th></tr></thead>
+                <tbody>
+                    <tr><td class="text-cyan fw-600">Basic</td><td>duration, protocol_type, service, flag</td><td class="mono">4</td><td>NSL-KDD</td></tr>
+                    <tr><td class="text-cyan fw-600">Volume</td><td>src_bytes, dst_bytes, total_bytes, byte_ratio</td><td class="mono">4</td><td>NSL-KDD</td></tr>
+                    <tr><td class="text-cyan fw-600">Packet</td><td>src_packets, dst_packets, total_packets, packet_ratio</td><td class="mono">4</td><td>Both</td></tr>
+                    <tr><td class="text-cyan fw-600">Timing</td><td>mean_iat, std_iat, min_iat, max_iat</td><td class="mono">4</td><td>CICIDS2017</td></tr>
+                    <tr><td class="text-cyan fw-600">TCP Flags</td><td>syn_count, ack_count, fin_count, rst_count, psh_count, urg_count</td><td class="mono">6</td><td>Both</td></tr>
+                    <tr><td class="text-cyan fw-600">Connection</td><td>same_host_count, same_service_count, serror_rate, rerror_rate</td><td class="mono">4</td><td>NSL-KDD</td></tr>
+                    <tr><td class="text-cyan fw-600">Host-Based</td><td>dst_host_count, dst_host_srv_count, dst_host_same_srv_rate + 7 more</td><td class="mono">10</td><td>NSL-KDD</td></tr>
+                    <tr><td class="text-cyan fw-600">Content</td><td>hot, num_failed_logins, logged_in, num_compromised + 7 more</td><td class="mono">13</td><td>NSL-KDD</td></tr>
+                    <tr><td class="text-cyan fw-600">DNS</td><td>query_count, response_count, unique_domains, avg_query_length</td><td class="mono">4</td><td>CICIDS2017</td></tr>
+                    <tr><td class="text-cyan fw-600">Payload</td><td>payload_entropy, mean_payload_size, has_payload</td><td class="mono">3</td><td>Extended</td></tr>
+                    <tr><td class="text-cyan fw-600">Behavioral</td><td>is_internal, port_class, geo_country</td><td class="mono">3</td><td>Extended</td></tr>
+                    <tr><td class="text-cyan fw-600">Statistical</td><td>flow_duration_zscore, byte_zscore, packet_zscore, connection_density</td><td class="mono">4</td><td>Extended</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 14: ENSEMBLE FORMULA ===== -->
+<div class="slide grid-bg" data-slide="13">
+    <div class="content-area">
+        <p class="section-label">Ensemble Scoring</p>
+        <h2 class="slide-title">The <span class="accent">Mathematics</span></h2>
+        <div class="formula-box mt-24 mb-24">composite = 0.30 × IF<sub>score</sub> + 0.45 × RF<sub>confidence</sub> + 0.25 × AE<sub>recon_error</sub></div>
+        <div class="three-col">
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-cyan" style="font-size:1.8rem;font-weight:700;">0.30</div><p class="text-xs text-secondary mt-8">Isolation Forest — zero-day detection capability</p></div>
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-blue" style="font-size:1.8rem;font-weight:700;">0.45</div><p class="text-xs text-secondary mt-8">Random Forest — strongest signal, explicit labels</p></div>
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-purple" style="font-size:1.8rem;font-weight:700;">0.25</div><p class="text-xs text-secondary mt-8">Autoencoder — deep pattern recognition</p></div>
+        </div>
+        <div class="two-col mt-20">
+            <div class="glass-sm"><h4 class="text-cyan mb-12" style="font-size:0.85rem;">Severity Thresholds</h4>
+                <div class="stat-row"><span class="text-red fw-700">CRITICAL</span><span class="mono text-sm">≥ 0.90</span></div>
+                <div class="stat-row"><span class="text-orange fw-700">HIGH</span><span class="mono text-sm">≥ 0.75</span></div>
+                <div class="stat-row"><span style="color:#eab308;" class="fw-700">MEDIUM</span><span class="mono text-sm">≥ 0.50</span></div>
+                <div class="stat-row"><span class="text-blue fw-700">LOW</span><span class="mono text-sm">≥ 0.30</span></div>
+            </div>
+            <div class="glass-sm"><h4 class="text-cyan mb-12" style="font-size:0.85rem;">Weight Rationale</h4><p class="text-xs text-secondary">Determined through grid search + architectural intent. RF gets highest weight due to strongest training signal. IF provides irreplaceable zero-day value. AE captures patterns tree-based models miss. Grid search converged to these approximate values.</p></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 15: DATASETS ===== -->
+<div class="slide grid-bg" data-slide="14">
+    <div class="content-area">
+        <p class="section-label">Datasets</p>
+        <h2 class="slide-title">Benchmark <span class="accent">Datasets</span></h2>
+        <div class="two-col mt-20">
+            <div class="glass accent-border-l">
+                <h3 class="text-cyan mb-12" style="font-size:1rem;">NSL-KDD (Primary)</h3>
+                <div class="stat-row"><span>Records</span><span class="mono text-sm">125,973 train + 22,544 test</span></div>
+                <div class="stat-row"><span>Features</span><span class="mono text-sm">41 features + 1 label</span></div>
+                <div class="stat-row"><span>Attack Classes</span><span class="mono text-sm">DoS, Probe, R2L, U2R</span></div>
+                <div class="stat-row"><span>Specific Attacks</span><span class="mono text-sm">24 types</span></div>
+                <div class="stat-row"><span>Purpose</span><span class="text-sm">Academic credibility — gold standard IDS benchmark</span></div>
+            </div>
+            <div class="glass accent-border-g">
+                <h3 class="text-green mb-12" style="font-size:1rem;">CICIDS2017 (Validation)</h3>
+                <div class="stat-row"><span>Records</span><span class="mono text-sm">~2.8 million flows</span></div>
+                <div class="stat-row"><span>Features</span><span class="mono text-sm">80+ features</span></div>
+                <div class="stat-row"><span>Attack Types</span><span class="mono text-sm">Brute Force, DDoS, Web, Botnet, PortScan</span></div>
+                <div class="stat-row"><span>Duration</span><span class="mono text-sm">5 days of traffic</span></div>
+                <div class="stat-row"><span>Purpose</span><span class="text-sm">Cross-dataset validation — proves generalization</span></div>
+            </div>
+        </div>
+        <div class="glass-sm mt-16" style="text-align:center;"><p class="text-sm text-secondary">NSL-KDD for <span class="text-cyan fw-600">academic credibility</span> + CICIDS2017 for <span class="text-green fw-600">real-world validation</span> = correct academic methodology</p></div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 16: BENCHMARK RESULTS ===== -->
+<div class="slide grid-bg" data-slide="15">
+    <div class="content-area">
+        <p class="section-label">Validation</p>
+        <h2 class="slide-title">Benchmark <span class="accent">Results</span></h2>
+        <div class="glass mt-20">
+            <table class="data-table">
+                <thead><tr><th>Model</th><th>Accuracy</th><th>F1 Score</th><th>AUC-ROC</th><th>Inference</th></tr></thead>
+                <tbody>
+                    <tr><td>Isolation Forest</td><td>79.68%</td><td>78.75%</td><td class="mono">0.9378</td><td class="mono">&lt;1ms</td></tr>
+                    <tr><td>Random Forest</td><td>74.16%</td><td>—</td><td class="mono highlight">0.9576</td><td class="mono">1-2ms</td></tr>
+                    <tr><td>Autoencoder</td><td>60.39%</td><td>—</td><td class="mono">0.8517</td><td class="mono">2-5ms</td></tr>
+                    <tr style="background:rgba(0,240,255,0.04);"><td class="highlight fw-700">Ensemble</td><td class="highlight fw-700">80.73%</td><td class="highlight fw-700">80.96%</td><td class="mono highlight fw-700">0.9312</td><td class="mono highlight fw-700">~5ms</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="two-col mt-20">
+            <div class="glass-sm"><h4 class="text-cyan mb-12" style="font-size:0.85rem;">AUC-ROC = 0.93 Explained</h4><p class="text-xs text-secondary">93% chance of correctly ranking a malicious flow higher than a benign one. More meaningful than accuracy — measures discrimination ability across all thresholds. Academic literature: 80-85% is state-of-the-art on NSL-KDD.</p></div>
+            <div class="glass-sm"><h4 class="text-green mb-12" style="font-size:0.85rem;">Cross-Dataset: CICIDS2017</h4><p class="text-xs text-secondary">Validated on ~2.5M flows from a completely different dataset → <span class="text-green fw-700">83.14% accuracy</span>. Proves generalization beyond training data. Different era, different attack types, same model.</p></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 17: CLASS IMBALANCE ===== -->
+<div class="slide grid-bg" data-slide="16">
+    <div class="content-area">
+        <p class="section-label">Transparency</p>
+        <h2 class="slide-title">Handling <span class="accent">Class Imbalance</span></h2>
+        <div class="two-col mt-20">
+            <div class="glass"><h4 class="text-cyan mb-12" style="font-size:0.85rem;">NSL-KDD Class Distribution</h4>
+                <div class="bar-chart">
+                    <div class="bar-row"><div class="bar-label">Normal</div><div class="bar-track"><div class="bar-fill cyan" style="width:53.5%"></div></div><div class="bar-value">53.5%</div></div>
+                    <div class="bar-row"><div class="bar-label">DoS</div><div class="bar-track"><div class="bar-fill blue" style="width:36.5%"></div></div><div class="bar-value">36.5%</div></div>
+                    <div class="bar-row"><div class="bar-label">Probe</div><div class="bar-track"><div class="bar-fill green" style="width:9.3%"></div></div><div class="bar-value">9.3%</div></div>
+                    <div class="bar-row"><div class="bar-label text-red">R2L</div><div class="bar-track"><div class="bar-fill orange" style="width:2%"></div></div><div class="bar-value text-red">0.8%</div></div>
+                    <div class="bar-row"><div class="bar-label text-red">U2R</div><div class="bar-track"><div class="bar-fill red" style="width:1%"></div></div><div class="bar-value text-red">0.04%</div></div>
+                </div>
+            </div>
+            <div class="glass"><h4 class="text-cyan mb-12" style="font-size:0.85rem;">Mitigation Strategy</h4>
+                <ul class="feature-list">
+                    <li><span class="icon">1</span><span><strong>Class Weighting</strong> — <code class="mono text-xs text-cyan">class_weight='balanced'</code> in RF</span></li>
+                    <li><span class="icon">2</span><span><strong>Normal-Only Training</strong> — IF & AE train on normal only</span></li>
+                    <li><span class="icon">3</span><span><strong>Macro F1 Reporting</strong> — treats each class equally</span></li>
+                </ul>
+                <div class="glass-sm mt-12" style="background:rgba(239,68,68,0.05);border-color:rgba(239,68,68,0.15);"><p class="text-xs"><span class="text-red fw-700">52 samples</span> for U2R — a known dataset limitation, not an implementation flaw</p></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 18: PIPELINE ===== -->
+<div class="slide grid-bg" data-slide="17">
+    <div class="content-area">
+        <p class="section-label">Performance</p>
+        <h2 class="slide-title">Packet to Alert in <span class="accent">146ms</span></h2>
+        <div class="pipeline mt-24">
+            <div class="pipeline-step"><span class="step-num">01</span>Capture</div><span class="pipeline-arrow">→</span>
+            <div class="pipeline-step"><span class="step-num">02</span>Aggregate</div><span class="pipeline-arrow">→</span>
+            <div class="pipeline-step"><span class="step-num">03</span>63 Features</div><span class="pipeline-arrow">→</span>
+            <div class="pipeline-step"><span class="step-num">04</span>Redis Pub</div><span class="pipeline-arrow">→</span>
+            <div class="pipeline-step"><span class="step-num">05</span>ML Infer</div>
+        </div>
+        <div class="pipeline mt-8">
+            <div class="pipeline-step"><span class="step-num">06</span>Ensemble</div><span class="pipeline-arrow">→</span>
+            <div class="pipeline-step"><span class="step-num">07</span>Alert</div><span class="pipeline-arrow">→</span>
+            <div class="pipeline-step"><span class="step-num">08</span>IOC Check</div><span class="pipeline-arrow">→</span>
+            <div class="pipeline-step"><span class="step-num">09</span>LLM Enrich</div><span class="pipeline-arrow">→</span>
+            <div class="pipeline-step"><span class="step-num">10</span>WebSocket</div>
+        </div>
+        <div class="four-col mt-24">
+            <div class="glass-sm metric-card"><div class="value" style="font-size:1.8rem;">146ms</div><div class="label">Avg Latency</div></div>
+            <div class="glass-sm metric-card"><div class="value" style="font-size:1.8rem;">3,200+</div><div class="label">Flows Scored</div></div>
+            <div class="glass-sm metric-card"><div class="value" style="font-size:1.8rem;">63</div><div class="label">Features/Flow</div></div>
+            <div class="glass-sm metric-card"><div class="value" style="font-size:1.8rem;color:var(--green);">5+</div><div class="label">Days Uptime</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 19: LLM ===== -->
+<div class="slide grid-bg" data-slide="18">
+    <div class="content-area">
+        <p class="section-label">AI Intelligence</p>
+        <h2 class="slide-title">LLM-Powered <span class="accent">Analysis</span></h2>
+        <p class="slide-subtitle">No competitor at this price point offers conversational AI threat analysis</p>
+        <div class="glass mt-16">
+            <table class="data-table"><thead><tr><th>Model</th><th>Params</th><th>Role</th><th>Cost</th></tr></thead>
+                <tbody>
+                    <tr><td>Nemotron Ultra</td><td class="mono">253B</td><td>Complex alert analysis, narratives</td><td class="text-green">Free</td></tr>
+                    <tr><td>Step 3.5 Flash</td><td class="mono">196B MoE</td><td>Real-time alert summaries (fastest)</td><td class="text-green">Free</td></tr>
+                    <tr><td>GPT-OSS</td><td class="mono">120B</td><td>General chat & investigation</td><td class="text-green">Free</td></tr>
+                    <tr><td>GLM-4.1v</td><td class="mono">9B</td><td>Amharic translation (bilingual)</td><td class="text-green">Free</td></tr>
+                    <tr><td>Qwen3-Coder</td><td class="mono">480B</td><td>Fallback chain</td><td class="text-green">Free</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="three-col mt-16">
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-green" style="font-size:1.5rem;font-weight:700;">$0.00</div><p class="text-xs text-dim mt-8">Monthly LLM Cost</p></div>
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-cyan" style="font-size:1.5rem;font-weight:700;">4 Layers</div><p class="text-xs text-dim mt-8">Fallback Protection</p></div>
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-blue" style="font-size:1.5rem;font-weight:700;">SSE</div><p class="text-xs text-dim mt-8">Streaming Responses</p></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 20: THREAT INTEL ===== -->
+<div class="slide grid-bg" data-slide="19">
+    <div class="content-area">
+        <p class="section-label">Intelligence</p>
+        <h2 class="slide-title">Threat Intelligence <span class="accent">Integration</span></h2>
+        <div class="glass mt-20" style="text-align:center;"><div class="mono text-cyan" style="font-size:3rem;font-weight:700;">1,367</div><p class="text-secondary mt-8">Indicators of Compromise from AlienVault OTX</p></div>
+        <div class="four-col mt-20">
+            <div class="glass-sm metric-card"><div class="value" style="font-size:1.6rem;">720</div><div class="label">File Hashes</div></div>
+            <div class="glass-sm metric-card"><div class="value" style="font-size:1.6rem;">480</div><div class="label">Domains</div></div>
+            <div class="glass-sm metric-card"><div class="value" style="font-size:1.6rem;">114</div><div class="label">URLs</div></div>
+            <div class="glass-sm metric-card"><div class="value" style="font-size:1.6rem;">53</div><div class="label">IP Addresses</div></div>
+        </div>
+        <div class="glass-sm mt-16" style="text-align:center;"><p class="text-xs text-secondary">Every flow auto-checked against IOC database — matching IPs, domains, file hashes. Matches trigger enriched alerts with threat actor context (including Silver Fox APT indicators).</p></div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 21: SECURITY ARCHITECTURE ===== -->
+<div class="slide grid-bg" data-slide="20">
+    <div class="content-area">
+        <p class="section-label">Security</p>
+        <h2 class="slide-title">Security <span class="accent">Architecture</span></h2>
+        <div class="two-col mt-20">
+            <div class="glass"><h4 class="text-cyan mb-12" style="font-size:0.9rem;">Authentication & Authorization</h4>
+                <div class="stat-row"><span>Auth Method</span><span class="mono text-sm text-cyan">JWT (15min access, 7d refresh)</span></div>
+                <div class="stat-row"><span>Password</span><span class="mono text-sm text-cyan">bcrypt, 12 salt rounds</span></div>
+                <div class="stat-row"><span>RBAC Roles</span><span class="mono text-sm text-cyan">4 (admin, soc_mgr, analyst, viewer)</span></div>
+                <div class="stat-row"><span>API Protection</span><span class="mono text-sm text-cyan">Bearer token on all endpoints</span></div>
+                <div class="stat-row"><span>WebSocket Auth</span><span class="mono text-sm text-cyan">Token via query parameter</span></div>
+            </div>
+            <div class="glass"><h4 class="text-blue mb-12" style="font-size:0.9rem;">RBAC Permission Matrix</h4>
+                <table class="data-table" style="font-size:0.75rem;">
+                    <thead><tr><th>Permission</th><th>Admin</th><th>SOC</th><th>Analyst</th><th>Viewer</th></tr></thead>
+                    <tbody>
+                        <tr><td>View Dashboard</td><td class="checkmark">✓</td><td class="checkmark">✓</td><td class="checkmark">✓</td><td class="checkmark">✓</td></tr>
+                        <tr><td>Resolve Alerts</td><td class="checkmark">✓</td><td class="checkmark">✓</td><td class="crossmark">✗</td><td class="crossmark">✗</td></tr>
+                        <tr><td>Use AI Analyst</td><td class="checkmark">✓</td><td class="checkmark">✓</td><td class="checkmark">✓</td><td class="crossmark">✗</td></tr>
+                        <tr><td>Manage Users</td><td class="checkmark">✓</td><td class="crossmark">✗</td><td class="crossmark">✗</td><td class="crossmark">✗</td></tr>
+                        <tr><td>Retrain Models</td><td class="checkmark">✓</td><td class="crossmark">✗</td><td class="crossmark">✗</td><td class="crossmark">✗</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="glass-sm mt-16" style="text-align:center;"><p class="text-xs text-secondary">Docker container isolation • Internal-only DB access • SSL/TLS via Let's Encrypt • CORS protection • Audit logging on admin actions</p></div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 22: COMPETITIVE ANALYSIS ===== -->
+<div class="slide grid-bg" data-slide="21">
+    <div class="content-area">
+        <p class="section-label">Market Position</p>
+        <h2 class="slide-title">Competitive <span class="accent">Analysis</span></h2>
+        <div class="glass mt-20">
+            <table class="data-table">
+                <thead><tr><th>Feature</th><th>ThreatMatrix</th><th>Splunk</th><th>Snort</th><th>Wazuh</th><th>Elastic</th></tr></thead>
+                <tbody>
+                    <tr><td>Annual Cost</td><td class="text-green fw-700">$0-5K</td><td class="text-red">$150K-500K</td><td class="text-green">Free</td><td class="text-green">Free</td><td class="text-dim">Free-$$$$</td></tr>
+                    <tr><td>ML Detection</td><td class="checkmark fw-700">✓ 3-Model</td><td class="crossmark">✗ Rules</td><td class="crossmark">✗ Signatures</td><td class="crossmark">✗ HIDS</td><td class="crossmark">✗ Basic</td></tr>
+                    <tr><td>AI Chat</td><td class="checkmark fw-700">✓ LLM</td><td class="crossmark">✗</td><td class="crossmark">✗</td><td class="crossmark">✗</td><td class="crossmark">✗</td></tr>
+                    <tr><td>Zero-Day</td><td class="checkmark fw-700">✓ IF</td><td class="crossmark">✗</td><td class="crossmark">✗</td><td class="crossmark">✗</td><td class="crossmark">✗</td></tr>
+                    <tr><td>Amharic</td><td class="checkmark fw-700">✓</td><td class="crossmark">✗</td><td class="crossmark">✗</td><td class="crossmark">✗</td><td class="crossmark">✗</td></tr>
+                    <tr><td>Deploy</td><td class="text-cyan fw-700">15 min</td><td class="text-dim">Weeks</td><td class="text-dim">Hours</td><td class="text-dim">Hours</td><td class="text-dim">Days</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="glass-sm mt-16" style="text-align:center;"><p class="text-sm text-secondary">ThreatMatrix AI is <span class="text-cyan fw-600">complementary</span> to signature-based tools — optimal setup uses both for maximum coverage</p></div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 23: FALSE POSITIVES ===== -->
+<div class="slide grid-bg" data-slide="22">
+    <div class="content-area">
+        <p class="section-label">Operations</p>
+        <h2 class="slide-title">Handling <span class="accent">False Positives</span></h2>
+        <div class="three-col mt-20">
+            <div class="glass" style="text-align:center;"><div style="font-size:1.8rem;margin-bottom:10px;">⚙️</div><h3 class="text-cyan mb-12" style="font-size:0.95rem;">Threshold Tuning</h3><p class="text-xs text-secondary">Continuous score 0-1. Higher threshold = higher precision. Admins tune based on risk appetite.</p></div>
+            <div class="glass" style="text-align:center;"><div style="font-size:1.8rem;margin-bottom:10px;">🤝</div><h3 class="text-blue mb-12" style="font-size:0.95rem;">Multi-Model Agreement</h3><p class="text-xs text-secondary">Unanimous 3-model agreement = almost never false positive. Single-model flags may be noise.</p></div>
+            <div class="glass" style="text-align:center;"><div style="font-size:1.8rem;margin-bottom:10px;">📝</div><h3 class="text-green mb-12" style="font-size:0.95rem;">Alert Lifecycle</h3><p class="text-xs text-secondary">Analysts mark false positives. Rates tracked for continuous threshold refinement.</p></div>
+        </div>
+        <div class="glass-sm mt-20 pulse-anim" style="text-align:center;border-color:rgba(34,197,94,0.3);"><p class="text-green fw-700" style="font-size:1rem;">Live VPS Result: Zero confirmed false positives</p><p class="text-xs text-dim mt-8">Every detection has been genuine suspicious activity</p></div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 24: DEPLOYMENT ===== -->
+<div class="slide grid-bg" data-slide="23">
+    <div class="content-area">
+        <p class="section-label">Deployment</p>
+        <h2 class="slide-title">One-Command <span class="accent">Deployment</span></h2>
+        <div class="glass mt-20" style="padding:20px 28px;"><div class="mono text-center" style="font-size:1.2rem;"><span class="text-dim">$</span> <span class="text-green">docker compose</span> <span class="text-cyan">up -d --build</span></div></div>
+        <div class="four-col mt-20">
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-cyan" style="font-size:1.3rem;font-weight:700;">Step 1</div><p class="text-xs text-secondary mt-8">Provision VPS<br><span class="text-dim">Ubuntu 22.04 + Docker</span></p></div>
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-cyan" style="font-size:1.3rem;font-weight:700;">Step 2</div><p class="text-xs text-secondary mt-8">Clone & Configure<br><span class="text-dim">.env + 1 API key</span></p></div>
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-cyan" style="font-size:1.3rem;font-weight:700;">Step 3</div><p class="text-xs text-secondary mt-8">Deploy<br><span class="text-dim">docker compose up</span></p></div>
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-cyan" style="font-size:1.3rem;font-weight:700;">Step 4</div><p class="text-xs text-secondary mt-8">Verify<br><span class="text-dim">Health endpoint</span></p></div>
+        </div>
+        <div class="two-col mt-20">
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-green" style="font-size:1.6rem;font-weight:700;">15 min</div><p class="text-xs text-dim mt-8">ThreatMatrix AI deploy time</p></div>
+            <div class="glass-sm" style="text-align:center;"><div class="mono text-red" style="font-size:1.6rem;font-weight:700;">Weeks</div><p class="text-xs text-dim mt-8">Splunk/QRadar deploy time</p></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 25: INFRASTRUCTURE COSTS ===== -->
+<div class="slide grid-bg" data-slide="24">
+    <div class="content-area">
+        <p class="section-label">Economics</p>
+        <h2 class="slide-title">Infrastructure <span class="accent">Cost Analysis</span></h2>
+        <div class="two-col mt-20">
+            <div class="glass"><h4 class="text-cyan mb-12" style="font-size:0.9rem;">Monthly Infrastructure</h4>
+                <div class="stat-row"><span>VPS Hosting</span><span class="mono text-green fw-600">$0 (owned)</span></div>
+                <div class="stat-row"><span>PostgreSQL</span><span class="mono text-green fw-600">$0 (self-hosted)</span></div>
+                <div class="stat-row"><span>Redis</span><span class="mono text-green fw-600">$0 (self-hosted)</span></div>
+                <div class="stat-row"><span>Frontend Hosting</span><span class="mono text-green fw-600">$0 (Vercel free)</span></div>
+                <div class="stat-row"><span>SSL Certificate</span><span class="mono text-green fw-600">$0 (Let's Encrypt)</span></div>
+                <div class="stat-row"><span>Map Tiles</span><span class="mono text-green fw-600">$0 (OpenStreetMap)</span></div>
+                <div class="stat-row"><span>LLM API</span><span class="mono text-green fw-600">$0 (free tier models)</span></div>
+                <div class="stat-row" style="border-top:2px solid var(--cyan);padding-top:10px;margin-top:4px;"><span class="text-cyan fw-700">TOTAL</span><span class="mono text-cyan fw-700" style="font-size:1.1rem;">$0/month</span></div>
+            </div>
+            <div class="glass"><h4 class="text-blue mb-12" style="font-size:0.9rem;">SaaS Unit Economics</h4>
+                <div class="stat-row"><span>Infra Cost/Customer</span><span class="mono text-sm">$20-50/mo</span></div>
+                <div class="stat-row"><span>LLM Cost/Customer</span><span class="mono text-sm">$5-15/mo</span></div>
+                <div class="stat-row"><span>Guardian Revenue</span><span class="mono text-sm">$500-2,000/mo</span></div>
+                <div class="stat-row"><span>Gross Margin</span><span class="mono text-green fw-600">85-92%</span></div>
+                <div class="stat-row"><span>Payback Period</span><span class="mono text-sm">1-4 months</span></div>
+                <div class="stat-row"><span>CAC</span><span class="mono text-sm">$500-2,000</span></div>
+                <div class="stat-row" style="border-top:2px solid var(--green);padding-top:10px;margin-top:4px;"><span class="text-green fw-700">Year 1 Target</span><span class="mono text-green fw-700">$30K-240K ARR</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 26: BUSINESS MODEL ===== -->
+<div class="slide grid-bg" data-slide="25">
+    <div class="content-area">
+        <p class="section-label">Go-To-Market</p>
+        <h2 class="slide-title">Business <span class="accent">Model</span></h2>
+        <div class="three-col mt-20">
+            <div class="glass tier-card sentinel"><div class="tier-name">Sentinel</div><div class="tier-price">Free</div><div class="tier-desc">Universities & NGOs<br>1 network segment<br>24h data retention<br>Community support</div></div>
+            <div class="glass tier-card guardian" style="transform:scale(1.05);"><div class="tier-name">Guardian</div><div class="tier-price">$500 — $2,000/mo</div><div class="tier-desc">Banks & Enterprises<br>5 segments • Full ML<br>90-day retention<br>AI Analyst + Reports</div></div>
+            <div class="glass tier-card warden"><div class="tier-name">Warden</div><div class="tier-price">$5,000 — $20,000/mo</div><div class="tier-desc">Government & Custom<br>Unlimited • Custom ML<br>Unlimited retention<br>24/7 SLA + Training</div></div>
+        </div>
+        <div class="three-col mt-16">
+            <div class="glass-sm" style="text-align:center;"><p class="text-xs text-dim">Segment A</p><p class="text-sm fw-600">🏛️ Government</p><p class="text-xs text-dim mt-4">INSA, Min. Innovation</p></div>
+            <div class="glass-sm" style="text-align:center;"><p class="text-xs text-dim">Segment B</p><p class="text-sm fw-600">🏦 Financial</p><p class="text-xs text-dim mt-4">CBE, Dashen, Awash</p></div>
+            <div class="glass-sm" style="text-align:center;"><p class="text-xs text-dim">Segment C</p><p class="text-sm fw-600">📡 Telecom</p><p class="text-xs text-dim mt-4">Ethio Telecom, Safaricom</p></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 27: DDD & ARCHITECTURE DECISIONS ===== -->
+<div class="slide grid-bg" data-slide="26">
+    <div class="content-area">
+        <p class="section-label">Design Philosophy</p>
+        <h2 class="slide-title">Domain-Driven <span class="accent">Design</span></h2>
+        <div class="three-col mt-20">
+            <div class="glass accent-border-l" style="text-align:center;"><h4 class="text-cyan mb-8" style="font-size:0.9rem;">Capture Context</h4><p class="text-xs text-secondary">Owns: NetworkFlow, CaptureSession</p><p class="text-xs text-dim mt-8">Ingest packets → produce flow records</p></div>
+            <div class="glass accent-border-b" style="text-align:center;"><h4 class="text-blue mb-8" style="font-size:0.9rem;">Intelligence Context</h4><p class="text-xs text-secondary">Owns: Alert, MLModel, ThreatIntelIOC</p><p class="text-xs text-dim mt-8">Apply ML → enrich → generate alerts</p></div>
+            <div class="glass accent-border-g" style="text-align:center;"><h4 class="text-green mb-8" style="font-size:0.9rem;">Interaction Context</h4><p class="text-xs text-secondary">Owns: User, LLMConversation, Report</p><p class="text-xs text-dim mt-8">UI rendering → user actions → LLM chat</p></div>
+        </div>
+        <div class="glass mt-20" style="padding:20px;">
+            <table class="data-table" style="font-size:0.78rem;">
+                <thead><tr><th>ADR</th><th>Decision</th><th>DDD Rationale</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono text-cyan">001</td><td>Domain-Driven Design as core approach</td><td>Ubiquitous language across all contexts</td></tr>
+                    <tr><td class="mono text-cyan">003</td><td>Event-Driven Communication (Redis Pub/Sub)</td><td>Eventual consistency, decoupled contexts</td></tr>
+                    <tr><td class="mono text-cyan">006</td><td>PostgreSQL with JSONB for flexible extensions</td><td>Rich domain objects with relational integrity</td></tr>
+                    <tr><td class="mono text-cyan">010</td><td>Ensemble of three ML models</td><td>Each model = different anomaly detection sub-domain</td></tr>
+                    <tr><td class="mono text-cyan">011</td><td>AI Analyst as first-class UI component</td><td>LLM elevated to domain-level collaborator</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 28: TIMELINE ===== -->
+<div class="slide grid-bg" data-slide="27">
+    <div class="content-area">
+        <p class="section-label">Journey</p>
+        <h2 class="slide-title">8 Weeks of <span class="accent">Development</span></h2>
+        <div class="glass mt-20" style="padding:24px;">
+            <div class="timeline">
+                <div class="timeline-row"><div class="timeline-week">Week 1</div><div class="timeline-bar cyan">Foundation — Docker, FastAPI, Next.js, DB schema, Redis</div></div>
+                <div class="timeline-row"><div class="timeline-week">Week 2</div><div class="timeline-bar cyan">Capture Engine — Scapy, 5-tuple aggregation, 63 features</div></div>
+                <div class="timeline-row"><div class="timeline-week">Week 3</div><div class="timeline-bar blue">ML Training — NSL-KDD, 3 models trained, ensemble scoring</div></div>
+                <div class="timeline-row"><div class="timeline-week">Week 4</div><div class="timeline-bar blue">Intelligence — LLM Gateway, Alert Engine, AI Analyst chat</div></div>
+                <div class="timeline-row"><div class="timeline-week">Week 5</div><div class="timeline-bar green">Threat Intel — OTX sync, 1,367 IOCs, Correlation Engine</div></div>
+                <div class="timeline-row"><div class="timeline-week">Week 6</div><div class="timeline-bar green">Feature Depth — PCAP, Reports, ML Ops, Admin scaffold</div></div>
+                <div class="timeline-row"><div class="timeline-week">Week 7</div><div class="timeline-bar purple">Frontend Overhaul — 10 pages live, AuthGuard, CSS polish</div></div>
+                <div class="timeline-row"><div class="timeline-week">Week 8</div><div class="timeline-bar purple">Production — Deploy, brand website, e2e verification, defense</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 29: CHALLENGES & LESSONS ===== -->
+<div class="slide grid-bg" data-slide="28">
+    <div class="content-area">
+        <p class="section-label">Reflections</p>
+        <h2 class="slide-title">Challenges & <span class="accent">Lessons Learned</span></h2>
+        <div class="two-col mt-20">
+            <div class="glass"><h4 class="text-red mb-12" style="font-size:0.9rem;">Top 3 Challenges</h4>
+                <ul class="feature-list">
+                    <li><span class="icon" style="background:rgba(239,68,68,0.1);color:var(--red);">1</span><span><strong style="color:var(--red);">Integration over isolation</strong> — 5 Docker containers communicating in a live, streaming, fault-tolerant pipeline. The connections between systems always break first.</span></li>
+                    <li><span class="icon" style="background:rgba(239,68,68,0.1);color:var(--red);">2</span><span><strong style="color:var(--red);">LLM architecture pivot</strong> — Moving from 3 separate providers to OpenRouter mid-development. Risk that paid off: $0/month cost, better models.</span></li>
+                    <li><span class="icon" style="background:rgba(239,68,68,0.1);color:var(--red);">3</span><span><strong style="color:var(--red);">NSL-KDD class imbalance</strong> — 52 U2R samples. The model wants to predict 'Normal' for everything. Class weighting helped, but honest evaluation means accepting limitations.</span></li>
+                </ul>
+            </div>
+            <div class="glass"><h4 class="text-green mb-12" style="font-size:0.9rem;">What We'd Do Differently</h4>
+                <ul class="feature-list">
+                    <li><span class="icon" style="background:rgba(34,197,94,0.1);color:var(--green);">1</span><span><strong style="color:var(--green);">Start frontend earlier</strong> — build UI and backend in parallel from Week 1. The War Room is the demo center.</span></li>
+                    <li><span class="icon" style="background:rgba(34,197,94,0.1);color:var(--green);">2</span><span><strong style="color:var(--green);">Use live traffic from Day 1</strong> — integrating capture engine earlier = earlier real-world feedback.</span></li>
+                    <li><span class="icon" style="background:rgba(34,197,94,0.1);color:var(--green);">3</span><span><strong style="color:var(--green);">Validate CICIDS2017 sooner</strong> — dual-dataset validation is a major strength, should've been Week 3 not Week 7.</span></li>
+                    <li><span class="icon" style="background:rgba(34,197,94,0.1);color:var(--green);">4</span><span><strong style="color:var(--green);">Document as you build</strong> — weekly increments, not a massive batch at the end.</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 30: ROADMAP ===== -->
+<div class="slide grid-bg" data-slide="29">
+    <div class="content-area">
+        <p class="section-label">Vision</p>
+        <h2 class="slide-title">Version 2.0 <span class="accent">Roadmap</span></h2>
+        <div class="feature-list mt-20" style="max-width:800px;margin:20px auto 0;">
+            <li class="glass-sm"><span class="icon" style="font-size:1.1rem;width:36px;height:36px;border-radius:10px;">📈</span><div><strong>Predictive Threat Modeling</strong><p class="text-xs text-dim mt-4">Time-series forecasting — predict attacks before they happen</p></div></li>
+            <li class="glass-sm"><span class="icon" style="font-size:1.1rem;width:36px;height:36px;border-radius:10px;">🌐</span><div><strong>Agent-Based Capture</strong><p class="text-xs text-dim mt-4">Lightweight agents across corporate networks — internal visibility</p></div></li>
+            <li class="glass-sm"><span class="icon" style="font-size:1.1rem;width:36px;height:36px;border-radius:10px;">⚡</span><div><strong>Automated Response Playbook</strong><p class="text-xs text-dim mt-4">Auto-block IPs, quarantine endpoints — active defense</p></div></li>
+            <li class="glass-sm"><span class="icon" style="font-size:1.1rem;width:36px;height:36px;border-radius:10px;">🔬</span><div><strong>Custom Model Training</strong><p class="text-xs text-dim mt-4">Customer-specific baselines — every network has different 'normal'</p></div></li>
+            <li class="glass-sm"><span class="icon" style="font-size:1.1rem;width:36px;height:36px;border-radius:10px;">📋</span><div><strong>Compliance Reporting</strong><p class="text-xs text-dim mt-4">Automated PCI-DSS, ISO 27001, NIST — detection to compliance</p></div></li>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 31: 10 SELLING POINTS ===== -->
+<div class="slide grid-bg" data-slide="30">
+    <div class="content-area">
+        <p class="section-label">Summary</p>
+        <h2 class="slide-title">10 Reasons <span class="accent">ThreatMatrix AI</span></h2>
+        <div class="selling-grid mt-20">
+            <div class="glass-sm selling-item"><div class="selling-num">01</div><div class="selling-text"><strong class="text-cyan">100x cheaper</strong> than enterprise SIEM</div></div>
+            <div class="glass-sm selling-item"><div class="selling-num">02</div><div class="selling-text"><strong class="text-cyan">First LLM-integrated</strong> SIEM at this price</div></div>
+            <div class="glass-sm selling-item"><div class="selling-num">03</div><div class="selling-text"><strong class="text-cyan">3-model ML ensemble</strong> — unsup + sup + DL</div></div>
+            <div class="glass-sm selling-item"><div class="selling-num">04</div><div class="selling-text"><strong class="text-cyan">146ms latency</strong> — real-time detection</div></div>
+            <div class="glass-sm selling-item"><div class="selling-num">05</div><div class="selling-text"><strong class="text-cyan">Bilingual</strong> Amharic/English support</div></div>
+            <div class="glass-sm selling-item"><div class="selling-num">06</div><div class="selling-text"><strong class="text-cyan">One command</strong> deployment</div></div>
+            <div class="glass-sm selling-item"><div class="selling-num">07</div><div class="selling-text"><strong class="text-cyan">War Room UI</strong> — enterprise-grade design</div></div>
+            <div class="glass-sm selling-item"><div class="selling-num">08</div><div class="selling-text"><strong class="text-cyan">100% open source</strong> — MIT license</div></div>
+            <div class="glass-sm selling-item"><div class="selling-num">09</div><div class="selling-text"><strong class="text-cyan">Real traffic</strong> — live VPS, not simulated</div></div>
+            <div class="glass-sm selling-item"><div class="selling-num">10</div><div class="selling-text"><strong class="text-cyan">Academic + Commercial</strong> viability</div></div>
+        </div>
+        <div class="mt-24" style="text-align:center;"><p class="text-dim text-xs">Now let me demonstrate the live system →</p></div>
+    </div>
+</div>
+
+<!-- ===== SLIDE 32: THANK YOU ===== -->
+<div class="slide grid-bg" data-slide="31">
+    <div class="content-area" style="display:flex;flex-direction:column;align-items:center;">
+        <div class="logo-hex float-anim" style="width:90px;height:90px;">
+            <svg viewBox="0 0 120 120" fill="none"><polygon points="60,5 110,30 110,90 60,115 10,90 10,30" stroke="rgba(0,240,255,0.4)" stroke-width="1.5" fill="rgba(0,240,255,0.02)"/><text x="60" y="68" text-anchor="middle" fill="#00f0ff" font-family="Inter" font-weight="800" font-size="28">TM</text></svg>
+        </div>
+        <h1 class="title-main" style="font-size:3.5rem;">Thank You</h1>
+        <p class="title-tagline">ThreatMatrix AI — Real-Time Cyber Defense, Powered by Intelligence</p>
+        <div class="glass mt-24" style="text-align:center;max-width:600px;padding:24px 32px;">
+            <div class="four-col" style="gap:20px;">
+                <div><div class="mono text-cyan fw-700" style="font-size:1.4rem;">46</div><div class="text-xs text-dim mt-4">Endpoints</div></div>
+                <div><div class="mono text-cyan fw-700" style="font-size:1.4rem;">10</div><div class="text-xs text-dim mt-4">Modules</div></div>
+                <div><div class="mono text-cyan fw-700" style="font-size:1.4rem;">3</div><div class="text-xs text-dim mt-4">ML Models</div></div>
+                <div><div class="mono text-cyan fw-700" style="font-size:1.4rem;">146ms</div><div class="text-xs text-dim mt-4">Latency</div></div>
+            </div>
+        </div>
+        <div class="mt-24" style="text-align:center;">
+            <p class="text-secondary text-sm">Live Demo: <span class="mono text-cyan">threatmatrix-ai.vercel.app</span></p>
+            <p class="text-secondary text-sm mt-8">GitHub: <span class="mono text-cyan">github.com/VersaLabs-Studio/threatmatrix-ai</span></p>
+        </div>
+        <p class="mt-24 text-dim text-xs">© 2026 ThreatMatrix AI / VersaLabs. All rights reserved.</p>
+    </div>
+</div>
+
+</div>
+
+<!-- NAV -->
+<div class="nav-bar">
+    <div class="nav-info">ThreatMatrix AI Defense &nbsp;|&nbsp; Slide <span class="current" id="currentSlide">1</span> / <span id="totalSlides">32</span></div>
+    <div class="nav-controls"><button class="nav-btn" onclick="prevSlide()">← Prev</button><button class="nav-btn" onclick="nextSlide()">Next →</button></div>
+</div>
+
+<script>
+let current=0;const slides=document.querySelectorAll('.slide'),total=slides.length,progressBar=document.getElementById('progressBar'),currentSlideEl=document.getElementById('currentSlide'),totalSlidesEl=document.getElementById('totalSlides');
+totalSlidesEl.textContent=total;
+function updateSlide(){slides.forEach((s,i)=>{s.classList.remove('active','prev');if(i===current)s.classList.add('active');else if(i<current)s.classList.add('prev');});currentSlideEl.textContent=current+1;progressBar.style.width=((current+1)/total*100)+'%';}
+function nextSlide(){if(current<total-1){current++;updateSlide();}}
+function prevSlide(){if(current>0){current--;updateSlide();}}
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();nextSlide();}else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();prevSlide();}else if(e.key==='Home'){current=0;updateSlide();}else if(e.key==='End'){current=total-1;updateSlide();}else if(e.key==='f'||e.key==='F'){toggleFullscreen();}});
+let touchStartX=0;document.addEventListener('touchstart',e=>{touchStartX=e.touches[0].clientX;});document.addEventListener('touchend',e=>{const diff=touchStartX-e.changedTouches[0].clientX;if(Math.abs(diff)>50){if(diff>0)nextSlide();else prevSlide();}});
+function toggleFullscreen(){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
+document.getElementById('fullscreenBtn').addEventListener('click',toggleFullscreen);
+updateSlide();
+</script>
+</body>
+</html>
