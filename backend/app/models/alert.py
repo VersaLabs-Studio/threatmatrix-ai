@@ -143,11 +143,6 @@ class Alert(Base, TimestampMixin):
         comment="ML model that generated this alert"
     )
 
-    rf_label: Mapped[str | None] = mapped_column(
-        String(50),
-        nullable=True,
-        comment="Random Forest classification label (normal, dos, probe, r2l, u2r)"
-    )
     
     # LLM-Generated Content
     ai_narrative: Mapped[str | None] = mapped_column(

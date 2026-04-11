@@ -17,6 +17,7 @@ import { ScatterplotLayer, ArcLayer } from '@deck.gl/layers';
 import { HeatmapLayer } from '@deck.gl/aggregation-layers';
 import Map from 'react-map-gl/maplibre';
 import type { FlowEvent } from '@/hooks/useWebSocket';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // ── Free dark basemap style from MapTiler Community ───
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
@@ -56,6 +57,7 @@ interface ThreatMapProps {
 }
 
 export function ThreatMap({ recentFlows = [], loading = false }: ThreatMapProps) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState<GeoFlow | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
@@ -187,10 +189,10 @@ export function ThreatMap({ recentFlows = [], loading = false }: ThreatMapProps)
         }}>
           <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⚠</div>
           <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, marginBottom: '0.5rem' }}>
-            WEBGL NOT SUPPORTED
+            {t('Shared.webglNotSupported')}
           </div>
           <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>
-            Your browser or hardware does not support WebGL, which is required for the 3D threat map.
+            {t('Shared.webglRequired')}
           </div>
         </div>
       );
@@ -269,12 +271,12 @@ export function ThreatMap({ recentFlows = [], loading = false }: ThreatMapProps)
           }}
         >
           <div style={{ color: hovered.isAnomaly ? 'var(--critical)' : 'var(--cyan)', fontWeight: 700, marginBottom: 4 }}>
-            {hovered.isAnomaly ? 'ANOMALOUS FLOW' : 'NORMAL FLOW'}
+            {hovered.isAnomaly ? t('Shared.anomalousFlow') : t('Shared.normalFlow')}
           </div>
           <div>SRC: {hovered.srcIp}</div>
           <div>DST: {hovered.dstIp}</div>
           <div style={{ color: hovered.isAnomaly ? 'var(--critical)' : 'var(--text-muted)', marginTop: 2 }}>
-            Score: {(hovered.score * 100).toFixed(0)}%
+            {t('Shared.score').replace('{score}', (hovered.score * 100).toFixed(0))}
           </div>
         </div>
       )}

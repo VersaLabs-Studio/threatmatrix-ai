@@ -292,7 +292,7 @@ export default function LoginPage() {
                     fontFamily: 'monospace'
                   }}
                 >
-                  SYSTEM_ERROR: {apiError.toUpperCase()}
+                  {t('Login.systemError')}: {apiError.toUpperCase()}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -315,18 +315,18 @@ export default function LoginPage() {
                 clipPath: 'polygon(0 0, 90% 0, 100% 30%, 100% 100%, 10% 100%, 0 70%)',
               }}
             >
-              {authState === 'authenticating' ? 'VALIDATING...' : (authState === 'success' ? 'GRANTED' : 'INITIALIZE')}
+              {authState === 'authenticating' ? t('Login.validating') : (authState === 'success' ? t('Login.granted') : t('Login.initialize'))}
             </button>
           </form>
 
           {/* ── Footer Stats ── */}
           <div style={{ marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px', opacity: 0.3, fontSize: '9px', fontFamily: '"JetBrains Mono", monospace' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>SECURE-LINK: ACTIVE</span>
-              <span>NODE: HOSTINGER_VPS</span>
+              <span>{t('Login.secureLinkActive')}</span>
+              <span>{t('Login.node')}</span>
             </div>
             <div style={{ textAlign: 'center', paddingTop: '10px', borderTop: '1px solid rgba(255,106,0,0.1)', letterSpacing: '2px' }}>
-              THREATMATRIX v1.0.0 -- COMMAND CENTER
+              THREATMATRIX v1.0.0 -- {t('Login.threatmatrixCommandCenter')}
             </div>
           </div>
         </motion.div>
@@ -369,7 +369,7 @@ export default function LoginPage() {
               transition={{ duration: 1, repeat: Infinity }}
               style={{ marginTop: '30px', color: '#FF6A00', letterSpacing: '8px', fontSize: '14px', fontWeight: 800 }}
             >
-              SCANNING BIOMETRICS
+              {t('Login.scanningBiometrics')}
             </motion.div>
           </motion.div>
         )}
