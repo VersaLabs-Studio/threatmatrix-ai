@@ -1270,5 +1270,15 @@ select:focus-visible {
   .statusbar-item:not(.critical) { display: none !important; }
 }
 
+/* ── Maintenance Banner ─────────────────────────────────────────── */
+@keyframes maintenance-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 hsla(40, 92%, 56%, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px hsla(40, 92%, 56%, 0);
+  }
+}
+
 .mobile-only { display: none !important; }
 @media (max-width: 768px) { .mobile-only { display: flex !important; } }

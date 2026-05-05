@@ -31,6 +31,7 @@
 
 import type { Metadata } from 'next';
 import './about.css';
+import { MaintenanceBanner } from '@/components/shared/MaintenanceBanner';
 
 export const metadata: Metadata = {
   title: 'About — ThreatMatrix AI',
@@ -72,6 +73,7 @@ export default function AboutLayout({
         msOverflowStyle: 'none',
       } as React.CSSProperties}
     >
+      <MaintenanceBanner />
       {children}
     </div>
   );

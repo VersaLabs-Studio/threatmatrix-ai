@@ -15,6 +15,7 @@ interface Report {
   file_size?: number;
   status: string;
   created_at: string;
+  generated_at?: string;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -326,11 +327,11 @@ export default function ReportsPage() {
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                     <Calendar size={12} style={{ color: 'var(--text-muted)' }} />
-                    {new Date(report.generated_at).toLocaleDateString()}
+                    {new Date(report.generated_at || report.created_at).toLocaleDateString()}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Clock size={12} style={{ color: 'var(--text-muted)' }} />
-                    {new Date(report.generated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(report.generated_at || report.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
 

@@ -178,5 +178,10 @@
     "normalFlow": "NORMAL FLOW",
     "score": "Score: {score}%",
     "initializingSecureSession": "INITIALIZING SECURE SESSION..."
+  },
+  "Maintenance": {
+    "title": "Under Maintenance",
+    "message": "Platform is undergoing scheduled maintenance. Some features may be temporarily unavailable.",
+    "dismiss": "Dismiss"
   }
 }

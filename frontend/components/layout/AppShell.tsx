@@ -5,6 +5,7 @@ import { Sidebar }   from "@/components/layout/Sidebar";
 import { TopBar }    from "@/components/layout/TopBar";
 import { StatusBar } from "@/components/layout/StatusBar";
 import { AuthGuardWrapper } from "@/components/auth/AuthGuardWrapper";
+import { MaintenanceBanner } from "@/components/shared/MaintenanceBanner";
 import { PageTransition } from "@/components/shared/PageTransition";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
@@ -54,6 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <div className="bg-mesh" />
+      <MaintenanceBanner />
       <div
         className="app-shell"
         style={{

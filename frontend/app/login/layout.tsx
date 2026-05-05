@@ -4,6 +4,8 @@
 // Full-viewport fixed overlay for immersive login experience
 // ═══════════════════════════════════════════════════════
 
+import { MaintenanceBanner } from '@/components/shared/MaintenanceBanner';
+
 export default function LoginLayout({
   children,
 }: {
@@ -19,6 +21,7 @@ export default function LoginLayout({
         isolation: 'isolate',
       }}
     >
+      <MaintenanceBanner />
       {children}
     </div>
   );

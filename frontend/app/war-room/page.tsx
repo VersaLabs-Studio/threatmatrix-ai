@@ -41,7 +41,7 @@ function LoadingMap() {
       fontSize: '0.75rem', color: '#00f0ff',
       letterSpacing: '0.1em',
     }}>
-      {t('Shared.loadingThreatMap', 'Loading Threat Map...')}
+      {t('Shared.loadingThreatMap')}
     </div>
   );
 }

@@ -178,5 +178,10 @@
     "normalFlow": "እንግዳ ፍሰት",
     "score": "ነጥብ: {score}%",
     "initializingSecureSession": "አስተማማኝ ልጥፍ በማስጀመር ላይ..."
+  },
+  "Maintenance": {
+    "title": "በጥገና ላይ",
+    "message": "መድረኩ በታቀደ ጥገና ላይ ነው። አንዳንድ ባህሪያት ለጊᜋ ሊቋረጡ ይችላሉ።",
+    "dismiss": "ዝጋ"
   }
 }
