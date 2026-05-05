@@ -3,7 +3,8 @@
 // Wraps fetch with JWT auth, refresh, and error handling
 // ═══════════════════════════════════════════════════════
 
-import { API_BASE_URL } from './constants';
+import { API_BASE_URL, DEMO_MODE } from './constants';
+import { getMockResponse } from './mock-data';
 
 interface ApiResponse<T> {
   data: T | null;
@@ -76,6 +77,13 @@ async function apiFetch<T>(
     }
 
     if (!res.ok) {
+      // Demo mode: return mock data on non-OK responses too
+      if (DEMO_MODE) {
+        const mockData = getMockResponse<T>(path, options.method || 'GET');
+        if (mockData !== null) {
+          return { data: mockData, error: null };
+        }
+      }
       const detail = await res.text();
       return { data: null, error: detail || `HTTP ${res.status}` };
     }
@@ -83,6 +91,13 @@ async function apiFetch<T>(
     const data: T = await res.json();
     return { data, error: null };
   } catch (err) {
+    // Demo mode: return mock data when API is unreachable
+    if (DEMO_MODE) {
+      const mockData = getMockResponse<T>(path, options.method || 'GET');
+      if (mockData !== null) {
+        return { data: mockData, error: null };
+      }
+    }
     return { data: null, error: err instanceof Error ? err.message : 'Network error' };
   }
 }

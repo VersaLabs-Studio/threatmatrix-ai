@@ -8,7 +8,8 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { wsClient } from '@/lib/websocket';
-import { WS_CHANNELS, type ThreatLevel } from '@/lib/constants';
+import { mockWsClient } from '@/lib/mock-ws';
+import { WS_CHANNELS, DEMO_MODE, type ThreatLevel } from '@/lib/constants';
 
 // ── Typed event shapes from the backend ────────────────
 
@@ -97,12 +98,15 @@ export function useWebSocket(): UseWebSocketReturn {
   const [lastMetricEvent, setLastMetricEvent] = useState<MLMetricEvent | null>(null);
   const [systemStatus, setSystemStatus]     = useState<SystemStatusEvent | null>(null);
 
+  // Use mock client in demo mode
+  const client = DEMO_MODE ? mockWsClient : wsClient;
+
   // Track unsubscribe functions per channel
   const unsubFunctionsRef = useRef<Map<string, () => void>>(new Map());
 
   const checkConnection = useCallback(() => {
-    setIsConnected(wsClient.isConnected);
-  }, []);
+    setIsConnected(client.isConnected);
+  }, [client]);
 
   const subscribe = useCallback((channels: string[]) => {
     // Subscribe to additional channels dynamically
@@ -113,16 +117,16 @@ export function useWebSocket(): UseWebSocketReturn {
       let unsubFn: (() => void) | undefined;
 
       if (channel === WS_CHANNELS.FLOWS) {
-        unsubFn = wsClient.subscribe(WS_CHANNELS.FLOWS, (d) => setLastFlowEvent(d as FlowEvent));
+        unsubFn = client.subscribe(WS_CHANNELS.FLOWS, (d) => setLastFlowEvent(d as FlowEvent));
       } else if (channel === WS_CHANNELS.ALERTS) {
-        unsubFn = wsClient.subscribe(WS_CHANNELS.ALERTS, (d) => setLastAlertEvent(d as AlertEvent));
+        unsubFn = client.subscribe(WS_CHANNELS.ALERTS, (d) => setLastAlertEvent(d as AlertEvent));
       } else if (channel === WS_CHANNELS.SYSTEM) {
-        unsubFn = wsClient.subscribe(WS_CHANNELS.SYSTEM, (d) => {
+        unsubFn = client.subscribe(WS_CHANNELS.SYSTEM, (d) => {
           setSystemStatus(d as SystemStatusEvent);
           checkConnection();
         });
       } else if (channel === WS_CHANNELS.METRICS) {
-        unsubFn = wsClient.subscribe(WS_CHANNELS.METRICS, (d) => setLastMetricEvent((d as any).data.payload as MLMetricEvent));
+        unsubFn = client.subscribe(WS_CHANNELS.METRICS, (d) => setLastMetricEvent((d as any).data.payload as MLMetricEvent));
       }
 
       // Store the unsubscribe function
@@ -144,43 +148,43 @@ export function useWebSocket(): UseWebSocketReturn {
 
   const reconnect = useCallback(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
-    if (token) {
-      wsClient.disconnect();
-      wsClient.connect(token);
+    if (token || DEMO_MODE) {
+      client.disconnect();
+      client.connect(token || 'dev_mode_token');
     }
-  }, []);
+  }, [client]);
 
   useEffect(() => {
     // Connect using stored token (or dev_mode placeholder)
     const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
     const devToken = token || 'dev_mode_token';
-    wsClient.connect(devToken);
+    client.connect(devToken);
 
     // Subscribe to all channels (will be sent once WS is open)
-    const unsubFlows  = wsClient.subscribe(WS_CHANNELS.FLOWS,  (d) => {
+    const unsubFlows  = client.subscribe(WS_CHANNELS.FLOWS,  (d) => {
       const flow = d as FlowEvent;
-      console.log('[WS] Flow event:', { flowId: flow.id, src_ip: flow.src_ip, is_anomaly: flow.is_anomaly });
+      if (!DEMO_MODE) console.log('[WS] Flow event:', { flowId: flow.id, src_ip: flow.src_ip, is_anomaly: flow.is_anomaly });
       setLastFlowEvent(flow);
     });
-    const unsubAlerts = wsClient.subscribe(WS_CHANNELS.ALERTS, (d) => {
+    const unsubAlerts = client.subscribe(WS_CHANNELS.ALERTS, (d) => {
       const alert = d as AlertEvent;
-      console.log('[WS] Alert event:', { alertId: alert.id, severity: alert.severity, category: alert.category });
+      if (!DEMO_MODE) console.log('[WS] Alert event:', { alertId: alert.id, severity: alert.severity, category: alert.category });
       setLastAlertEvent(alert);
     });
-    const unsubSystem = wsClient.subscribe(WS_CHANNELS.SYSTEM, (d) => {
+    const unsubSystem = client.subscribe(WS_CHANNELS.SYSTEM, (d) => {
       const status = d as SystemStatusEvent;
-      console.log('[WS] System status:', status);
+      if (!DEMO_MODE) console.log('[WS] System status:', status);
       setSystemStatus(status);
       checkConnection();
     });
-    const unsubML     = wsClient.subscribe(WS_CHANNELS.ML,     (d) => {
+    const unsubML     = client.subscribe(WS_CHANNELS.ML,     (d) => {
       const anomaly = d as AnomalyDetectedEvent;
-      console.log('[WS] Anomaly detected:', { flowId: anomaly.flow_id, score: anomaly.composite_score });
+      if (!DEMO_MODE) console.log('[WS] Anomaly detected:', { flowId: anomaly.flow_id, score: anomaly.composite_score });
       setLastAnomalyEvent(anomaly);
     });
-    const unsubMetrics = wsClient.subscribe(WS_CHANNELS.METRICS, (d: any) => {
-      const metrics = d.data.payload as MLMetricEvent;
-      console.log('[WS] ML Metrics received:', metrics);
+    const unsubMetrics = client.subscribe(WS_CHANNELS.METRICS, (d: any) => {
+      const metrics = d.data?.payload as MLMetricEvent;
+      if (!DEMO_MODE) console.log('[WS] ML Metrics received:', metrics);
       setLastMetricEvent(metrics);
     });
 
@@ -196,8 +200,8 @@ export function useWebSocket(): UseWebSocketReturn {
 
     // Heartbeat: ping every 30 seconds to keep connection alive
     const heartbeatInterval = setInterval(() => {
-      if (wsClient.isConnected) {
-        wsClient.ping();
+      if (client.isConnected) {
+        client.ping();
       }
     }, 30000);
 
@@ -211,7 +215,7 @@ export function useWebSocket(): UseWebSocketReturn {
       clearInterval(interval);
       clearInterval(heartbeatInterval);
     };
-  }, [checkConnection]);
+  }, [checkConnection, client]);
 
   return { isConnected, lastFlowEvent, lastAlertEvent, lastAnomalyEvent, lastMetricEvent, systemStatus, subscribe, unsubscribe, reconnect };
 }

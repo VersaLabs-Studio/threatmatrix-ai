@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { DEMO_MODE } from '@/lib/constants';
+import { MOCK_ML_MODELS } from '@/lib/mock-data';
 import type { MLModelDetail, MLModelsResponse } from '@/lib/types';
 
 export function useMLModels() {
@@ -14,8 +16,10 @@ export function useMLModels() {
     setError(null);
     const { data, error: err } = await api.get<MLModelsResponse>('/api/v1/ml/models');
     if (err) {
-      // Gracefully handle 404 (backend route not yet created)
-      if (err.includes('404') || err.includes('Not Found')) {
+      // Demo mode: use mock data on error
+      if (DEMO_MODE) {
+        setModels(MOCK_ML_MODELS);
+      } else if (err.includes('404') || err.includes('Not Found')) {
         setModels([]);
       } else {
         setError(err);

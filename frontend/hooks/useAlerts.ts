@@ -8,6 +8,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { alertService } from '@/lib/services';
 import type { Severity, AlertStatus } from '@/lib/constants';
+import { DEMO_MODE } from '@/lib/constants';
+import { MOCK_ALERTS, MOCK_ALERT_STATS } from '@/lib/mock-data';
 import type { AlertResponse } from '@/lib/types';
 
 interface AlertFilters {
@@ -45,7 +47,18 @@ export function useAlerts(filters: AlertFilters = {}): UseAlertsReturn {
 
     const { data, error: err } = await alertService.list(filters);
     if (err) {
-      setError(err);
+      // Demo mode: use mock data on error
+      if (DEMO_MODE) {
+        let filtered = [...MOCK_ALERTS];
+        if (severity !== 'all') filtered = filtered.filter(a => a.severity === severity);
+        if (status !== 'all') filtered = filtered.filter(a => a.status === status);
+        if (category !== 'all') filtered = filtered.filter(a => a.category === category);
+        setAlerts(filtered);
+        setTotal(filtered.length);
+        setError(null);
+      } else {
+        setError(err);
+      }
     } else if (data) {
       setAlerts(data.items);
       setTotal(data.total);

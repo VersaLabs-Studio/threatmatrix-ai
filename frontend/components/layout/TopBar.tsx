@@ -2,26 +2,26 @@
 
 // ═══════════════════════════════════════════════════════
 // ThreatMatrix AI — TopBar
-// 56px header: Logo, Threat Level badge, notifications,
-// language toggle, and user menu
+// Revamped header with VersaLabs branding
 // ═══════════════════════════════════════════════════════
 
 import { useState, useEffect } from 'react';
-import { Bell, Globe, Menu, X } from 'lucide-react';
+import Image from 'next/image';
+import { Globe, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useTranslation } from '@/hooks/useTranslation';
 import { THREAT_LEVEL_COLORS, type ThreatLevel } from '@/lib/constants';
 
 interface TopBarProps {
   onOpenSidebar?: () => void;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
-export function TopBar({ onOpenSidebar }: TopBarProps) {
-  const { systemStatus, lastAlertEvent } = useWebSocket();
+export function TopBar({ onOpenSidebar, sidebarCollapsed, onToggleSidebar }: TopBarProps) {
+  const { systemStatus } = useWebSocket();
   const { t, locale, toggleLocale } = useTranslation();
-  const [alertBadge, setAlertBadge] = useState(0);
   const [currentTime, setCurrentTime] = useState('');
-  const [showNotifications, setShowNotifications] = useState(false);
 
   const threatLevel: ThreatLevel = systemStatus?.threat_level ?? 'GUARDED';
 
@@ -35,27 +35,9 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
     return () => clearInterval(interval);
   }, []);
 
-  // Increment badge on new alert
-  useEffect(() => {
-    if (lastAlertEvent) {
-      setAlertBadge((n) => n + 1);
-    }
-  }, [lastAlertEvent]);
-
-  // Close popup on click outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (showNotifications && !(event.target as Element).closest('.notification-popup')) {
-        setShowNotifications(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showNotifications]);
-
   return (
-    <div 
-      style={{ 
+    <div
+      style={{
         position: 'fixed',
         top: 'var(--space-4)',
         left: '50%',
@@ -65,7 +47,7 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
         zIndex: 'var(--z-topbar)',
       }}
     >
-      <header className="glass-panel glass-panel-noise" style={{ 
+      <header className="glass-panel glass-panel-noise" style={{
         height: 'var(--topbar-height)',
         display: 'flex',
         alignItems: 'center',
@@ -84,15 +66,67 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
             marginRight: 'var(--space-2)',
             background: 'none',
             border: 'none',
-            display: 'none', // Controlled by CSS media queries or className
+            display: 'none',
           }}
           aria-label="Open menu"
         >
           <Menu size={20} />
         </button>
 
-        {/* Left — Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+        {/* Sidebar Collapse Toggle (desktop) */}
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            style={{
+              background: 'none',
+              border: '1px solid var(--glass-border)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 'var(--space-3)',
+              transition: 'all var(--transition-fast)',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-active)';
+              e.currentTarget.style.color = 'var(--cyan)';
+              e.currentTarget.style.background = 'var(--cyan-muted)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--glass-border)';
+              e.currentTarget.style.color = 'var(--text-muted)';
+              e.currentTarget.style.background = 'none';
+            }}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
+        )}
+
+        {/* Left — VersaLabs Logo + Branding */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexShrink: 0 }}>
+          <div style={{
+            width: 36,
+            height: 36,
+            position: 'relative',
+            borderRadius: 'var(--radius-sm)',
+            overflow: 'hidden',
+            flexShrink: 0,
+          }}>
+            <Image
+              src="/versalabs-logo.png"
+              alt="VersaLabs"
+              fill
+              style={{ objectFit: 'contain' }}
+              sizes="36px"
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
             <span
               style={{
                 fontFamily: 'var(--font-heading)',
@@ -104,8 +138,20 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
               }}
             >
               {t('Common.threatMatrix')}
+              <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', fontWeight: 600, marginLeft: 'var(--space-1)' }}>{t('Common.ai')}</span>
             </span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', fontWeight: 600 }}>{t('Common.ai')}</span>
+            <span style={{
+              fontFamily: 'var(--font-data)',
+              fontSize: '0.55rem',
+              color: 'var(--text-muted)',
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              fontWeight: 500,
+              marginTop: 1,
+            }}>
+              Made by VersaLabs
+            </span>
+          </div>
         </div>
 
         {/* Spacer */}
@@ -193,129 +239,6 @@ export function TopBar({ onOpenSidebar }: TopBarProps) {
             <Globe size={14} />
             <span style={{ fontSize: '11px', fontWeight: 600 }}>{locale.toUpperCase()}</span>
           </button>
-
-          {/* Notification bell */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => {
-                setShowNotifications(!showNotifications);
-                if (!showNotifications) setAlertBadge(0); // Reset badge when opening
-              }}
-              style={{
-                position: 'relative',
-                background: 'none',
-                border: 'none',
-                color: alertBadge > 0 ? 'var(--critical)' : 'var(--text-muted)',
-                cursor: 'pointer',
-                padding: 6,
-                transition: 'var(--transition-fast)',
-              }}
-              className="nav-icon"
-              title={t('TopBar.notifications')}
-              aria-label="Notifications"
-            >
-              <Bell size={20} />
-              {alertBadge > 0 && (
-                <span
-                  style={{
-                    position: 'absolute', top: 4, right: 4,
-                    background: 'var(--critical)',
-                    color: '#fff',
-                    borderRadius: '50%',
-                    width: 14, height: 14,
-                    fontSize: '0.6rem',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: 'var(--font-data)',
-                    fontWeight: 700,
-                    boxShadow: '0 0 8px var(--critical)',
-                  }}
-                >
-                  {alertBadge > 9 ? '9+' : alertBadge}
-                </span>
-              )}
-            </button>
-
-            {/* Notifications Popup */}
-            {showNotifications && (
-              <div
-                className="notification-popup"
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 8px)',
-                  right: 0,
-                  width: 320,
-                  maxHeight: 400,
-                  background: 'rgba(17, 17, 24, 0.97)',
-                  backdropFilter: 'blur(16px)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-lg)',
-                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
-                  zIndex: 1000,
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    padding: '12px 16px',
-                    borderBottom: '1px solid var(--border)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-data)',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                    }}
-                  >
-                    {t('TopBar.recentAlerts')}
-                  </span>
-                  <button
-                    onClick={() => setShowNotifications(false)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--text-muted)',
-                      cursor: 'pointer',
-                      padding: 4,
-                    }}
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-
-                <div style={{ padding: '8px 0', maxHeight: 320, overflowY: 'auto' }}>
-                  {alertBadge === 0 ? (
-                      <div
-                        style={{
-                          padding: '16px',
-                          textAlign: 'center',
-                          color: 'var(--text-muted)',
-                          fontSize: '0.8rem',
-                        }}
-                      >
-                        {t('TopBar.noNewNotifications')}
-                      </div>
-                  ) : (
-                    <div
-                      style={{
-                        padding: '16px',
-                        textAlign: 'center',
-                        color: 'var(--text-muted)',
-                        fontSize: '0.8rem',
-                      }}
-                    >
-                      {t('TopBar.notificationsCleared')}
-                    </div>
-                  )}
-                  {/* Could add recent alerts list here if we store them */}
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* User avatar */}
           <div

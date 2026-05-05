@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { DEMO_MODE } from '@/lib/constants';
+import { MOCK_PCAP_UPLOADS } from '@/lib/mock-data';
 import type { PCAPUploadResponse } from '@/lib/types';
 
 export function useCapture() {
@@ -14,8 +16,10 @@ export function useCapture() {
     setError(null);
     const { data, error: err } = await api.get<PCAPUploadResponse[]>('/api/v1/pcap/uploads');
     if (err) {
-      // Gracefully handle 404 (backend route not yet created)
-      if (err.includes('404') || err.includes('Not Found')) {
+      // Demo mode: use mock data on error
+      if (DEMO_MODE) {
+        setUploads(MOCK_PCAP_UPLOADS);
+      } else if (err.includes('404') || err.includes('Not Found')) {
         setUploads([]);
       } else {
         setError(err);

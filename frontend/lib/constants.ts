@@ -78,3 +78,6 @@ export const NAV_ITEMS = [
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://187.124.45.161:8000';
 export const WS_BASE_URL  = process.env.NEXT_PUBLIC_WS_URL  ?? 'ws://187.124.45.161:8000';
 export const APP_VERSION  = 'v1.0.0';
+
+// ── Demo mode (mock data when VPS is down) ────────────
+export const DEMO_MODE = true;

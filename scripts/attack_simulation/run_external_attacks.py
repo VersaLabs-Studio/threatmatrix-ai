@@ -33,7 +33,7 @@ NC = "\033[0m"
 
 WAIT_AFTER_ATTACK = 45  # External attacks need more time (network latency)
 API_RETRIES = 3        # Number of retries for API calls
-API_TIMEOUT = 30       # Seconds per attempt
+API_TIMEOUT = 60       # Seconds per attempt
 
 
 def api_get(api_url, path, retries=API_RETRIES):

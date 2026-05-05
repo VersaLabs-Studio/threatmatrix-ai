@@ -2,7 +2,7 @@
 
 // ═══════════════════════════════════════════════════════
 // ThreatMatrix AI — Sidebar Navigation
-// Icon-only 64px sidebar with tooltip labels
+// Collapsible sidebar with smooth transitions
 // Keyboard shortcuts: Alt+1 through Alt+0
 // ═══════════════════════════════════════════════════════
 
@@ -25,9 +25,10 @@ const ICON_MAP = {
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
+  collapsed?: boolean;
 }
 
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, collapsed }: SidebarProps) {
   const pathname = usePathname();
   const router   = useRouter();
   const { alerts } = useAlerts({ limit: 100 });
@@ -65,7 +66,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     <>
       {/* Mobile Overlay */}
       {isOpen && (
-        <div 
+        <div
           onClick={onClose}
           style={{
             position: 'fixed',
@@ -78,15 +79,42 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         />
       )}
 
-      <nav className={cx('sidebar', isOpen && 'sidebar--open')}>
+      <nav
+        className={cx('sidebar', isOpen && 'sidebar--open')}
+        data-collapsed={collapsed ? 'true' : undefined}
+        style={{
+          width: collapsed ? '64px' : undefined,
+          transition: 'width 0.3s cubic-bezier(0.23, 1, 0.32, 1)',
+          overflow: 'hidden',
+        }}
+      >
       {/* Logo mark */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '0 20px', marginBottom: 'var(--space-4)' }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        padding: collapsed ? '0 16px' : '0 20px',
+        marginBottom: 'var(--space-4)',
+        justifyContent: collapsed ? 'center' : 'flex-start',
+        transition: 'all 0.3s cubic-bezier(0.23, 1, 0.32, 1)',
+      }}>
         <svg width="28" height="28" viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
           <path d="M24 4L6 14V34L24 44L42 34V14L24 4Z" stroke="var(--cyan)" strokeWidth="1.5" />
           <path d="M24 12L14 18V30L24 36L34 30V18L24 12Z" stroke="var(--cyan)" strokeWidth="1" fill="var(--cyan-muted)" />
           <circle cx="24" cy="24" r="3" fill="var(--cyan)" />
         </svg>
-        <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>ThreatMatrix AI</span>
+        <span style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: '1.1rem',
+          fontWeight: 700,
+          color: 'var(--text-primary)',
+          letterSpacing: '0.02em',
+          whiteSpace: 'nowrap',
+          opacity: collapsed ? 0 : 1,
+          width: collapsed ? 0 : 'auto',
+          overflow: 'hidden',
+          transition: 'opacity 0.2s ease, width 0.3s ease',
+        }}>ThreatMatrix AI</span>
       </div>
 
       <div style={{ width: '100%', height: '1px', background: 'var(--border)', margin: 'var(--space-2) 0' }} />
@@ -105,11 +133,17 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         }
 
         return (
-          <Link 
-            key={item.href} 
-            href={item.href} 
+          <Link
+            key={item.href}
+            href={item.href}
             onClick={onClose}
-            style={{ textDecoration: 'none', width: '100%', display: 'flex', padding: '0 var(--space-3)', position: 'relative' }}
+            style={{
+              textDecoration: 'none',
+              width: '100%',
+              display: 'flex',
+              padding: '0 var(--space-3)',
+              position: 'relative',
+            }}
           >
             <div
               className={cx('nav-icon', isActive && 'nav-icon--active')}
@@ -117,10 +151,21 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               role="button"
               aria-label={item.label}
               aria-current={isActive ? 'page' : undefined}
+              style={{
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                padding: collapsed ? '0' : undefined,
+                gap: collapsed ? '0' : undefined,
+              }}
             >
               <Icon size={18} />
-              <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
-              {badgeCount > 0 && (
+              <span style={{
+                whiteSpace: 'nowrap',
+                opacity: collapsed ? 0 : 1,
+                width: collapsed ? 0 : 'auto',
+                overflow: 'hidden',
+                transition: 'opacity 0.2s ease, width 0.3s ease',
+              }}>{item.label}</span>
+              {badgeCount > 0 && !collapsed && (
                 <span style={{
                   marginLeft: 'auto',
                   width: 20,
@@ -134,9 +179,22 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontFamily: 'var(--font-data)',
+                  transition: 'opacity 0.2s ease',
                 }}>
                   {badgeCount}
                 </span>
+              )}
+              {badgeCount > 0 && collapsed && (
+                <span style={{
+                  position: 'absolute',
+                  top: 6,
+                  right: 14,
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: item.href === '/alerts' ? 'var(--critical)' : 'var(--safe)',
+                  boxShadow: `0 0 6px ${item.href === '/alerts' ? 'var(--critical)' : 'var(--safe)'}`,
+                }} />
               )}
             </div>
           </Link>
@@ -151,8 +209,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           fontSize: '0.6rem',
           color: 'var(--text-muted)',
           paddingBottom: 'var(--space-4)',
-          writingMode: 'vertical-rl',
-          transform: 'rotate(180deg)',
+          textAlign: 'center',
+          opacity: collapsed ? 0 : 1,
+          transition: 'opacity 0.2s ease',
         }}
       >
         {APP_VERSION}

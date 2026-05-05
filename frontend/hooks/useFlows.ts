@@ -8,6 +8,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { flowService } from '@/lib/services';
 import { mapProtocolNumber } from '@/lib/utils';
+import { DEMO_MODE } from '@/lib/constants';
+import { MOCK_FLOWS, MOCK_FLOW_STATS, MOCK_TOP_TALKERS, MOCK_PROTOCOLS } from '@/lib/mock-data';
 import type {
   NetworkFlow,
   TopTalker,
@@ -107,7 +109,18 @@ export function useFlows(filters: FlowFilters = {}): UseFlowsReturn {
     // Set error only if ALL requests failed
     const allFailed = [flowsRes, statsRes, talkersRes, protocolsRes]
       .every((r) => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error));
-    setError(allFailed ? 'Failed to load flow data' : null);
+
+    // Demo mode: use mock data if all failed
+    if (allFailed && DEMO_MODE) {
+      setFlows(MOCK_FLOWS as NetworkFlow[]);
+      setTotal(2847);
+      setStats(MOCK_FLOW_STATS);
+      setTopTalkers(MOCK_TOP_TALKERS);
+      setProtocols(MOCK_PROTOCOLS);
+      setError(null);
+    } else {
+      setError(allFailed ? 'Failed to load flow data' : null);
+    }
     setLoading(false);
     initialLoadDone.current = true;
   }, [JSON.stringify(filters)]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -115,6 +128,15 @@ export function useFlows(filters: FlowFilters = {}): UseFlowsReturn {
   const searchFlows = useCallback(async (query: FlowFilters): Promise<NetworkFlow[]> => {
     const { data, error: err } = await flowService.search(query);
     if (err) {
+      // Demo mode: return mock flows filtered by query
+      if (DEMO_MODE) {
+        let results = [...MOCK_FLOWS] as NetworkFlow[];
+        if (query.src_ip) results = results.filter(f => f.src_ip.includes(query.src_ip!));
+        if (query.dst_ip) results = results.filter(f => f.dst_ip.includes(query.dst_ip!));
+        if (query.label) results = results.filter(f => f.label === query.label);
+        if (query.min_score) results = results.filter(f => (f.anomaly_score ?? 0) >= query.min_score!);
+        return results;
+      }
       console.error('[useFlows] Search error:', err);
       return [];
     }

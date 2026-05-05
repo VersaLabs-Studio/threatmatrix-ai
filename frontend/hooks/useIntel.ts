@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { DEMO_MODE } from '@/lib/constants';
+import { MOCK_IOCS } from '@/lib/mock-data';
 import type { IOCResponse } from '@/lib/types';
 
 export function useIntel(filters: { ioc_type?: string } = {}) {
@@ -15,8 +17,11 @@ export function useIntel(filters: { ioc_type?: string } = {}) {
     setError(null);
     const { data, error: err } = await api.get<{ items: IOCResponse[]; total: number }>('/api/v1/intel/iocs', filters);
     if (err) {
-      // Gracefully handle 404 (backend route not yet created)
-      if (err.includes('404') || err.includes('Not Found')) {
+      // Demo mode: use mock data on error
+      if (DEMO_MODE) {
+        setIocs(MOCK_IOCS);
+        setTotal(MOCK_IOCS.length);
+      } else if (err.includes('404') || err.includes('Not Found')) {
         setIocs([]);
         setTotal(0);
       } else {

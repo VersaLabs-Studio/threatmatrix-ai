@@ -6,7 +6,8 @@
 // ═══════════════════════════════════════════════════════
 
 import { useState, useCallback, useRef } from 'react';
-import { API_BASE_URL } from '@/lib/constants';
+import { API_BASE_URL, DEMO_MODE } from '@/lib/constants';
+import { getMockStreamResponse } from '@/lib/mock-llm';
 
 export interface ChatMessage {
   id: string;
@@ -79,6 +80,43 @@ export function useLLM(): UseLLMReturn {
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
     abortRef.current = new AbortController();
+
+    // Demo mode: simulate streaming response
+    if (DEMO_MODE) {
+      try {
+        const mockResponse = getMockStreamResponse(content);
+        let responseTokens = 0;
+
+        for (const token of mockResponse.tokens) {
+          if (abortRef.current.signal.aborted) break;
+          responseTokens++;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantMsg.id ? { ...m, content: m.content + token } : m,
+            ),
+          );
+          // Simulate typing delay (8-20ms per token)
+          await new Promise(r => setTimeout(r, 8 + Math.random() * 12));
+        }
+
+        setTokenUsage((prev) => ({
+          tokensIn: prev.tokensIn + mockResponse.usage.prompt_tokens,
+          tokensOut: prev.tokensOut + mockResponse.usage.completion_tokens,
+          totalTokens: prev.totalTokens + mockResponse.usage.prompt_tokens + mockResponse.usage.completion_tokens,
+          costUsd: prev.costUsd,
+          requests: prev.requests + 1,
+          model: mockResponse.model,
+        }));
+      } catch {
+        // Abort handling
+      } finally {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantMsg.id ? { ...m, isStreaming: false } : m)),
+        );
+        setIsStreaming(false);
+      }
+      return;
+    }
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/llm/chat`, {

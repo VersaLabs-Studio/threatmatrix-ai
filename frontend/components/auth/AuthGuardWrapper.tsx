@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { DEMO_MODE } from '@/lib/constants';
 
 /**
  * AuthGuardWrapper — Production-grade route protection.
  * Redirects to /login if no access token is found in localStorage.
+ * In demo mode, always authorized.
  */
 export function AuthGuardWrapper({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -13,6 +15,15 @@ export function AuthGuardWrapper({ children }: { children: React.ReactNode }) {
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
+    // Demo mode: set fake token and authorize immediately
+    if (DEMO_MODE) {
+      if (typeof window !== 'undefined' && !localStorage.getItem('tm_access_token')) {
+        localStorage.setItem('tm_access_token', 'demo_token');
+      }
+      setIsAuthorized(true);
+      return;
+    }
+
     // Check for token in localStorage
     const token = typeof window !== 'undefined' ? localStorage.getItem('tm_access_token') : null;
     

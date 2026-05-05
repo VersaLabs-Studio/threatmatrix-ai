@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { DEMO_MODE } from '@/lib/constants';
+import { MOCK_SYSTEM_HEALTH } from '@/lib/mock-data';
 import type { SystemHealth } from '@/lib/types';
 
 export function useSystemHealth() {
@@ -14,7 +16,13 @@ export function useSystemHealth() {
     setError(null);
     const { data, error: err } = await api.get<SystemHealth>('/api/v1/system/health');
     if (err) {
-      setError(err);
+      // Demo mode: use mock data on error
+      if (DEMO_MODE) {
+        setHealth(MOCK_SYSTEM_HEALTH);
+        setError(null);
+      } else {
+        setError(err);
+      }
     } else if (data) {
       setHealth(data);
     }
