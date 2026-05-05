@@ -9,7 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@about-experience": "workspace:*",
+    "@about-experience": "file:../packages/about-experience",
     "@deck.gl/aggregation-layers": "^9.2.11",
     "@deck.gl/layers": "^9.2.11",
     "@deck.gl/react": "^9.2.11",
