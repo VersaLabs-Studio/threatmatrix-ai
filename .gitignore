@@ -37,7 +37,6 @@ redis_data/
 
 # Node
 node_modules/
-pnpm-lock.yaml
 .next/
 
 # Large About Experience video assets (using frames instead)
