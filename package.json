@@ -1,0 +1,10 @@
+{
+  "name": "threatmatrix-ai",
+  "version": "0.6.4",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter frontend run dev",
+    "build": "pnpm --filter frontend run build",
+    "lint": "pnpm --filter frontend run lint"
+  }
+}
