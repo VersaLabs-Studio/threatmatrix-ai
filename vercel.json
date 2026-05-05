@@ -1,10 +1,4 @@
 {
-  "version": 2,
   "installCommand": "npm install -g pnpm && pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm run build",
-  "framework": null,
-  "outputDirectory": "frontend/.next",
-  "workspaces": [
-    "frontend"
-  ]
+  "buildCommand": "pnpm run build"
 }
