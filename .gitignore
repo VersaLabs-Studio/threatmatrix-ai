@@ -37,6 +37,7 @@ redis_data/
 
 # Node
 node_modules/
+package-lock.json
 .next/
 
 # Large About Experience video assets (using frames instead)
